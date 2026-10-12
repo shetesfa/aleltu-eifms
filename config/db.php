@@ -4,10 +4,20 @@
  * Edit these four values to match your XAMPP MySQL setup.
  * Default XAMPP MySQL: host=127.0.0.1, user=root, password=(empty).
  */
-define('DB_HOST', '127.0.0.1');
-define('DB_NAME', 'aleltu_eifms');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+$isLocal = in_array($_SERVER['SERVER_NAME'] ?? '', ['localhost', '127.0.0.1', '::1']);
+
+if ($isLocal) {
+    define('DB_HOST', '127.0.0.1');
+    define('DB_NAME', 'aleltu_eifms');
+    define('DB_USER', 'root');
+    define('DB_PASS', '');
+} else {
+    // InfinityFree MySQL Details (Get these from InfinityFree vPanel -> MySQL Databases)
+    define('DB_HOST', 'sqlxxx.infinityfree.com'); // e.g., sql102.infinityfree.com
+    define('DB_NAME', 'if0_xxxxxxx_aleltu_eifms'); // Full DB name with prefix
+    define('DB_USER', 'if0_xxxxxxx');             // Your vPanel username
+    define('DB_PASS', 'YOUR_ACCOUNT_PASSWORD');    // Your vPanel password
+}
 
 // SAD section 16.4 — outbound-only integration point with the external
 // Aleltu POS System. Leave blank until Aleltu's POS team confirms an
