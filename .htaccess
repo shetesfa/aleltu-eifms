@@ -1,0 +1,21 @@
+RewriteEngine On
+
+# Remove .php extension (pretty URLs)
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+)$ $1.php [L]
+
+# API routing: /api/v1/MODULE/ACTION → api/v1/MODULE/ACTION.php
+RewriteRule ^api/v1/([a-z_]+)/([a-z_]+)/?$ api/v1/$1/$2.php [L,QSA]
+RewriteRule ^api/v1/([a-z_]+)/?$ api/v1/$1/index.php [L,QSA]
+
+# Security headers
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options SAMEORIGIN
+Header always set X-XSS-Protection "1; mode=block"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+# Block direct access to sensitive dirs
+RewriteRule ^includes/ - [F,L]
+RewriteRule ^config/ - [F,L]
+RewriteRule ^sql/ - [F,L]

@@ -1,0 +1,19 @@
+# Environment & local configs
+.env
+.env.local
+
+# Scratch & temporary development files
+scratch/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# IDE and Editor files
+.vscode/
+.idea/
+.gemini/
+
+# Uploads cache (optional, keep directory structure)
+# uploads/*
+# !uploads/.gitkeep
