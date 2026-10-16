@@ -726,7 +726,7 @@ function employee_performance(int $employeeId, string $start, string $end): arra
 
 /* ===================== FINANCE (SAD section 5.7) ===================== */
 
-const FINANCE_UNIT_TAGS = ['dairy', 'poultry', 'fish', 'feed_production', 'warehouse', 'distribution', 'general_overhead'];
+const FINANCE_UNIT_TAGS = ['dairy', 'poultry', 'fish', 'feed_production', 'warehouse', 'distribution', 'general_overhead', 'veterinary'];
 
 // FR-FN01: every transaction carries a unit tag (BR-FN01).
 function finance_record_transaction(string $direction, float $amount, string $unitTag, string $category, string $date, string $description, ?string $sourceTable = null, ?int $sourceId = null, ?int $bankAccountId = null, string $paymentMethod = 'bank'): int

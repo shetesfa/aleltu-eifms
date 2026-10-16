@@ -6,6 +6,8 @@
 scratch/
 *.log
 *.tmp
+*.bak
+backup_*.sql
 .DS_Store
 Thumbs.db
 
