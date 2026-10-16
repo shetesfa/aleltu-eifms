@@ -1796,7 +1796,7 @@ function vehicle_register(string $plate, ?string $type, ?float $capacityKg, ?str
  * Creates a vehicle dispatch for selling/delivering farm products.
  * Deducts stock from warehouse 1 and calculates total sales value.
  */
-function dispatch_create(int $vehicleId, ?string $driverName, string $destination, int $warehouseId, int $stockItemId, float $quantity, float $unitPrice = 0.00): int
+function dispatch_create(int $vehicleId, ?string $driverName, string $destination, int $warehouseId, int $stockItemId, float $quantity, float $unitPrice = 0.00, ?string $saleChannel = null): int
 {
     if ($quantity <= 0) {
         throw new InvalidArgumentException('Dispatch quantity must be greater than zero.');
@@ -1829,6 +1829,13 @@ function dispatch_create(int $vehicleId, ?string $driverName, string $destinatio
         );
         $stmt->execute([$vehicleId, $driverName ?: null, $destination, $warehouseId, $stockItemId, $quantity, $unitPrice, $totalPrice, $userId]);
         $id = (int) db()->lastInsertId();
+        // Analytics (migration 011): remember if this was a shop transfer / direct sale / internal use.
+        // Silently skipped if the column does not exist yet, so the form never breaks before the migration is run.
+        if (in_array($saleChannel, ['direct_sale', 'shop_transfer', 'internal_use'], true)) {
+            try {
+                db()->prepare("UPDATE dist_dispatches SET sale_channel = ? WHERE id = ?")->execute([$saleChannel, $id]);
+            } catch (Throwable) { /* column not created yet */ }
+        }
 
         db()->prepare("UPDATE dist_vehicles SET status = 'in_use' WHERE id = ?")->execute([$vehicleId]);
 
@@ -2386,8 +2393,10 @@ function seed_demo_data(): array
 // Auto-generated Employee Number (TG001, TG002, ...)
 function employee_generate_number(): string
 {
-    $maxNum = db()->query("SELECT MAX(CAST(SUBSTRING(employee_number, 3) AS UNSIGNED)) FROM employees WHERE employee_number LIKE 'TG%'")->fetchColumn();
-    $next = ($maxNum ? (int)$maxNum : 0) + 1;
+    // Check both old (EMP-) and new (TG) patterns
+    $maxTG = db()->query("SELECT MAX(CAST(SUBSTRING(employee_number, 3) AS UNSIGNED)) FROM employees WHERE employee_number LIKE 'TG%'")->fetchColumn();
+    $maxEMP = db()->query("SELECT MAX(CAST(REPLACE(SUBSTRING(employee_number, 5), '-', '') AS UNSIGNED)) FROM employees WHERE employee_number LIKE 'EMP-%'")->fetchColumn();
+    $next = max(($maxTG ?: 0), ($maxEMP ?: 0)) + 1;
     return sprintf("TG%03d", $next);
 }
 

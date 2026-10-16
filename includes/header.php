@@ -40,7 +40,7 @@ $flashes = get_flashes();
         </a>
         <form method="post" action="/aleltu-eifms/modules/profile/set_locale.php" style="display:inline">
             <?= csrf_field() ?>
-            <select name="locale" onchange="this.form.submit()" style="padding:4px 6px;border-radius:4px;border:1px solid #4a7c53;background:#fff;color:#24291f">
+            <select name="locale" onchange="this.form.submit()" style="padding:4px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--text)">
                 <?php foreach (SUPPORTED_LOCALES as $code => $label): ?>
                     <option value="<?= h($code) ?>" <?= current_locale() === $code ? 'selected' : '' ?>><?= h($label) ?></option>
                 <?php endforeach; ?>
@@ -64,6 +64,7 @@ $sidebarMenu = [
             ['url' => '/aleltu-eifms/modules/dairy/cows.php',             'label' => '🐄 ' . t('nav.cows', 'Cows'),                             'roles' => ['general_manager', 'dairy_manager', 'super_admin']],
             ['url' => '/aleltu-eifms/modules/dairy/milking.php',          'label' => '🥛 ' . t('nav.milking', 'Milking Entry'),                  'roles' => ['general_manager', 'dairy_manager', 'field_worker', 'super_admin']],
             ['url' => '/aleltu-eifms/modules/dairy/cow_history.php',      'label' => '📋 ' . t('nav.cow_history', 'Cow Full History'),           'roles' => ['general_manager', 'dairy_manager', 'super_admin']],
+            ['url' => '/aleltu-eifms/modules/dairy/cow_exit_history.php', 'label' => '📋 ' . (current_locale()==='am'?'የሽያጭና ሞት ታሪክ':'Sale & Death History'), 'roles' => ['general_manager', 'dairy_manager', 'super_admin']],
             ['url' => '/aleltu-eifms/modules/dairy/material_request.php', 'label' => '📦 ' . t('reqs.title_dairy', 'Feed & Supplies Request'),   'roles' => ['dairy_manager', 'general_manager', 'super_admin']],
         ]
     ],
@@ -81,6 +82,7 @@ $sidebarMenu = [
         'items' => [
             ['url' => '/aleltu-eifms/modules/fish/dashboard.php',        'label' => '📊 ' . t('nav.fish_dashboard', 'Fish Dashboard'),         'roles' => ['general_manager', 'fish_manager', 'super_admin']],
             ['url' => '/aleltu-eifms/modules/fish/ponds.php',            'label' => '🐟 ' . t('nav.ponds', 'Fish Ponds'),                      'roles' => ['general_manager', 'fish_manager', 'super_admin']],
+            ['url' => '/aleltu-eifms/modules/fish/feeding.php',           'label' => '🍽️ ' . (current_locale()==='am'?'ዕለታዊ መመገቢያ':'Daily Feeding'), 'roles' => ['general_manager', 'fish_manager', 'super_admin']],
             ['url' => '/aleltu-eifms/modules/fish/material_request.php', 'label' => '📦 ' . t('reqs.title_fish', 'Feed & Supplies Request'),   'roles' => ['fish_manager', 'general_manager', 'super_admin']],
         ]
     ],
@@ -144,6 +146,7 @@ $sidebarMenu = [
         'title' => t('section.system', 'System & Admin'),
         'items' => [
             ['url' => '/aleltu-eifms/modules/admin/dashboard.php',        'label' => '🛡️ ' . t('nav.super_admin', 'Super Admin Control'),  'roles' => ['super_admin']],
+            ['url' => '/aleltu-eifms/modules/admin/analytics.php',        'label' => '📈 ' . (current_locale() === 'am' ? 'የእርሻ አፈጻጸም ትንተና' : 'Farm Performance Analytics'), 'roles' => ['super_admin']],
             ['url' => '/aleltu-eifms/modules/admin/gm_dashboard.php',     'label' => '🏢 ' . t('nav.gm_overview', 'GM Overview'),           'roles' => ['general_manager', 'super_admin']],
             ['url' => '/aleltu-eifms/modules/admin/users.php',            'label' => '👤 ' . t('nav.user_mgmt', 'User Management'),         'roles' => ['super_admin']],
             ['url' => '/aleltu-eifms/modules/admin/settings.php',         'label' => '⚙️ ' . t('nav.settings', 'System Settings'),         'roles' => ['super_admin']],
