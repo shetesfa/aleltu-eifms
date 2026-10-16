@@ -1796,7 +1796,7 @@ function vehicle_register(string $plate, ?string $type, ?float $capacityKg, ?str
  * Creates a vehicle dispatch for selling/delivering farm products.
  * Deducts stock from warehouse 1 and calculates total sales value.
  */
-function dispatch_create(int $vehicleId, ?string $driverName, string $destination, int $warehouseId, int $stockItemId, float $quantity, float $unitPrice = 0.00): int
+function dispatch_create(int $vehicleId, ?string $driverName, string $destination, int $warehouseId, int $stockItemId, float $quantity, float $unitPrice = 0.00, ?string $saleChannel = null): int
 {
     if ($quantity <= 0) {
         throw new InvalidArgumentException('Dispatch quantity must be greater than zero.');
@@ -1829,6 +1829,13 @@ function dispatch_create(int $vehicleId, ?string $driverName, string $destinatio
         );
         $stmt->execute([$vehicleId, $driverName ?: null, $destination, $warehouseId, $stockItemId, $quantity, $unitPrice, $totalPrice, $userId]);
         $id = (int) db()->lastInsertId();
+        // Analytics (migration 011): remember if this was a shop transfer / direct sale / internal use.
+        // Silently skipped if the column does not exist yet, so the form never breaks before the migration is run.
+        if (in_array($saleChannel, ['direct_sale', 'shop_transfer', 'internal_use'], true)) {
+            try {
+                db()->prepare("UPDATE dist_dispatches SET sale_channel = ? WHERE id = ?")->execute([$saleChannel, $id]);
+            } catch (Throwable) { /* column not created yet */ }
+        }
 
         db()->prepare("UPDATE dist_vehicles SET status = 'in_use' WHERE id = ?")->execute([$vehicleId]);
 

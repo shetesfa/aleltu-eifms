@@ -58,7 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException("ያለዎት ክምችት {$avail} ብቻ ስለሆነ {$quantity} መላክ አይቻልም (Insufficient stock in warehouse).");
             }
 
-            dispatch_create($vehicleId, $driverName, $destination, $warehouseId, $stockItemId, $quantity, $unitPrice);
+            dispatch_create($vehicleId, $driverName, $destination, $warehouseId, $stockItemId, $quantity, $unitPrice,
+                $deliveryType === 'gift_protocol' ? 'internal_use' : ($deliveryType === 'shop' ? 'shop_transfer' : 'direct_sale'));
             flash('✓ የምርት ስርጭቱና የሽያጭ ትዕዛዙ ተመዝግቧል (Dispatch and sales order created).');
         } elseif (isset($_POST['record_payment'])) {
             $dispatchId = (int) $_POST['dispatch_id'];

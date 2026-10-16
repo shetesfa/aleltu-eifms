@@ -146,6 +146,7 @@ $sidebarMenu = [
         'title' => t('section.system', 'System & Admin'),
         'items' => [
             ['url' => '/aleltu-eifms/modules/admin/dashboard.php',        'label' => '🛡️ ' . t('nav.super_admin', 'Super Admin Control'),  'roles' => ['super_admin']],
+            ['url' => '/aleltu-eifms/modules/admin/analytics.php',        'label' => '📈 ' . (current_locale() === 'am' ? 'የእርሻ አፈጻጸም ትንተና' : 'Farm Performance Analytics'), 'roles' => ['super_admin']],
             ['url' => '/aleltu-eifms/modules/admin/gm_dashboard.php',     'label' => '🏢 ' . t('nav.gm_overview', 'GM Overview'),           'roles' => ['general_manager', 'super_admin']],
             ['url' => '/aleltu-eifms/modules/admin/users.php',            'label' => '👤 ' . t('nav.user_mgmt', 'User Management'),         'roles' => ['super_admin']],
             ['url' => '/aleltu-eifms/modules/admin/settings.php',         'label' => '⚙️ ' . t('nav.settings', 'System Settings'),         'roles' => ['super_admin']],
