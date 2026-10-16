@@ -32,7 +32,7 @@
     --primary-subtle: #1b2e1f;
     --accent: #81c784;
     --bg: #111512;
-    --card: #181f19;
+    --card: #1e1e1e;
     --text: #e6ebe6;
     --muted: #8e9e90;
     --border: #2a352c;
@@ -45,6 +45,18 @@
     --shadow-sm: 0 2px 4px rgba(0,0,0,0.2);
     --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
     --shadow-lg: 0 10px 25px rgba(0,0,0,0.4);
+}
+
+[data-theme="dark"] .att-blank {
+    background: var(--card) !important;
+}
+
+[data-theme="dark"] select,
+[data-theme="dark"] input,
+[data-theme="dark"] textarea {
+    background: var(--card) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
 }
 
 * { box-sizing: border-box; }
@@ -588,7 +600,7 @@ tr:hover {
 .att-a    { background: rgba(179,38,30,0.16);  color: #b3261e; }
 .att-h    { background: rgba(230,81,0,0.16);   color: #e65100; }
 .att-l    { background: rgba(21,101,192,0.16); color: #1565c0; }
-.att-blank{ background: #fff; color: var(--text-muted, #999); font-weight: 400; }
+.att-blank{ background: var(--bg); color: var(--text-muted, #999); font-weight: 400; }
 
 .att-legend {
     padding: 2px 8px;
@@ -631,6 +643,73 @@ tr:hover {
 .icon-only { display: none; }
 
 /* ================= RESPONSIVE DESIGN ================= */
+/* Mobile-first responsive fixes for small screens */
+@media (max-width: 768px) {
+    /* All tables scroll horizontally on small screens */
+    table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        font-size: 13px;
+    }
+
+    /* Grid layouts → stack vertically */
+    div[style*="grid-template-columns"] {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    /* Cards full width */
+    .card {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    /* KPI row wrap */
+    .kpi-row {
+        flex-wrap: wrap !important;
+    }
+    .kpi-row .kpi {
+        min-width: 120px !important;
+        flex: 1 1 45% !important;
+    }
+
+    /* Buttons touch-friendly */
+    .btn, button, select, input {
+        min-height: 44px !important;
+        font-size: 14px !important;
+    }
+
+    /* Content area — remove margin for sidebar */
+    .content {
+        margin-left: 0 !important;
+        padding: 12px !important;
+    }
+
+    /* Form rows stack */
+    .form-row {
+        flex-direction: column !important;
+    }
+    .form-row .form-group {
+        width: 100% !important;
+    }
+
+    /* Modals full-width on mobile */
+    div[style*="width:480px"], div[style*="width:550px"], div[style*="width:620px"] {
+        width: 95vw !important;
+        max-width: 95vw !important;
+    }
+
+    /* Topbar actions compact */
+    .topbar-actions .label-text {
+        display: none !important;
+    }
+
+    /* H2 smaller on mobile */
+    h2 { font-size: 18px !important; }
+    h3 { font-size: 15px !important; }
+}
+
 @media (max-width: 900px) {
     .nav-toggle {
         display: inline-flex;
@@ -724,6 +803,13 @@ tr:hover {
     }
     input, select, textarea, button {
         font-size: 16px !important; /* prevents iOS auto-zoom on focus */
+    }
+}
+
+/* Tablet improvements */
+@media (max-width: 1024px) {
+    .content {
+        padding: 16px !important;
     }
 }
 

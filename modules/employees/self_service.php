@@ -109,7 +109,7 @@ $absentDays  = $attByStatus['absent'] ?? 0;
 
 $todayCheckinRow = db()->query("SELECT check_in_at FROM attendance WHERE employee_id = {$empId} AND attendance_date = CURDATE()")->fetch();
 $todayCheckedIn = (bool) $todayCheckinRow;
-$checkinTime = $todayCheckedIn && !empty($todayCheckinRow['check_in_at']) ? date('h:i A', strtotime($todayCheckinRow['check_in_at'])) : null;
+$checkinTime = $todayCheckedIn && !empty($todayCheckinRow['check_in_at']) ? eth_time($todayCheckinRow['check_in_at']) : null;
 
 $recentAtt = db()->prepare(
     "SELECT attendance_date, status, check_in_at FROM attendance
@@ -160,7 +160,7 @@ $greeting = $hour < 12
                         <?= strtoupper(substr($emp['full_name'], 0, 1)) ?>
                     </div>
                 <?php endif; ?>
-                <a href="/aleltu-eifms/modules/employees/photo_upload.php?id=<?= (int)$emp['id'] ?>" title="Change Photo" style="position:absolute;bottom:-2px;right:-2px;background:#2e7d32;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--card);text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,0.2)">📷</a>
+                <a href="/aleltu-eifms/modules/employees/photo_upload.php?id=<?= (int)$emp['id'] ?>" title="Change Photo" style="position:absolute;bottom:-2px;right:-2px;background:var(--primary);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--card);text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,0.2)">📷</a>
             </div>
             <div>
                 <div style="display:flex;align-items:center;gap:8px;">
@@ -190,12 +190,12 @@ $greeting = $hour < 12
                 <form method="post" style="margin:0;">
                     <?= csrf_field() ?>
                     <input type="hidden" name="quick_checkin" value="1">
-                    <button class="btn" type="submit" style="padding:11px 22px;font-size:14px;font-weight:bold;background:#2e7d32;border-color:#2e7d32;border-radius:10px;box-shadow:0 4px 14px rgba(46,125,50,0.3);cursor:pointer;color:#fff">
+                    <button class="btn" type="submit" style="padding:11px 22px;font-size:14px;font-weight:bold;background:var(--primary);border-color:var(--primary);border-radius:10px;box-shadow:0 4px 14px rgba(46,125,50,0.3);cursor:pointer;color:#fff">
                         🕒 <?= current_locale() === 'am' ? 'የዛሬ መገኘት መዝግብ (Check-in)' : "Record Today's Check-in" ?>
                     </button>
                 </form>
             <?php else: ?>
-                <div style="background:rgba(46,125,50,0.15);border:1px solid rgba(46,125,50,0.4);color:#2e7d32;padding:10px 18px;border-radius:10px;font-weight:bold;font-size:14px;display:flex;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(46,125,50,0.1);">
+                <div style="background:var(--success-bg, rgba(46,125,50,0.15));border:1px solid var(--success, #2e7d32);color:var(--success, #2e7d32);padding:10px 18px;border-radius:10px;font-weight:bold;font-size:14px;display:flex;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(46,125,50,0.1);">
                     <span style="font-size:16px;">✓</span>
                     <span><?= current_locale() === 'am' ? "ዛሬ ተገኝተዋል" : "Checked-in for Today" ?> <?= $checkinTime ? "({$checkinTime})" : "" ?></span>
                 </div>
@@ -213,11 +213,11 @@ $greeting = $hour < 12
 <div class="kpi-row" style="margin-bottom:24px;display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;">
     
     <!-- 1. Present Days -->
-    <div class="kpi" style="border-radius:12px;padding:18px 20px;border-left:5px solid #2e7d32;background:var(--card);color:var(--text);box-shadow:0 4px 15px rgba(0,0,0,0.03);">
+    <div class="kpi" style="border-radius:12px;padding:18px 20px;border-left:5px solid var(--success, #2e7d32);background:var(--card);color:var(--text);box-shadow:0 4px 15px rgba(0,0,0,0.03);">
         <div class="label" style="font-size:13px;color:var(--text-muted);font-weight:600;">
             📅 <?= current_locale() === 'am' ? 'የተገኘሁባቸው ቀናት (30 ቀናት)' : 'Present Days (30 Days)' ?>
         </div>
-        <div class="value" style="color:#2e7d32;font-size:26px;font-weight:bold;margin-top:6px;">
+        <div class="value" style="color:var(--success, #2e7d32);font-size:26px;font-weight:bold;margin-top:6px;">
             <?= $presentDays ?> <span style="font-size:13px;color:var(--text-muted);font-weight:normal;">/ 30</span>
         </div>
     </div>
@@ -378,11 +378,18 @@ $greeting = $hour < 12
                     <?php foreach ($myPayslips as $p): ?>
                     <tr style="border-bottom:1px solid var(--border);">
                         <td style="padding:10px;font-size:12px;"><?= h(eth_date($p['period_start'])) ?> → <?= h(eth_date($p['period_end'])) ?></td>
-                        <td style="padding:10px;"><strong style="color:#2e7d32;"><?= number_format((float)($p['net_pay'] ?? $p['base_salary']), 2) ?> ETB</strong></td>
+                        <td style="padding:10px;"><strong style="color:var(--success, #2e7d32);"><?= number_format((float)($p['net_pay'] ?? $p['base_salary']), 2) ?> ETB</strong></td>
                         <td style="padding:10px;">
-                            <span class="badge <?= $p['run_status'] === 'paid' ? 'milking' : 'dry' ?>">
-                                <?= $p['run_status'] === 'paid' ? (current_locale() === 'am' ? 'ተከፍሏል' : 'Paid') : (current_locale() === 'am' ? 'በሂደት ላይ' : 'Pending') ?>
-                            </span>
+                            <?php
+                            $netPay = (float)($p['net_pay'] ?? $p['base_salary']);
+                            $totalPaid = (float)($p['total_paid'] ?? 0);
+                            if ($totalPaid >= $netPay && $netPay > 0): ?>
+                                <span class="badge milking">✓ <?= current_locale() === 'am' ? '100% ተከፍሏል' : 'Paid' ?></span>
+                            <?php elseif ($totalPaid > 0): ?>
+                                <span class="badge pregnant">⏳ <?= current_locale() === 'am' ? 'በከፊል ተከፍሏል' : 'Partially Paid' ?> (<?= number_format($totalPaid, 2) ?>)</span>
+                            <?php else: ?>
+                                <span class="badge dry"><?= current_locale() === 'am' ? 'ገና ያልተከፈለ' : 'Unpaid' ?></span>
+                            <?php endif; ?>
                         </td>
                         <td style="padding:10px;text-align:right;">
                             <a href="/aleltu-eifms/modules/finance/payslip_print.php?id=<?= (int)$p['id'] ?>" class="btn secondary" style="padding:4px 10px;font-size:12px;border-radius:6px;text-decoration:none;" target="_blank">
@@ -428,7 +435,7 @@ $greeting = $hour < 12
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="complete_task" value="1">
                                 <input type="hidden" name="task_id" value="<?= (int) $t['id'] ?>">
-                                <button class="btn" type="submit" style="padding:5px 12px;font-size:12px;background:#2e7d32;border-color:#2e7d32;border-radius:6px;cursor:pointer;">
+                                <button class="btn" type="submit" style="padding:5px 12px;font-size:12px;background:var(--primary);border-color:var(--primary);border-radius:6px;cursor:pointer;">
                                     ✓ <?= current_locale() === 'am' ? 'አጠናቀቅኩ' : 'Mark Done' ?>
                                 </button>
                             </form>

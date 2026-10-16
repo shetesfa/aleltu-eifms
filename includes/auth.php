@@ -85,10 +85,10 @@ function attempt_login(string $username, string $password): string
     $stmt = db()->prepare(
         "SELECT u.id, u.name, u.email, u.password, u.role_id, u.is_active, u.locale, u.theme, u.two_factor_enabled, u.two_factor_secret, r.name AS role
          FROM users u JOIN roles r ON r.id = u.role_id
-         WHERE u.name = ?
+         WHERE u.name = ? OR u.email = ?
          LIMIT 1"
     );
-    $stmt->execute([$username]);
+    $stmt->execute([$username, $username]);
     $row = $stmt->fetch();
 
     if (!$row || !password_verify($password, $row['password'])) {

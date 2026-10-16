@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/auth.php';
-require_role(['super_admin', 'general_manager', 'feed_production_manager', 'field_worker']);
+require_role(['super_admin', 'general_manager', 'feed_production_manager', 'field_worker', 'dairy_manager', 'poultry_manager']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();

@@ -35,35 +35,44 @@ if (!$cow) {
     exit;
 }
 
-// Export CSV support
-if (($_GET['export'] ?? '') === 'csv') {
-    require_once __DIR__ . '/../../includes/export.php';
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="cow_' . $cowId . '_' . $tab . '_history.csv"');
-    $out = fopen('php://output', 'w');
+// Export Excel support
+if (isset($_GET['export']) && in_array($_GET['export'], ['excel', 'csv', 'xls'])) {
+    $filename = "cow_{$cowId}_{$tab}_history_" . date('Ymd') . ".xls";
+    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+    header("Content-Disposition: attachment; filename=\"{$filename}\"");
+    echo "\xEF\xBB\xBF"; // UTF-8 BOM
+    echo "<table border='1'>";
     switch ($tab) {
         case 'breeding':
-            fputcsv($out, ['Breeding Date', 'Method', 'Sire Reference', 'Expected Calving', 'Outcome', 'Recorded By']);
+            echo "<tr><th>Breeding Date (ኢ.ቀ)</th><th>Method</th><th>Sire Reference</th><th>Expected Calving (ኢ.ቀ)</th><th>Outcome</th><th>Recorded By</th></tr>";
             $rows = db()->query("SELECT b.*, u.name AS worker_name FROM dairy_breeding_records b JOIN users u ON u.id = b.recorded_by WHERE b.cow_id = {$cowId} ORDER BY b.breeding_date DESC")->fetchAll();
-            foreach ($rows as $r) fputcsv($out, [$r['breeding_date'], $r['method'], $r['sire_reference'], $r['expected_calving_date'], $r['outcome'] ?? '—', $r['worker_name']]);
+            foreach ($rows as $r) {
+                echo "<tr><td>" . h(eth_date($r['breeding_date'])) . "</td><td>" . h($r['method']) . "</td><td>" . h($r['sire_reference']) . "</td><td>" . h($r['expected_calving_date'] ? eth_date($r['expected_calving_date']) : '—') . "</td><td>" . h($r['outcome'] ?? '—') . "</td><td>" . h($r['worker_name']) . "</td></tr>";
+            }
             break;
         case 'calving':
-            fputcsv($out, ['Calving Date', 'Outcome', 'Calf Tag', 'Notes']);
+            echo "<tr><th>Calving Date (ኢ.ቀ)</th><th>Outcome</th><th>Calf Tag</th><th>Notes</th></tr>";
             $rows = db()->query("SELECT c.*, calf.tag_number AS calf_tag FROM dairy_calving_records c LEFT JOIN dairy_cows calf ON calf.id = c.calf_id WHERE c.dam_id = {$cowId} ORDER BY c.calving_date DESC")->fetchAll();
-            foreach ($rows as $r) fputcsv($out, [$r['calving_date'], $r['outcome'], $r['calf_tag'] ?? '—', $r['notes']]);
+            foreach ($rows as $r) {
+                echo "<tr><td>" . h(eth_date($r['calving_date'])) . "</td><td>" . h($r['outcome']) . "</td><td>" . h($r['calf_tag'] ?? '—') . "</td><td>" . h($r['notes']) . "</td></tr>";
+            }
             break;
         case 'health':
-            fputcsv($out, ['Record Date', 'Veterinarian', 'Condition', 'Treatment']);
+            echo "<tr><th>Record Date (ኢ.ቀ)</th><th>Veterinarian</th><th>Condition</th><th>Treatment</th></tr>";
             $rows = db()->query("SELECT h.*, u.name AS vet_name FROM vet_health_records h JOIN users u ON u.id = h.vet_id WHERE h.subject_type = 'dairy_cow' AND h.subject_id = {$cowId} ORDER BY h.record_date DESC")->fetchAll();
-            foreach ($rows as $r) fputcsv($out, [$r['record_date'], $r['vet_name'], $r['condition_name'], $r['treatment']]);
+            foreach ($rows as $r) {
+                echo "<tr><td>" . h(eth_date($r['record_date'])) . "</td><td>" . h($r['vet_name']) . "</td><td>" . h($r['condition_name']) . "</td><td>" . h($r['treatment']) . "</td></tr>";
+            }
             break;
         case 'vaccination':
-            fputcsv($out, ['Vaccine', 'Scheduled Date', 'Administered Date', 'Veterinarian', 'Status']);
+            echo "<tr><th>Vaccine</th><th>Scheduled Date (ኢ.ቀ)</th><th>Administered Date</th><th>Veterinarian</th><th>Status</th></tr>";
             $rows = db()->query("SELECT v.*, u.name AS vet_name FROM vet_vaccination_records v LEFT JOIN users u ON u.id = v.vet_id WHERE v.subject_type = 'dairy_cow' AND v.subject_id = {$cowId} ORDER BY v.scheduled_date DESC")->fetchAll();
-            foreach ($rows as $r) fputcsv($out, [$r['vaccine_name'], $r['scheduled_date'], $r['administered_date'] ?? '—', $r['vet_name'] ?? '—', $r['status']]);
+            foreach ($rows as $r) {
+                echo "<tr><td>" . h($r['vaccine_name']) . "</td><td>" . h(eth_date($r['scheduled_date'])) . "</td><td>" . h($r['administered_date'] ? eth_date($r['administered_date']) : '—') . "</td><td>" . h($r['vet_name'] ?? '—') . "</td><td>" . h($r['status']) . "</td></tr>";
+            }
             break;
     }
-    fclose($out);
+    echo "</table>";
     exit;
 }
 
@@ -149,7 +158,7 @@ $tabs = [
                 <?php endforeach; ?>
             </select>
         </form>
-        <a href="?id=<?= $cowId ?>&tab=<?= h($tab) ?>&export=csv" class="btn secondary" style="padding:5px 12px">⬇ <?= current_locale() === 'am' ? 'ወደ CSV አውርድ' : 'Export CSV' ?></a>
+        <a href="?id=<?= $cowId ?>&tab=<?= h($tab) ?>&export=excel" class="btn secondary" style="padding:5px 12px">📊 <?= current_locale() === 'am' ? 'በዘመናዊ ኤክሴል አውርድ' : 'Export Excel' ?></a>
         <a href="/aleltu-eifms/modules/dairy/cow_view.php?id=<?= $cowId ?>" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'የላሟ ሙሉ ገጽ' : 'Cow Profile' ?></a>
     </div>
 </div>
@@ -189,10 +198,10 @@ $tabs = [
         <tbody>
         <?php foreach ($rows as $r): ?>
             <tr>
-                <td><?= h($r['breeding_date']) ?></td>
+                <td><?= eth_date($r['breeding_date']) ?></td>
                 <td><span class="badge"><?= h(str_replace('_', ' ', $r['method'])) ?></span></td>
                 <td><?= h($r['sire_reference'] ?: '—') ?></td>
-                <td><?= h($r['expected_calving_date'] ?: '—') ?></td>
+                <td><?= $r['expected_calving_date'] ? eth_date($r['expected_calving_date']) : '—' ?></td>
                 <td><?= h($r['worker_name'] ?? '—') ?></td>
             </tr>
         <?php endforeach; ?>
@@ -206,7 +215,7 @@ $tabs = [
         <tbody>
         <?php foreach ($rows as $r): ?>
             <tr>
-                <td><?= h($r['calving_date']) ?></td>
+                <td><?= eth_date($r['calving_date']) ?></td>
                 <td><span class="badge <?= in_array($r['outcome'], ['single_live','twins_live','live_birth']) ? 'milking' : 'sold' ?>"><?= h(str_replace('_', ' ', $r['outcome'])) ?></span></td>
                 <td><?php if ($r['calf_id'] && !empty($r['calf_tag'])): ?>
                     <a href="/aleltu-eifms/modules/dairy/cow_view.php?id=<?= $r['calf_id'] ?>"><strong><?= h($r['calf_tag']) ?></strong></a>
@@ -224,7 +233,7 @@ $tabs = [
         <tbody>
         <?php foreach ($rows as $r): ?>
             <tr>
-                <td><?= h($r['record_date']) ?></td>
+                <td><?= eth_date($r['record_date']) ?></td>
                 <td><?= h($r['vet_name']) ?></td>
                 <td><strong><?= h($r['condition_name'] ?: '—') ?></strong></td>
                 <td class="text-muted" style="font-size:12px"><?= h($r['treatment'] ?: '—') ?></td>
@@ -249,8 +258,8 @@ $tabs = [
             ?>
             <tr>
                 <td><strong><?= h($r['vaccine_name']) ?></strong></td>
-                <td><?= h($r['scheduled_date']) ?></td>
-                <td><?= h($r['administered_date'] ?: '—') ?></td>
+                <td><?= eth_date($r['scheduled_date']) ?></td>
+                <td><?= $r['administered_date'] ? eth_date($r['administered_date']) : '—' ?></td>
                 <td><?= h($r['vet_name'] ?? '—') ?></td>
                 <td><span class="badge <?= $badgeClass ?>"><?= $overdue ? (current_locale() === 'am' ? 'ያለፈበት' : 'OVERDUE') : h($r['status']) ?></span></td>
             </tr>

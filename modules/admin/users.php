@@ -154,7 +154,7 @@ $departments = db()->query("SELECT id, name FROM departments ORDER BY name")->fe
                 </td>
                 <td>
                     <?php if ($u['two_factor_enabled']): ?>
-                        <span class="badge" style="background:#e8f5e9;color:#2e7d32;font-size:11px;">🔐 <?= current_locale() === 'am' ? 'በርቷል' : 'Enabled' ?></span>
+                        <span class="badge milking" style="font-size:11px;">🔐 <?= current_locale() === 'am' ? 'በርቷል' : 'Enabled' ?></span>
                     <?php else: ?>
                         <span class="text-muted" style="font-size:12px;"><?= current_locale() === 'am' ? 'አልበራም' : 'Off' ?></span>
                     <?php endif; ?>

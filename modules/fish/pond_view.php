@@ -52,7 +52,8 @@ $activeStocks->execute([$pondId]);
 $activeStocks = $activeStocks->fetchAll();
 
 // Only fresh fish items — sends directly into the warehouse inventory as Fresh Fish
-$items = db()->query("SELECT id, name, sku FROM wh_stock_items WHERE sku = 'FISH-FRESH-01' OR name LIKE '%ዓሳ%' OR name LIKE '%Fish%' ORDER BY id ASC")->fetchAll();
+// Exclude feed items (አልፋልፋ, ድርቆሽ, መኖ)
+$items = db()->query("SELECT id, name, sku FROM wh_stock_items WHERE (sku LIKE 'FISH%' OR name LIKE '%ዓሳ%' OR name LIKE '%Fish%') AND name NOT LIKE '%አልፋልፋ%' AND name NOT LIKE '%ድርቆሽ%' AND name NOT LIKE '%መኖ%' ORDER BY id ASC")->fetchAll();
 if (empty($items)) {
     $items = db()->query("SELECT id, name, sku FROM wh_stock_items LIMIT 5")->fetchAll();
 }

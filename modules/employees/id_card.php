@@ -168,6 +168,8 @@ $emergencyContact = !empty($emp['emergency_contact']) ? $emp['emergency_contact'
         height: auto !important;
     }
 }
+
+.fayda-card {
     overflow: hidden;
     position: relative;
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/ethiopian_calendar.php';
 // Public page — reached by scanning the QR code on a printed ID card.
 // Deliberately does not require login, but only exposes non-sensitive
 // identity info (name, photo, department, phone) — never salary, address, etc.
@@ -220,7 +221,7 @@ if ($code !== '') {
                 <?php if (!empty($emp['hire_date'])): ?>
                 <div class="info-row">
                     <span class="info-lbl">የቅጥር ቀን (Hire Date):</span>
-                    <span class="info-val"><?= h($emp['hire_date']) ?></span>
+                    <span class="info-val"><?= eth_date($emp['hire_date']) ?></span>
                 </div>
                 <?php endif; ?>
             </div>

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/auth.php';
-require_role(['super_admin', 'general_manager', 'feed_production_manager', 'field_worker']);
+require_role(['super_admin', 'general_manager', 'feed_production_manager', 'field_worker', 'dairy_manager', 'poultry_manager']);
 
 // -----------------------------------------------------------------------
 // BUSINESS RULE BR-FP02:
@@ -98,7 +98,7 @@ $sentHistory = db()->query(
 
 <div class="card" style="background:#e8f5e9;border-left:4px solid var(--green-primary,#2e7d32);color:#111;margin-bottom:20px;padding:16px">
     <strong style="color:#2e7d32">⚠️ <?= current_locale() === 'am' ? 'የአሰራር ደንብ BR-FP02:' : 'Business Rule BR-FP02:' ?></strong>
-    <?= current_locale() === 'am' ? 'የተሰበሰበ የመኖ ሰብል በቀጥታ ለድርጅቱ ክፍሎች አይከፋፈልም። ሁሉም የተመረተ መኖ አስቀድሞ ወደ <strong>ዋና መጋዘን</strong> መግባት እና በመጋዘን ኃላፊው መረጋገጥ አለበት።' : 'Harvested feed and crops cannot be distributed directly to farm units. All internally produced material must first go to Store / Warehouse.' ?>
+    <?= current_locale() === 'am' ? 'የተሰበሰበ የመኖ ሰብል (FP02) በቀጥታ ለድርጅቱ ክፍሎች አይከፋፈልም — አስቀድሞ ወደ <strong>ዋና መጋዘን</strong> ገብቶ መረጋገጥ አለበት።' : 'Harvested feed and crops (FP02) cannot be distributed directly to farm units — must first go to Store / Warehouse for confirmation.' ?>
 </div>
 
 <?php if (!empty($readyCrops)): ?>

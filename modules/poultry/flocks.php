@@ -33,7 +33,7 @@ $flocks = db()->query(
 // Live bird count per house, for the "how full is it" hint on the flock form.
 $houseLoad = [];
 foreach ($flocks as $f) {
-    $houseLoad[$f['poultry_house_id']] = ($houseLoad[$f['poultry_house_id']] ?? 0) + flock_live_population($f);
+    $houseLoad[$f['poultry_house_id']] = ($houseLoad[$f['poultry_house_id']] ?? 0) + flock_live_population((int)$f['id']);
 }
 ?>
 <h2 class="mt-0"><?= h(t('poultry.mgmt', 'Poultry — Houses & Flocks')) ?></h2>
@@ -100,7 +100,7 @@ foreach ($flocks as $f) {
                 <td><?= h($f['breed']) ?></td>
                 <td><?= h($f['stocking_date']) ?></td>
                 <td><?= (int) $f['initial_population'] ?></td>
-                <td><strong><?= flock_live_population($f) ?></strong></td>
+                <td><strong><?= flock_live_population((int)$f['id']) ?></strong></td>
                 <td><a href="/aleltu-eifms/modules/poultry/flock_view.php?id=<?= (int)$f['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view_all', 'View / Log Eggs')) ?> &rarr;</a></td>
             </tr>
         <?php endforeach; ?>

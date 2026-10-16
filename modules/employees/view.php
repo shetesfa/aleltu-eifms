@@ -185,7 +185,7 @@ $statusLogs = $statusLogs->fetchAll();
         <tbody>
             <?php foreach ($statusLogs as $log): ?>
                 <tr>
-                    <td style="font-size:12px"><?= h($log['created_at']) ?></td>
+                    <td style="font-size:12px"><?= eth_datetime($log['created_at']) ?></td>
                     <td><span class="badge"><?= h($log['old_status']) ?></span></td>
                     <td><span class="badge active"><?= h($log['new_status']) ?></span></td>
                     <td><?= h($log['reason']) ?></td>
@@ -205,9 +205,9 @@ $statusLogs = $statusLogs->fetchAll();
             <tr><th>Date</th><th>Status</th><th>Check-in</th></tr>
             <?php foreach ($attendance as $a): ?>
                 <tr>
-                    <td><?= h($a['attendance_date']) ?></td>
+                    <td><?= eth_date($a['attendance_date']) ?></td>
                     <td><span class="badge <?= $a['status'] === 'present' ? 'milking' : 'sold' ?>"><?= h(ucfirst($a['status'])) ?></span></td>
-                    <td><?= h($a['check_in_at'] ?: '—') ?></td>
+                    <td><?= $a['check_in_at'] ? eth_time($a['check_in_at']) : '—' ?></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($attendance)): ?>
@@ -223,7 +223,7 @@ $statusLogs = $statusLogs->fetchAll();
             <tr><th>Dates</th><th>Reason</th><th>Status</th></tr>
             <?php foreach ($leaves as $l): ?>
                 <tr>
-                    <td><?= h($l['start_date']) ?> → <?= h($l['end_date']) ?></td>
+                    <td><?= eth_date($l['start_date']) ?> → <?= eth_date($l['end_date']) ?></td>
                     <td><?= h($l['reason'] ?: '—') ?></td>
                     <td><span class="badge <?= $l['status'] === 'approved' ? 'milking' : 'dry' ?>"><?= h($l['status']) ?></span></td>
                 </tr>
