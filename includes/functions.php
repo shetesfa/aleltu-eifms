@@ -77,6 +77,7 @@ function cow_record_exit(int $cowId, array $data): void
             $data['buyer_name'] ?: null, $data['sale_price'] ?: null, $data['notes'] ?: null,
             current_user()['id'],
         ]);
+        $exitId = (int) db()->lastInsertId();
 
         $newStatus = $data['exit_type'] === 'death' ? 'deceased' : 'sold';
         db()->prepare("UPDATE dairy_cows SET lifecycle_status = ? WHERE id = ?")->execute([$newStatus, $cowId]);
@@ -92,13 +93,13 @@ function cow_record_exit(int $cowId, array $data): void
                 $cashPart = (float)($data['split_cash_amount'] ?? ($salePrice / 2));
                 $bankPart = max(0, $salePrice - $cashPart);
                 if ($cashPart > 0) {
-                    finance_record_transaction('inflow', $cashPart, 'cash', 'dairy', 'livestock_sale', 'dairy_cow_exit_records', $cowId, $desc . ' (በጥሬ ገንዘብ)');
+                    finance_record_transaction('inflow', $cashPart, 'dairy', 'livestock_sale', $data['exit_date'], $desc . ' (በጥሬ ገንዘብ)', 'dairy_cow_exit_records', $exitId, null, 'cash');
                 }
                 if ($bankPart > 0) {
-                    finance_record_transaction('inflow', $bankPart, 'bank', 'dairy', 'livestock_sale', 'dairy_cow_exit_records', $cowId, $desc . ' (በኦሮሚያ ባንክ)');
+                    finance_record_transaction('inflow', $bankPart, 'dairy', 'livestock_sale', $data['exit_date'], $desc . ' (በኦሮሚያ ባንክ)', 'dairy_cow_exit_records', $exitId, null, 'bank');
                 }
             } else {
-                finance_record_transaction('inflow', $salePrice, $method, 'dairy', 'livestock_sale', 'dairy_cow_exit_records', $cowId, $desc);
+                finance_record_transaction('inflow', $salePrice, 'dairy', 'livestock_sale', $data['exit_date'], $desc, 'dairy_cow_exit_records', $exitId, null, $method);
             }
         }
 
@@ -364,7 +365,7 @@ function stock_receive(int $warehouseId, int $stockItemId, float $quantity, stri
             "INSERT INTO wh_stock_batches (warehouse_id, partition_code, stock_item_id, batch_number, quantity_on_hand, unit_cost, received_date, expiry_date, source)
              VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, ?)"
         );
-        $stmt->execute([$warehouseId, $partitionCode, $stockItemId, $batchNo, $quantity, $unitCost > 0 ? $unitCost : null, $expiryDate, $batchSource]);
+        $stmt->execute([$warehouseId, $partitionCode, $stockItemId, $batchNo, $quantity, $unitCost > 0 ? $unitCost : 0, $expiryDate, $batchSource]);
         $batchId = (int) db()->lastInsertId();
 
         $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
@@ -742,12 +743,13 @@ function finance_record_transaction(string $direction, float $amount, string $un
             $bankAccountId = $accId;
         }
     }
+    $storedMethod = $paymentMethod === 'cash' ? 'cash' : 'bank';   // fin_transactions.payment_method accepts only bank|cash
     $stmt = db()->prepare(
         "INSERT INTO fin_transactions (bank_account_id, direction, amount, payment_method, unit_tag, category, source_table, source_id, transaction_date, description, recorded_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
-    $stmt->execute([$bankAccountId, $direction, $amount, $paymentMethod, $unitTag, $category, $sourceTable, $sourceId, $date, $description, $userId]);
+    $stmt->execute([$bankAccountId, $direction, $amount, $storedMethod, $unitTag, $category, $sourceTable, $sourceId, $date, $description, $userId]);
     return (int) db()->lastInsertId();
 }
 
@@ -3053,16 +3055,13 @@ function notify_role(string $roleSlug, string $title, string $message, string $u
 function log_activity(string $module, string $action, string $tableName, int $recordId = 0, string $details = ''): void
 {
     try {
-        $userId = 0;
-        if (session_status() !== PHP_SESSION_NONE || isset($_SESSION['user_id'])) {
-            $userId = (int)($_SESSION['user_id'] ?? 0);
-        }
+        $userId = (int)($_SESSION['user']['id'] ?? $_SESSION['user_id'] ?? 0);
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'cli';
         $stmt = db()->prepare(
-            "INSERT INTO audit_log (user_id, module, action, table_name, record_id, details, ip_address, created_at)
+            "INSERT INTO audit_log (user_id, module, action, record_table, record_id, details, ip_address, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, NOW())"
         );
-        $stmt->execute([$userId, $module, $action, $tableName, $recordId, $details, $ip]);
+        $stmt->execute([$userId ?: null, $module, $action, $tableName, $recordId, $details, $ip]);
     } catch (Throwable) {
         // Table may not exist or session may not be active — never crash the caller
     }

@@ -161,7 +161,7 @@ if (($_GET['export'] ?? '') === 'csv') {
             fputcsv($out, ['Record Date', 'Cow Tag', 'Condition / Disease', 'Treatment Given', 'Vet Name']);
             $rows = db()->prepare("SELECT r.record_date, c.tag_number, r.condition_name, r.treatment, u.name AS vet_name
                                    FROM vet_health_records r
-                                   LEFT JOIN dairy_cows c ON c.id = r.subject_id AND r.subject_type = 'cow'
+                                   LEFT JOIN dairy_cows c ON c.id = r.subject_id AND r.subject_type = 'dairy_cow'
                                    LEFT JOIN users u ON u.id = r.vet_id
                                    WHERE r.record_date BETWEEN ? AND ?
                                    ORDER BY r.record_date DESC");
@@ -603,7 +603,7 @@ elseif ($mod === 'vet'):
     $stmt = db()->prepare(
         "SELECT r.*, c.tag_number, c.name AS cow_name, u.name AS vet_name
          FROM vet_health_records r
-         LEFT JOIN dairy_cows c ON c.id = r.subject_id AND r.subject_type = 'cow'
+         LEFT JOIN dairy_cows c ON c.id = r.subject_id AND r.subject_type = 'dairy_cow'
          LEFT JOIN users u ON u.id = r.vet_id
          WHERE r.record_date BETWEEN ? AND ?
          ORDER BY r.record_date DESC"

@@ -17,7 +17,7 @@ $activeFlocks = (int) db()->query("SELECT COUNT(*) FROM poultry_flocks WHERE sta
 $totalBirds = (int) db()->query("SELECT COALESCE(SUM(initial_population - cumulative_mortality - cumulative_culled_sold + cumulative_transfers_in), 0) FROM poultry_flocks WHERE status = 'active'")->fetchColumn();
 $todayEggs = (int) db()->query("SELECT COALESCE(SUM(whole_count), 0) FROM poultry_egg_collections WHERE collection_date = CURDATE()")->fetchColumn();
 
-$fishPonds = (int) db()->query("SELECT COUNT(*) FROM fish_ponds WHERE status = 'active'")->fetchColumn();
+$fishPonds = (int) db()->query("SELECT COUNT(*) FROM fish_ponds WHERE status <> 'empty'")->fetchColumn();
 $totalFish = (int) db()->query("SELECT COALESCE(SUM(stocking_quantity - cumulative_mortality), 0) FROM fish_stocks WHERE status = 'active'")->fetchColumn();
 
 $totalStockItems = (int) db()->query("SELECT COUNT(*) FROM wh_stock_items")->fetchColumn();

@@ -73,13 +73,14 @@ foreach ($expenseRows as $e) {
 
 // 4. PAYROLL / SALARIES EXPENSE (From approved/paid payroll runs in this period)
 $payStmt = db()->prepare(
-    "SELECT COALESCE(SUM(ps.net_pay + ps.allowances), 0) AS total_salaries
+    // net_pay already includes allowances, so adding allowances again double counted them.
+    // Gross salary cost = net_pay + deductions; only finalized runs; one period rule (period_end) so a run is never counted in two periods.
+    "SELECT COALESCE(SUM(ps.net_pay + ps.deductions), 0) AS total_salaries
      FROM fin_payslips ps
-     JOIN fin_payroll_runs pr ON pr.id = ps.payroll_run_id
-     WHERE pr.period_start BETWEEN ? AND ?
-        OR pr.period_end BETWEEN ? AND ?"
+     JOIN fin_payroll_runs pr ON pr.id = ps.payroll_run_id AND pr.status = 'finalized'
+     WHERE pr.period_end BETWEEN ? AND ?"
 );
-$payStmt->execute([$dateFrom, $dateTo, $dateFrom, $dateTo]);
+$payStmt->execute([$dateFrom, $dateTo]);
 $totalPayroll = (float)$payStmt->fetchColumn();
 
 // 5. OTHER INFLOWS & OUTFLOWS (General finance transactions not categorized as dispatch/PO)
