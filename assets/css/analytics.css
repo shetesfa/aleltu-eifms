@@ -1,0 +1,83 @@
+/* Super Admin analytics - uses the app.css colour variables so dark mode works automatically. */
+.an-wrap { max-width: 1400px; margin: 0 auto; padding: 8px 12px 40px; color: var(--text); }
+.an-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.an-head h1 { font-size: 1.35rem; margin: 6px 0; }
+.an-head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.an-hint { color: var(--muted); font-size: .85rem; margin: 6px 0 12px; }
+.an-section { margin: 22px 0; }
+.an-section h2 { font-size: 1.1rem; margin: 0 0 8px; }
+.an-empty { color: var(--muted); padding: 10px; }
+.an-sub-small, small { color: var(--muted); }
+
+/* filters */
+.an-filters { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; box-shadow: var(--shadow-sm); }
+.an-f-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 8px; }
+.an-f-row label, .an-f-row fieldset { display: flex; flex-direction: column; gap: 3px; font-size: .8rem; color: var(--muted); min-width: 130px; }
+.an-f-row fieldset { flex-direction: row; flex-wrap: wrap; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 6px; }
+.an-f-row legend { font-size: .75rem; padding: 0 4px; }
+.an-f-row select, .an-f-row input[type=search] { min-height: 40px; padding: 4px 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 16px; }
+.an-f-search { flex: 1 1 220px; }
+.an-range { font-size: .85rem; color: var(--text); }
+.an-note { padding: 8px 10px; border-radius: var(--radius-sm); margin: 8px 0; font-size: .85rem; border: 1px solid var(--border); }
+.an-n-warn { background: var(--warn-bg); color: var(--warn); }
+.an-n-info { background: var(--primary-subtle); color: var(--text); }
+
+/* cards (also the mobile layout) */
+.an-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 14px 0; }
+.an-card { display: block; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; box-shadow: var(--shadow-sm); color: var(--text); text-decoration: none; }
+.an-card-link:hover { box-shadow: var(--shadow-md); border-color: var(--primary); }
+.an-card h3 { margin: 0 0 8px; font-size: 1rem; }
+.an-card dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; margin: 0 0 8px; font-size: .88rem; }
+.an-card dt { color: var(--muted); }
+.an-card dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.an-card-company { border-color: var(--primary); background: var(--primary-subtle); }
+.an-sub { display: block; margin-top: 6px; }
+
+/* tables */
+.an-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--card); }
+.an-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: .85rem; }
+.an-table th, .an-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); vertical-align: top; background: var(--card); }
+.an-table thead th { background: var(--primary-subtle); text-align: center; position: sticky; top: 0; z-index: 2; }
+.an-table thead tr.an-grp th { font-size: .8rem; letter-spacing: .03em; top: 0; }
+.an-table thead tr.an-sub th { font-weight: 600; font-size: .75rem; top: 30px; }
+.an-table thead a { color: var(--primary); text-decoration: none; }
+.an-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.an-table .an-sticky { position: sticky; left: 0; z-index: 1; text-align: left; background: var(--card); min-width: 90px; }
+.an-table thead .an-sticky { z-index: 3; background: var(--primary-subtle); }
+.an-table tfoot .an-total th, .an-table tfoot .an-total td, .an-table tr.an-total th, .an-table tr.an-total td { background: var(--primary-subtle); font-weight: 700; }
+.an-g-shared, .an-g-company { border-left: 2px solid var(--primary); }
+.an-pos { color: var(--success); font-weight: 600; }
+.an-neg { color: var(--danger); font-weight: 600; }
+
+/* badges */
+.an-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }
+.an-b-ok { background: var(--success-bg); color: var(--success); }
+.an-b-bad { background: var(--danger-bg); color: var(--danger); }
+.an-b-warn { background: var(--warn-bg); color: var(--warn); }
+.an-b-info { background: var(--primary-subtle); color: var(--primary); }
+.an-b-mute { background: var(--bg); color: var(--muted); border-color: var(--border); }
+
+/* data quality list */
+.an-dq { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.an-dq li { background: var(--card); border: 1px solid var(--border); border-left-width: 4px; border-radius: var(--radius-sm); padding: 8px 10px; font-size: .88rem; }
+.an-dq-warn { border-left-color: var(--warn) !important; }
+.an-dq-info { border-left-color: var(--primary) !important; }
+
+/* detail pages */
+.an-kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin: 10px 0; }
+.an-kv > div { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; }
+.an-kv b { display: block; font-size: 1.05rem; }
+.an-kv span { color: var(--muted); font-size: .78rem; }
+.an-missing { background: var(--warn-bg); color: var(--warn); border: 1px dashed var(--warn); border-radius: var(--radius-sm); padding: 8px 10px; }
+.an-missing ul { margin: 4px 0 0 18px; padding: 0; }
+
+/* phones: the 20+ column grouped table is hard to read, so show the cards first and make the table scroll with a pinned first column */
+@media (max-width: 720px) {
+    .an-cards { grid-template-columns: 1fr; }
+    .an-head h1 { font-size: 1.15rem; }
+    .an-table { font-size: .8rem; }
+    .an-f-row label, .an-f-row fieldset { min-width: 100%; }
+    .an-f-row .btn { flex: 1; text-align: center; }
+    .an-table thead tr.an-sub th { top: 28px; }
+}
+@media print { .an-filters, .an-head-actions { display: none; } .an-scroll { overflow: visible; } }
