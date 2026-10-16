@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             throw $e;
         }
-        $total = $whole + $cracked + $broken;
+        $total = max(0, $whole - $broken);
         log_activity('poultry', 'create', 'poultry_egg_collections', (int)db()->lastInsertId(), "Flock #{$flockId}: {$total} eggs (whole:{$whole}, cracked:{$cracked}, broken:{$broken})");
         flash('✓ ' . (current_locale() === 'am' ? "የዛሬ እንቁላል ({$total}) ተመዝግቧል!" : "Egg collection recorded! Total: {$total} eggs."));
         header('Location: /aleltu-eifms/modules/poultry/egg_entry.php');
@@ -137,19 +137,10 @@ $todayBroken = array_sum(array_map(fn($e) => (int)$e['broken_count'], $todayEntr
             </select>
         </div>
 
-        <div class="form-row">
-            <div class="form-group">
-                <label><?= current_locale()==='am'?'ቀን (የኢትዮጵያ ቀን: ' . eth_date(date('Y-m-d')) . ') *':'Collection Date *' ?></label>
-                <input type="date" name="collection_date" value="<?= date('Y-m-d') ?>" required max="<?= date('Y-m-d') ?>">
-            </div>
-            <div class="form-group">
-                <label><?= current_locale()==='am'?'ክፍለ-ጊዜ *':'Session *' ?></label>
-                <select name="round_no">
-                    <option value="1"><?= current_locale()==='am'?'ጧት (Morning)':'Morning' ?></option>
-                    <option value="2"><?= current_locale()==='am'?'ከሰዓት (Afternoon)':'Afternoon' ?></option>
-                    <option value="3"><?= current_locale()==='am'?'ማታ (Evening)':'Evening' ?></option>
-                </select>
-            </div>
+        <input type="hidden" name="round_no" value="1">
+        <div class="form-group">
+            <label><?= current_locale()==='am'?'ቀን (የኢትዮጵያ ቀን: ' . eth_date(date('Y-m-d')) . ') *':'Collection Date *' ?></label>
+            <input type="date" name="collection_date" value="<?= date('Y-m-d') ?>" required max="<?= date('Y-m-d') ?>">
         </div>
 
         <div class="form-row">

@@ -88,11 +88,11 @@ if ($selectedRunId > 0) {
         <div class="form-row">
             <div class="form-group">
                 <label><?= current_locale() === 'am' ? 'የክፍለ-ጊዜ መጀመሪያ ቀን *' : 'Period Start *' ?></label>
-                <input type="date" name="period_start" required>
+                <input type="date" name="period_start" value="<?= date('Y-m-d', strtotime('first day of this month')) ?>" required>
             </div>
             <div class="form-group">
                 <label><?= current_locale() === 'am' ? 'የክፍለ-ጊዜ ማብቂያ ቀን *' : 'Period End *' ?></label>
-                <input type="date" name="period_end" required>
+                <input type="date" name="period_end" value="<?= date('Y-m-d') ?>" required>
             </div>
         </div>
         <button class="btn" type="submit">📅 <?= current_locale() === 'am' ? 'የደመወዝ ዙር ፍጠር' : 'Create Run' ?></button>

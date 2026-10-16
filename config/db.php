@@ -4,7 +4,7 @@
  * Edit these four values to match your XAMPP MySQL setup.
  * Default XAMPP MySQL: host=127.0.0.1, user=root, password=(empty).
  */
-$isLocal = in_array($_SERVER['SERVER_NAME'] ?? '', ['localhost', '127.0.0.1', '::1']);
+$isLocal = (php_sapi_name() === 'cli') || in_array($_SERVER['SERVER_NAME'] ?? '', ['localhost', '127.0.0.1', '::1']);
 
 if ($isLocal) {
     define('DB_HOST', '127.0.0.1');

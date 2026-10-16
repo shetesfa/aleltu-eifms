@@ -117,17 +117,12 @@ require_once __DIR__ . '/../../includes/header.php';
                 <input type="hidden" name="flock_id" value="<?= (int) $flockId ?>">
                 <div class="form-row">
                     <div class="form-group"><label><?= h(t('common.date', 'Date')) ?> *</label><input type="date" name="collection_date" value="<?= date('Y-m-d') ?>" required></div>
-                    <div class="form-group"><label><?= h(t('poultry.round', 'Round')) ?> *</label>
-                        <select name="round_no" required>
-                            <option value="1"><?= h(t('poultry.round_1', 'Round 1')) ?></option>
-                            <option value="2"><?= h(t('poultry.round_2', 'Round 2')) ?></option>
-                        </select>
-                    </div>
+                    <input type="hidden" name="round_no" value="1">
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label><?= h(t('poultry.whole', 'Whole Eggs')) ?> *</label><input type="number" name="whole_count" min="0" required></div>
-                    <div class="form-group"><label><?= h(t('poultry.cracked', 'Cracked')) ?></label><input type="number" name="cracked_count" min="0" value="0"></div>
-                    <div class="form-group"><label><?= h(t('poultry.broken', 'Broken')) ?></label><input type="number" name="broken_count" min="0" value="0"></div>
+                    <input type="hidden" name="cracked_count" value="0">
+                    <div class="form-group"><label><?= current_locale() === 'am' ? 'የተሰበረ' : 'Broken' ?></label><input type="number" name="broken_count" min="0" value="0"></div>
                 </div>
                 <button class="btn" type="submit"><?= h(t('common.save', 'Save')) ?></button>
             </form>
@@ -141,8 +136,7 @@ require_once __DIR__ . '/../../includes/header.php';
                         <th><?= h(t('common.date', 'Date')) ?></th>
                         <th><?= h(t('poultry.round', 'Round')) ?></th>
                         <th><?= h(t('poultry.whole', 'Whole')) ?></th>
-                        <th><?= h(t('poultry.cracked', 'Cracked')) ?></th>
-                        <th><?= h(t('poultry.broken', 'Broken')) ?></th>
+                        <th><?= current_locale() === 'am' ? 'የተሰበረ' : 'Broken' ?></th>
                         <th><?= current_locale() === 'am' ? 'የመዘገበው' : 'Recorded By' ?></th>
                     </tr>
                 </thead>
@@ -152,13 +146,12 @@ require_once __DIR__ . '/../../includes/header.php';
                             <td><?= h(eth_date($e['collection_date'])) ?></td>
                             <td>#<?= (int)$e['round_no'] ?></td>
                             <td><strong style="color:var(--primary)"><?= number_format($e['whole_count']) ?></strong></td>
-                            <td><?= number_format($e['cracked_count']) ?></td>
                             <td><span class="badge sold"><?= number_format($e['broken_count']) ?></span></td>
                             <td><?= h($e['worker_name']) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if (empty($eggLogs)): ?>
-                        <tr><td colspan="6" class="text-muted"><?= h(t('common.no_records', 'No egg collection entries logged yet.')) ?></td></tr>
+                        <tr><td colspan="5" class="text-muted"><?= h(t('common.no_records', 'No egg collection entries logged yet.')) ?></td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

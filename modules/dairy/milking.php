@@ -86,12 +86,12 @@ $nextMonth = $calMonth + 1; $nextYear = $calYear; if ($nextMonth > 12) { $nextMo
     <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <a class="btn secondary" style="padding:3px 10px" href="?date=<?= h($date) ?>&type=<?= h($type) ?>&cal_month=<?= $prevMonth ?>&cal_year=<?= $prevYear ?>">&larr;</a>
-            <strong><?= h(date('F Y', $firstOfMonth)) ?></strong>
+            <strong><?php $ethParts = EthiopianDate::fromGregorian((int)date('Y', $firstOfMonth), (int)date('n', $firstOfMonth), 15); echo EthiopianDate::$months[$ethParts[1]] . ' ' . $ethParts[0] . ' ዓ.ም'; ?></strong>
             <a class="btn secondary" style="padding:3px 10px" href="?date=<?= h($date) ?>&type=<?= h($type) ?>&cal_month=<?= $nextMonth ?>&cal_year=<?= $nextYear ?>">&rarr;</a>
         </div>
         <table style="width:100%;text-align:center">
             <tr>
-                <?php foreach (['S','M','T','W','T','F','S'] as $wd): ?><th style="padding:4px;font-size:12px"><?= $wd ?></th><?php endforeach; ?>
+                <?php foreach (['እሁ','ሰኞ','ማክ','ረቡ','ሐሙ','አር','ቅዳ'] as $wd): ?><th style="padding:4px;font-size:12px"><?= $wd ?></th><?php endforeach; ?>
             </tr>
             <?php
             $cell = 0;

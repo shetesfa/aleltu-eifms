@@ -98,7 +98,7 @@ if ($dairyDeptId) {
             <tbody>
                 <?php foreach ($recentSessions as $s): ?>
                     <tr>
-                        <td><?= h($s['session_date']) ?></td>
+                        <td><?= eth_date($s['session_date']) ?></td>
                         <td><span class="badge active"><?= h(t('dairy.' . $s['session_type'], ucfirst($s['session_type']))) ?></span></td>
                         <td><?= (int)$s['cow_count'] ?> <?= current_locale() === 'am' ? 'ላሞች' : 'cows' ?></td>
                         <td><strong style="color:var(--primary)"><?= number_format($s['total_yield'], 1) ?> L</strong></td>

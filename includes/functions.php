@@ -2386,8 +2386,10 @@ function seed_demo_data(): array
 // Auto-generated Employee Number (TG001, TG002, ...)
 function employee_generate_number(): string
 {
-    $maxNum = db()->query("SELECT MAX(CAST(SUBSTRING(employee_number, 3) AS UNSIGNED)) FROM employees WHERE employee_number LIKE 'TG%'")->fetchColumn();
-    $next = ($maxNum ? (int)$maxNum : 0) + 1;
+    // Check both old (EMP-) and new (TG) patterns
+    $maxTG = db()->query("SELECT MAX(CAST(SUBSTRING(employee_number, 3) AS UNSIGNED)) FROM employees WHERE employee_number LIKE 'TG%'")->fetchColumn();
+    $maxEMP = db()->query("SELECT MAX(CAST(REPLACE(SUBSTRING(employee_number, 5), '-', '') AS UNSIGNED)) FROM employees WHERE employee_number LIKE 'EMP-%'")->fetchColumn();
+    $next = max(($maxTG ?: 0), ($maxEMP ?: 0)) + 1;
     return sprintf("TG%03d", $next);
 }
 

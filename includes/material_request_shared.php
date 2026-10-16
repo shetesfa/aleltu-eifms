@@ -72,7 +72,7 @@ function render_dept_material_request_page(string $roleName, string $deptCode, s
     $items = array_values(array_filter($rawItems, function($i) use ($deptCode) {
         $n = $i['name'];
         if ($deptCode === 'DAIRY') {
-            if (str_contains($n, 'ዶሮ') || str_contains($n, 'ዓሳ') || str_contains($n, 'ዕንቁላል') || str_contains($n, 'እንቁላል')) return false;
+            if (str_contains($n, 'ዶሮ') || str_contains($n, 'ዓሳ') || str_contains($n, 'ዕንቁላል') || str_contains($n, 'እንቁላል') || str_contains($n, 'ክትባት')) return false;
         } elseif ($deptCode === 'POULTRY') {
             if (str_contains($n, 'ላም') || str_contains($n, 'ጥጃ') || str_contains($n, 'ከብት') || str_contains($n, 'ዓሳ') || str_contains($n, 'ወተት')) return false;
         } elseif ($deptCode === 'FISH') {
@@ -157,7 +157,7 @@ function render_dept_material_request_page(string $roleName, string $deptCode, s
         <?php else: ?>
             <div style="display:flex;flex-direction:column;gap:18px">
                 <?php foreach ($requests as $idx => $r):
-                    $seqNo = count($requests) - $idx;
+                    $seqNo = $idx + 1;
                     $displayName = $r['custom_item_name'] ?: $r['catalog_name'];
                     $isCompleted = ($r['status'] === 'completed' || $r['received_confirmed_at']);
                     $canConfirm = !$isCompleted && in_array($r['status'], ['sent_to_department', 'fulfilled', 'partially_issued'], true) && (float) $r['issued_quantity'] > 0;
