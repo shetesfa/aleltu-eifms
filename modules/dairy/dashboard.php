@@ -51,10 +51,10 @@ if ($dairyDeptId) {
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'የላሞች ጤና፣ የዕለት ወተት ምርት፣ የወተት ማለቢያ ክፍለ ጊዜዎች እና የመኖ አቅርቦት ክትትል' : 'Herd health, daily milk yields, milking sessions, and feed supplies.' ?></p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="/aleltu-eifms/modules/dairy/milking.php" class="btn">🥛 <?= h(t('dairy.record_milking', 'Record Milking')) ?></a>
-        <a href="/aleltu-eifms/modules/dairy/cows.php" class="btn secondary">🐮 <?= h(t('dairy.mgmt', 'Herd List')) ?></a>
-        <a href="/aleltu-eifms/modules/dairy/material_request.php" class="btn secondary">📦 <?= h(t('reqs.title_dairy', 'Feed & Supplies Request')) ?></a>
-        <a href="/aleltu-eifms/modules/module_reports.php?module=dairy" class="btn secondary">📋 <?= h(t('nav.module_reports', 'Dairy Reports')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/dairy/milking.php" class="btn">🥛 <?= h(t('dairy.record_milking', 'Record Milking')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/dairy/cows.php" class="btn secondary">🐮 <?= h(t('dairy.mgmt', 'Herd List')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/dairy/material_request.php" class="btn secondary">📦 <?= h(t('reqs.title_dairy', 'Feed & Supplies Request')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/module_reports.php?module=dairy" class="btn secondary">📋 <?= h(t('nav.module_reports', 'Dairy Reports')) ?></a>
     </div>
 </div>
 
@@ -83,7 +83,7 @@ if ($dairyDeptId) {
     <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <h3 style="margin:0"><?= current_locale() === 'am' ? 'የቅርብ ጊዜ የወተት ማለቢያ ክፍለ ጊዜዎች' : 'Recent Milking Sessions' ?></h3>
-            <a href="/aleltu-eifms/modules/dairy/milking.php" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view_all', 'View All / Record')) ?></a>
+            <a href="<?= BASE_URL ?>/modules/dairy/milking.php" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view_all', 'View All / Record')) ?></a>
         </div>
         <table>
             <thead>
@@ -116,7 +116,7 @@ if ($dairyDeptId) {
     <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <h3 style="margin:0"><?= current_locale() === 'am' ? 'የመኖ እና እቃ ጥያቄዎች' : 'Feed & Supplies Requests' ?></h3>
-            <a href="/aleltu-eifms/modules/dairy/material_request.php" class="btn secondary" style="padding:3px 8px;font-size:12px">+ <?= h(t('reqs.new_request', 'New Request')) ?></a>
+            <a href="<?= BASE_URL ?>/modules/dairy/material_request.php" class="btn secondary" style="padding:3px 8px;font-size:12px">+ <?= h(t('reqs.new_request', 'New Request')) ?></a>
         </div>
         <table>
             <thead>

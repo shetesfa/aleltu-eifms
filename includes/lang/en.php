@@ -2,7 +2,7 @@
 // Comprehensive English language dictionary
 return [
     'company.name'                 => 'Teklu Getachew Cattle Breeding & Dairy Processing Enterprise',
-    'company.name_am'              => 'ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጾኦ ማቀነባበሪያ ድርጅት',
+    'company.name_am'              => 'ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት',
     'company.tagline'              => 'Integrated Farm Management System',
 
     // Navigation
@@ -323,12 +323,12 @@ return [
     'idc.employee_no'              => 'Employee No:',
     'idc.department'                => 'Department:',
     'idc.issue_date'                => 'Issue Date:',
-    'idc.official_card'             => 'OFFICIAL ALELTU FARM IDENTITY CARD',
+    'idc.official_card'             => 'OFFICIAL TEKLU GETACHEW DAIRY FARM IDENTITY CARD',
     'idc.scan_to_verify'            => "Scan to verify this employee's identity",
     'idc.phone'                     => 'Phone:',
     'idc.company'                   => 'Company:',
-    'idc.return_notice'             => 'If found, please return to Aleltu Farm HR office.',
-    'idc.property_notice'           => 'This card remains the property of Aleltu Farm.',
+    'idc.return_notice'             => 'If found, please return to Teklu Getachew Farm HR office.',
+    'idc.property_notice'           => 'This card remains the property of Teklu Getachew Dairy Farm.',
     'idc.farm_employee'             => 'Farm Employee',
     'idc.change_photo_title'        => 'Change Photo',
     'idc.choose_image'              => 'Choose Image',

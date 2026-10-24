@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             purchase_request_create($_POST);
             flash('Purchase request raised.');
         }
-        header('Location: /aleltu-eifms/modules/finance/purchasing.php');
+        header('Location: ' . BASE_URL . '/modules/finance/purchasing.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -72,7 +72,7 @@ $threshold = setting_get('po_approval_threshold') ?? 10000;
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'የግዢ ሂደት፡ የክፍሎች የዕቃ እጥረት ጥያቄ &rarr; የግዢ ትዕዛዝ (PO) ማዘጋጀት &rarr; ወደ መጋዘን መላክ &rarr; የክፍያ ክትትል።' : 'Procurement cycle: Department Shortage &rarr; Purchase Request &rarr; Purchase Order &rarr; Send to Warehouse &rarr; Payment Tracking.' ?></p>
     </div>
     <div style="display:flex;gap:8px">
-        <a href="/aleltu-eifms/modules/finance/dashboard.php" class="btn secondary">&larr; <?= h(t('fin.back_to_dashboard', 'Cash Flow Dashboard')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/finance/dashboard.php" class="btn secondary">&larr; <?= h(t('fin.back_to_dashboard', 'Cash Flow Dashboard')) ?></a>
     </div>
 </div>
 
@@ -246,7 +246,7 @@ $threshold = setting_get('po_approval_threshold') ?? 10000;
                         <?php elseif (in_array($o['status'], ['pending_receipt', 'sent_to_warehouse'], true)): ?>
                             <span class="text-muted" style="font-size:12px">
                                 ⏳ <?= current_locale() === 'am' ? 'የርክክብ ማረጋገጫ ይጠብቃል &rarr; ' : 'Waiting for Storekeeper receipt &rarr; ' ?>
-                                <a href="/aleltu-eifms/modules/warehouse/receiving.php" style="text-decoration:underline"><?= current_locale() === 'am' ? 'የርክክብ ገጽ' : 'Receiving Portal' ?></a>
+                                <a href="<?= BASE_URL ?>/modules/warehouse/receiving.php" style="text-decoration:underline"><?= current_locale() === 'am' ? 'የርክክብ ገጽ' : 'Receiving Portal' ?></a>
                             </span>
                             <div style="font-size:11px;color:#b45309;background:#fef3c7;padding:3px 6px;border-radius:4px;margin-top:4px;font-weight:600;display:inline-block">
                                 🔒 <?= current_locale() === 'am' ? 'ክፍያ ተቆልፏል፡ እቃው በመጋዘን መረከቡ እስኪረጋገጥ ክፍያ አይፈቀድም' : 'Payment locked until Storekeeper confirms receipt' ?>
@@ -260,9 +260,10 @@ $threshold = setting_get('po_approval_threshold') ?? 10000;
                             <form method="post" style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;align-items:center"><?= csrf_field() ?>
                                 <input type="hidden" name="pay_po" value="<?= (int) $o['id'] ?>">
                                 <input type="number" step="0.01" min="0.01" name="payment_amount" placeholder="<?= current_locale() === 'am' ? 'መጠን' : 'Amount' ?>" max="<?= $remaining ?>" required style="width:85px;padding:3px 6px;font-size:12px">
-                                <select name="payment_method" style="width:75px;padding:3px 4px;font-size:12px">
+                                <select name="payment_method" style="width:85px;padding:3px 4px;font-size:12px">
                                     <option value="bank"><?= current_locale() === 'am' ? 'ባንክ' : 'Bank' ?></option>
                                     <option value="cash"><?= current_locale() === 'am' ? 'ጥሬ ገንዘብ' : 'Cash' ?></option>
+                                    <option value="check"><?= current_locale() === 'am' ? 'ቼክ' : 'Cheque' ?></option>
                                 </select>
                                 <button class="btn secondary" type="submit" style="padding:3px 8px;font-size:11px">💳 <?= current_locale() === 'am' ? 'ክፈል' : 'Pay' ?></button>
                             </form>

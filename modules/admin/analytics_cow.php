@@ -11,14 +11,14 @@ $d = $id > 0 ? an_cow_detail(db(), $id, $f['from'], $f['to']) : null;
 if (!$d) {
     an_audit('detail_not_found', 'dairy_cows', $id, 'analytics_cow');
     http_response_code(404);
-    die('<h2>404 - ' . h(an_t('not_found')) . '</h2><p><a href="/aleltu-eifms/modules/admin/analytics.php">' . h(an_t('back')) . '</a></p>');
+    die('<h2>404 - ' . h(an_t('not_found')) . '</h2><p><a href="<?= BASE_URL ?>/modules/admin/analytics.php">' . h(an_t('back')) . '</a></p>');
 }
 an_audit('view_cow', 'dairy_cows', $id, "from={$f['from']} to={$f['to']}");
 $c = $d['cow'];
 $m = $d['milk'];
 
 require_once __DIR__ . '/../../includes/header.php';
-an_detail_head('🐄 ' . $c['tag_number'] . ' — ' . $c['name'], $f, '/aleltu-eifms/modules/admin/analytics_cow.php', ['id' => $id]);
+an_detail_head('🐄 ' . $c['tag_number'] . ' — ' . $c['name'], $f, BASE_URL . '/modules/admin/analytics_cow.php', ['id' => $id]);
 $loc = current_locale() === 'am';
 an_kv([
     [$loc ? 'ዘር' : 'Breed', h($c['breed'] ?? '—')],

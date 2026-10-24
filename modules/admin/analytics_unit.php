@@ -8,7 +8,7 @@ analytics_guard();
 $unit = (string)($_GET['unit'] ?? '');
 if (!in_array($unit, AN_UNITS, true)) {
     http_response_code(404);
-    die('<h2>404</h2><p><a href="/aleltu-eifms/modules/admin/analytics.php">' . h(an_t('back')) . '</a></p>');
+    die('<h2>404</h2><p><a href="<?= BASE_URL ?>/modules/admin/analytics.php">' . h(an_t('back')) . '</a></p>');
 }
 $pdo = db();
 $f = an_parse_filters($_GET);
@@ -18,7 +18,7 @@ $r = $o['units'][$unit];
 $b = an_unit_breakdown($pdo, $unit, $f['from'], $f['to']);
 
 require_once __DIR__ . '/../../includes/header.php';
-an_detail_head(an_t($unit), $f, '/aleltu-eifms/modules/admin/analytics_unit.php', ['unit' => $unit]);
+an_detail_head(an_t($unit), $f, BASE_URL . '/modules/admin/analytics_unit.php', ['unit' => $unit]);
 
 $kv = [
     [an_t('income'), an_money($r['income'])],

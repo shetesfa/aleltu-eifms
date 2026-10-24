@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ->execute([password_hash($new, PASSWORD_DEFAULT), current_user()['id']]);
         log_activity('auth', 'update', 'users', current_user()['id'], 'Password changed');
         flash(current_locale() === 'am' ? 'የይለፍ ቃልዎ በተሳካ ሁኔታ ተቀይሯል።' : 'Password changed successfully.');
-        header('Location: /aleltu-eifms/index.php');
+        header('Location: ' . BASE_URL . '/index.php');
         exit;
     }
 }
@@ -133,7 +133,7 @@ require_once __DIR__ . '/../../includes/header.php';
                 <button class="btn" type="submit" style="flex:1;padding:12px 18px;font-size:15px;font-weight:bold;border-radius:8px;">
                     <?= current_locale() === 'am' ? 'የይለፍ ቃል አዘምን' : 'Update Password' ?>
                 </button>
-                <a href="/aleltu-eifms/index.php" class="btn secondary" style="padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;">
+                <a href="<?= BASE_URL ?>/index.php" class="btn secondary" style="padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;">
                     <?= current_locale() === 'am' ? 'ይቅር' : 'Cancel' ?>
                 </a>
             </div>

@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             log_activity('warehouse', 'create', 'wh_store_receiving', $rcvId, "Direct intake: {$qty} units from {$sourceType}. Ref: {$refNote}");
             flash('✓ ዕቃው ተረጋግጦ ወደ ዋና መጋዘን ክምችት ገብቷል (Delivery verified and added to stock).');
         }
-        header('Location: /aleltu-eifms/modules/warehouse/receiving.php');
+        header('Location: ' . BASE_URL . '/modules/warehouse/receiving.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -118,8 +118,8 @@ $items = db()->query("SELECT id, name, sku, unit, partition_code FROM wh_stock_i
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'ዋና ማዕከላዊ መጋዘን — ከእርሻ ዕለታዊ ምርት (ወተት፣ ዕንቁላል)፣ ከግዥ ወይም ከባለቤት የሚመጡ ዕቃዎችን በ3ቱ ክፍሎች መረከቢያ' : 'Main Central Warehouse — Receive daily farm harvest, purchases, and supplies into 3 partitions' ?></p>
     </div>
     <div style="display:flex;gap:8px">
-        <a href="/aleltu-eifms/modules/warehouse/stock.php" class="btn secondary">📊 <?= current_locale() === 'am' ? 'የክምችት ዝርዝር' : 'Stock' ?></a>
-        <a href="/aleltu-eifms/modules/warehouse/requisitions.php" class="btn secondary">📦 <?= current_locale() === 'am' ? 'የክፍሎች ጥያቄ' : 'Requisitions' ?></a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/stock.php" class="btn secondary">📊 <?= current_locale() === 'am' ? 'የክምችት ዝርዝር' : 'Stock' ?></a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/requisitions.php" class="btn secondary">📦 <?= current_locale() === 'am' ? 'የክፍሎች ጥያቄ' : 'Requisitions' ?></a>
     </div>
 </div>
 

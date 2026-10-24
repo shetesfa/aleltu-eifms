@@ -22,14 +22,14 @@ $cows = $stmt->fetchAll();
         <h2 class="mt-0" style="margin-bottom:4px">🐄 <?= h(t('dairy.mgmt', 'Cow Management')) ?></h2>
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'እያንዳንዱ ላም ልዩ እና ቋሚ የሆነ የመለያ ቁጥር (Tag Number) እና ፎቶ አለው።' : 'Every cow has a unique, permanent tag number and photo record.' ?></p>
     </div>
-    <a href="/aleltu-eifms/modules/dairy/cow_add.php" class="btn">+ <?= h(t('dairy.register_new', 'Register Cow')) ?></a>
+    <a href="<?= BASE_URL ?>/modules/dairy/cow_add.php" class="btn">+ <?= h(t('dairy.register_new', 'Register Cow')) ?></a>
 </div>
 
 <div class="card">
     <form method="get" style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
         <input type="text" name="search" placeholder="<?= current_locale() === 'am' ? 'በመለያ ቁጥር ወይም ስም ፈልግ...' : 'Search by tag number or name...' ?>" value="<?= h($search) ?>" style="flex:1;min-width:200px;padding:8px;border:1px solid #dfe5dd;border-radius:6px">
         <button class="btn secondary" type="submit"><?= h(t('common.search', 'Search')) ?></button>
-        <?php if ($search !== ''): ?><a href="/aleltu-eifms/modules/dairy/cows.php" class="btn secondary"><?= current_locale() === 'am' ? 'አጽዳ' : 'Clear' ?></a><?php endif; ?>
+        <?php if ($search !== ''): ?><a href="<?= BASE_URL ?>/modules/dairy/cows.php" class="btn secondary"><?= current_locale() === 'am' ? 'አጽዳ' : 'Clear' ?></a><?php endif; ?>
     </form>
 
     <table>
@@ -63,7 +63,7 @@ $cows = $stmt->fetchAll();
                     <td><?= h($cow['breed'] ?: '—') ?></td>
                     <td><?= h($cow['group_name'] ?: '—') ?></td>
                     <td><span class="badge <?= h($cow['lifecycle_status']) ?>"><?= h($stText) ?></span></td>
-                    <td><a href="/aleltu-eifms/modules/dairy/cow_view.php?id=<?= (int) $cow['id'] ?>" class="btn secondary" style="padding:2px 8px;font-size:12px"><?= h(t('common.view', 'View Profile')) ?> →</a></td>
+                    <td><a href="<?= BASE_URL ?>/modules/dairy/cow_view.php?id=<?= (int) $cow['id'] ?>" class="btn secondary" style="padding:2px 8px;font-size:12px"><?= h(t('common.view', 'View Profile')) ?> →</a></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($cows)): ?>

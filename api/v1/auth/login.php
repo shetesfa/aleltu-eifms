@@ -8,19 +8,24 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') api_error('Method not allowed', 405);
 
-$body  = json_decode(file_get_contents('php://input'), true) ?? [];
-$email = trim($body['email'] ?? '');
+$rawInput = file_get_contents('php://input');
+$body = json_decode($rawInput, true);
+if (!is_array($body)) {
+    $body = $_POST;
+}
+
+$login = trim($body['username'] ?? ($body['email'] ?? ''));
 $pass  = $body['password'] ?? '';
 
-if (!$email || !$pass) api_error('email and password are required');
+if (!$login || !$pass) api_error('username/email and password are required');
 
 $stmt = db()->prepare(
-    "SELECT u.*, r.name AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? AND u.is_active = 1"
+    "SELECT u.*, r.name AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE (u.email = ? OR u.name = ?) AND u.is_active = 1 LIMIT 1"
 );
-$stmt->execute([$email]);
+$stmt->execute([$login, $login]);
 $user = $stmt->fetch();
 
-if (!$user || !password_verify($pass, $user['password_hash'])) {
+if (!$user || !password_verify($pass, $user['password'])) {
     api_error('Invalid credentials', 401);
 }
 

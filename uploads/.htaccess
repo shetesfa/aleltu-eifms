@@ -1,0 +1,17 @@
+# Block execution of PHP and other scripts inside the uploads directory.
+# Images only — no server-side code execution allowed here.
+
+# Deny PHP execution
+<FilesMatch "\.(php|php3|php4|php5|phtml|pl|py|jsp|asp|sh|cgi)$">
+    Require all denied
+</FilesMatch>
+
+# Deny access to .htaccess itself
+<Files ".htaccess">
+    Require all denied
+</Files>
+
+# Allow only image files to be served
+<FilesMatch "\.(jpg|jpeg|png|gif|webp|svg|ico)$">
+    Require all granted
+</FilesMatch>

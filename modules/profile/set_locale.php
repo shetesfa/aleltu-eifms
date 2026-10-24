@@ -12,6 +12,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$back = $_SERVER['HTTP_REFERER'] ?? '/aleltu-eifms/index.php';
+$back = $_SERVER['HTTP_REFERER'] ?? BASE_URL . '/index.php';
 header('Location: ' . $back);
 exit;

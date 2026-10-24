@@ -98,18 +98,18 @@ $cellProd = function (string $u, callable $g): string {
 $span = fn(string $u) => $u === 'feed_production' || $u === 'veterinary' ? 3 : 5;
 $colsFor = ['dairy' => 5, 'poultry' => 5, 'fish' => 5, 'feed_production' => 4, 'veterinary' => 3];
 ?>
-<link rel="stylesheet" href="/aleltu-eifms/assets/css/analytics.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/analytics.css">
 <div class="an-wrap">
     <div class="an-head">
         <h1>📈 <?= h(an_t('title')) ?></h1>
         <div class="an-head-actions">
-            <a class="btn secondary" href="/aleltu-eifms/modules/admin/analytics_settings.php">⚙ <?= current_locale() === 'am' ? 'መቼቶች' : 'Settings' ?></a>
+            <a class="btn secondary" href="<?= BASE_URL ?>/modules/admin/analytics_settings.php">⚙ <?= current_locale() === 'am' ? 'መቼቶች' : 'Settings' ?></a>
             <a class="btn secondary" href="?<?= h(an_filter_query($f, ['q' => $f['q'], 'export' => 1])) ?>">⬇ <?= h(an_t('export')) ?></a>
         </div>
     </div>
 
     <?php an_render_schema_notice($missing); ?>
-    <?php an_render_filters($f, '/aleltu-eifms/modules/admin/analytics.php'); ?>
+    <?php an_render_filters($f, BASE_URL . '/modules/admin/analytics.php'); ?>
 
     <p class="an-hint"><?= current_locale() === 'am'
         ? 'ገቢ = የተመዘገበ ሽያጭ ብቻ። አካላዊ ምርት (ወተት፣ እንቁላል፣ ዓሳ) ገቢ አይደለም። የባንክ ዝውውሮችና የባለቤት ወጪዎች ከትርፍ ተገልለዋል።'

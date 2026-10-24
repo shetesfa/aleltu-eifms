@@ -19,6 +19,24 @@ if ($isLocal) {
     define('DB_PASS', 'YOUR_ACCOUNT_PASSWORD');    // Your vPanel password
 }
 
+// Dynamic BASE_URL detection:
+// When running in a subfolder like /aleltu-eifms (e.g. localhost XAMPP): BASE_URL = '/aleltu-eifms'
+// When hosted at domain root on InfinityFree: BASE_URL = ''
+if (!defined('BASE_URL')) {
+    $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
+    if (strpos($scriptDir, '/aleltu-eifms') !== false) {
+        define('BASE_URL', '/aleltu-eifms');
+    } else {
+        define('BASE_URL', '');
+    }
+}
+
+if (!function_exists('url')) {
+    function url(string $path = ''): string {
+        return BASE_URL . '/' . ltrim($path, '/');
+    }
+}
+
 // SAD section 16.4 — outbound-only integration point with the external
 // Aleltu POS System. Leave blank until Aleltu's POS team confirms an
 // endpoint; Distribution safely no-ops without it (see dispatch_push_to_pos()

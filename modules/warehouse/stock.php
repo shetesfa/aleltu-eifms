@@ -113,9 +113,9 @@ require_once __DIR__ . '/../../includes/header.php';
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'ዋና ማዕከላዊ መጋዘን — በ3 የተከፋፈሉ አካላዊ ክፍሎች የተደራጀ ትክክለኛ ክምችት' : 'Central Main Store — Organized into 3 physical inventory partitions' ?></p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="/aleltu-eifms/modules/warehouse/receiving.php" class="btn">📥 <?= current_locale() === 'am' ? 'ዕቃ ተቀበል / አስገባ' : 'Receive Stock' ?></a>
-        <a href="/aleltu-eifms/modules/warehouse/issue.php" class="btn secondary">📤 <?= current_locale() === 'am' ? 'ዕቃ ወጪ አድርግ' : 'Issue Stock' ?></a>
-        <a href="/aleltu-eifms/modules/warehouse/stock_adjust.php" class="btn secondary">⚖️ <?= current_locale() === 'am' ? 'ክምችት አስተካክል' : 'Stock Adjust' ?></a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/receiving.php" class="btn">📥 <?= current_locale() === 'am' ? 'ዕቃ ተቀበል / አስገባ' : 'Receive Stock' ?></a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/issue.php" class="btn secondary">📤 <?= current_locale() === 'am' ? 'ዕቃ ወጪ አድርግ' : 'Issue Stock' ?></a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/stock_adjust.php" class="btn secondary">⚖️ <?= current_locale() === 'am' ? 'ክምችት አስተካክል' : 'Stock Adjust' ?></a>
         <a href="?export=csv" class="btn secondary">⬇️ <?= current_locale() === 'am' ? 'ኤክስፖርት (CSV)' : 'Export CSV' ?></a>
     </div>
 </div>
@@ -219,7 +219,7 @@ require_once __DIR__ . '/../../includes/header.php';
         </div>
         <button class="btn" type="submit" style="padding:7px 16px">🔍 <?= current_locale() === 'am' ? 'ፈልግ' : 'Search' ?></button>
         <?php if ($search !== '' || $category !== '' || $statusFilter !== '' || $partition !== ''): ?>
-            <a href="/aleltu-eifms/modules/warehouse/stock.php" class="btn secondary" style="padding:7px 12px"><?= current_locale() === 'am' ? 'አጽዳ' : 'Clear' ?></a>
+            <a href="<?= BASE_URL ?>/modules/warehouse/stock.php" class="btn secondary" style="padding:7px 12px"><?= current_locale() === 'am' ? 'አጽዳ' : 'Clear' ?></a>
         <?php endif; ?>
     </form>
 </div>
@@ -268,8 +268,8 @@ require_once __DIR__ . '/../../includes/header.php';
                     <td class="text-muted"><?= number_format($r['effective_min'], 2) ?> <?= h($r['unit']) ?></td>
                     <td><?= $statusBadge ?></td>
                     <td>
-                        <a href="/aleltu-eifms/modules/warehouse/issue.php?item_id=<?= (int)$r['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:11px">📤 <?= current_locale() === 'am' ? 'ወጪ አድርግ' : 'Issue' ?></a>
-                        <a href="/aleltu-eifms/modules/warehouse/stock_adjust.php?item_id=<?= (int)$r['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:11px">⚖️ <?= current_locale() === 'am' ? 'አስተካክል' : 'Adjust' ?></a>
+                        <a href="<?= BASE_URL ?>/modules/warehouse/issue.php?item_id=<?= (int)$r['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:11px">📤 <?= current_locale() === 'am' ? 'ወጪ አድርግ' : 'Issue' ?></a>
+                        <a href="<?= BASE_URL ?>/modules/warehouse/stock_adjust.php?item_id=<?= (int)$r['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:11px">⚖️ <?= current_locale() === 'am' ? 'አስተካክል' : 'Adjust' ?></a>
                     </td>
                 </tr>
             <?php endforeach; ?>

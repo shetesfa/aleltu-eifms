@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$sType, $sId, $vName, $sDate, $sTime, $batchNo ?: null, $dosage ?: null, $notes ?: null, $photoPath, current_user()['id']]);
             flash(current_locale() === 'am' ? '✓ የክትባት ቀጠሮ በተሳካ ሁኔታ ተመዝግቧል (የ1 ቀን፣ 2 ሰዓት እና 1 ሰዓት አስታዋሽ ተዘጋጅቷል)።' : 'Vaccination scheduled with 1-day, 2-hr, 1-hr countdown reminders.');
         }
-        header('Location: /aleltu-eifms/modules/veterinary/vaccinations.php');
+        header('Location: ' . BASE_URL . '/modules/veterinary/vaccinations.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -61,7 +61,7 @@ $records = db()->query("SELECT * FROM vet_vaccination_records ORDER BY scheduled
         <h2 class="mt-0" style="margin-bottom:4px">💉 <?= current_locale() === 'am' ? 'የእንስሳት ክትባት መርሃ-ግብርና መዝገብ' : 'Vaccination Schedule & Records' ?></h2>
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'የቀጠሮ ሰዓት ማስገቢያ፣ የክትባት ፎቶ ማያያዣ እና በሰዓት የተደገፈ አስታዋሽ ስርዓት' : 'Time-based scheduling with automated countdown alerts and photo attachments' ?></p>
     </div>
-    <a href="/aleltu-eifms/modules/veterinary/dashboard.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ ጤና ዳሽቦርድ ተመለስ' : 'Back to Dashboard' ?></a>
+    <a href="<?= BASE_URL ?>/modules/veterinary/dashboard.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ ጤና ዳሽቦርድ ተመለስ' : 'Back to Dashboard' ?></a>
 </div>
 
 <div class="card" style="max-width:640px;margin-bottom:24px">

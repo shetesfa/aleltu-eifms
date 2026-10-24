@@ -14,24 +14,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_employee_card'
     $jobTitle = trim($_POST['job_title'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
     $emergencyContact = trim($_POST['emergency_contact'] ?? '');
+    $emergencyPhone = trim($_POST['emergency_contact_phone'] ?? '');
 
     if ($targetId > 0 && !empty($fullName)) {
         $stmt = db()->prepare(
             "UPDATE employees 
-             SET full_name = ?, amharic_name = ?, job_title = ?, phone = ?, emergency_contact = ? 
+             SET full_name = ?, amharic_name = ?, job_title = ?, phone = ?, emergency_contact = ?, emergency_contact_phone = ? 
              WHERE id = ?"
         );
-        $stmt->execute([$fullName, $amharicName, $jobTitle, $phone, $emergencyContact, $targetId]);
+        $stmt->execute([$fullName, $amharicName, $jobTitle, $phone, $emergencyContact, $emergencyPhone ?: null, $targetId]);
         log_activity('employees', 'update', 'employees', $targetId, "Updated ID card profile for {$fullName}");
         flash(current_locale() === 'am' ? '✓ የመታወቂያ ካርድ መረጃ በተሳካ ሁኔታ ተስተካክሏል!' : 'ID card details updated successfully!');
     }
-    header('Location: /aleltu-eifms/modules/employees/id_card.php?id=' . $targetId);
+    header('Location: ' . BASE_URL . '/modules/employees/id_card.php?id=' . $targetId);
     exit;
 }
 
-if ($empId <= 0 && current_user()) {
+$isHrOrManager = has_role(['super_admin', 'general_manager', 'hr_officer']);
+if (!$isHrOrManager && current_user()) {
+    // Regular employees are strictly locked to their own employee record
+    $stmtChk = db()->prepare("SELECT id FROM employees WHERE user_id = ?");
+    $stmtChk->execute([(int)current_user()['id']]);
+    $chk = $stmtChk->fetchColumn();
+    if ($chk) {
+        $empId = (int) $chk;
+    }
+} elseif ($empId <= 0 && current_user()) {
     // If not specified, look up current logged in employee
-    $chk = db()->query("SELECT id FROM employees WHERE user_id = " . (int)current_user()['id'])->fetchColumn();
+    $stmtChk = db()->prepare("SELECT id FROM employees WHERE user_id = ?");
+    $stmtChk->execute([(int)current_user()['id']]);
+    $chk = $stmtChk->fetchColumn();
     if ($chk) {
         $empId = (int) $chk;
     }
@@ -43,12 +55,14 @@ if ($empId <= 0 && !empty($allEmployees)) {
     $empId = (int)$allEmployees[0]['id'];
 }
 
-$emp = db()->query(
+$stmtEmp = db()->prepare(
     "SELECT e.*, d.name AS dept_name
      FROM employees e
      LEFT JOIN departments d ON d.id = e.department_id
-     WHERE e.id = {$empId}"
-)->fetch();
+     WHERE e.id = ?"
+);
+$stmtEmp->execute([$empId]);
+$emp = $stmtEmp->fetch();
 
 if (!$emp) {
     die("Employee record not found.");
@@ -58,7 +72,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$verifyUrl = $scheme . '://' . $host . '/aleltu-eifms/modules/employees/id_verify.php?code=' . urlencode($emp['employee_number']);
+$verifyUrl = $scheme . '://' . $host . BASE_URL . '/modules/employees/id_verify.php?code=' . urlencode($emp['employee_number']);
 
 // Generate Fayda-style FAN format: e.g. FAN 9410 8241 1902
 $fanNumber = !empty($emp['national_id']) ? $emp['national_id'] : 'FAN ' . rand(7000, 9999) . ' ' . rand(1000, 9999) . ' ' . str_pad((string)$emp['id'], 4, '0', STR_PAD_LEFT);
@@ -67,10 +81,26 @@ $rawHireDate = !empty($emp['hire_date']) ? $emp['hire_date'] : date('Y-m-d');
 $issueDateEth = eth_date($rawHireDate);
 $rawExpiryDate = date('Y-m-d', strtotime('+5 years', strtotime($rawHireDate)));
 $expiryDateEth = eth_date($rawExpiryDate);
-$emergencyContact = !empty($emp['emergency_contact']) ? $emp['emergency_contact'] : ($emp['phone'] ?: '+251 911 00 00 00');
-?>
+$emergencyName = !empty($emp['emergency_contact']) ? $emp['emergency_contact'] : 'ተጠሪ አልተጠቀሰም';
+$emergencyPhone = !empty($emp['emergency_contact_phone']) ? $emp['emergency_contact_phone'] : (!empty($emp['phone_alt']) ? $emp['phone_alt'] : ($emp['phone'] ?: '+251 911 00 00 00'));
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+// Generate 100% Offline QR Code using includes/qrcode.php
+$qrDataUri = '';
+try {
+    require_once __DIR__ . '/../../includes/qrcode.php';
+    $qr = new QRCode($verifyUrl, ['w' => 100, 'h' => 100, 's' => 'qrh', 'fc' => '1e5631']);
+    $img = $qr->render_image();
+    if ($img) {
+        ob_start();
+        imagepng($img);
+        $qrDataUri = 'data:image/png;base64,' . base64_encode(ob_get_clean());
+        imagedestroy($img);
+    }
+} catch (Throwable) {
+    $qrDataUri = '';
+}
+?>
 
 <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
     <div>
@@ -80,21 +110,23 @@ $emergencyContact = !empty($emp['emergency_contact']) ? $emp['emergency_contact'
     
     <!-- Quick Search / Switch Employee -->
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <form method="get" style="display:flex;gap:6px;align-items:center;margin:0">
-            <select name="id" onchange="this.form.submit()" style="padding:6px 10px;font-size:13px;border-radius:6px;min-width:220px">
-                <?php foreach ($allEmployees as $ae): ?>
-                    <option value="<?= (int)$ae['id'] ?>" <?= $empId === (int)$ae['id'] ? 'selected' : '' ?>>
-                        <?= h($ae['full_name']) ?> (<?= h($ae['employee_number']) ?>)
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </form>
-        <?php if (has_role(['super_admin', 'general_manager', 'hr_officer'])): ?>
+        <?php if ($isHrOrManager): ?>
+            <form method="get" style="display:flex;gap:6px;align-items:center;margin:0">
+                <select name="id" onchange="this.form.submit()" style="padding:6px 10px;font-size:13px;border-radius:6px;min-width:220px">
+                    <?php foreach ($allEmployees as $ae): ?>
+                        <option value="<?= (int)$ae['id'] ?>" <?= $empId === (int)$ae['id'] ? 'selected' : '' ?>>
+                            <?= h($ae['full_name']) ?> (<?= h($ae['employee_number']) ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
             <button class="btn secondary" onclick="document.getElementById('editModal').style.display='block'" style="padding:6px 12px">✏️ መረጃ አሻሽል</button>
+            <a href="<?= BASE_URL ?>/modules/employees/photo_upload.php?id=<?= (int) $empId ?>" class="btn secondary" style="padding:6px 12px">📷 ፎቶ ቀይር</a>
         <?php endif; ?>
-        <a href="/aleltu-eifms/modules/employees/photo_upload.php?id=<?= (int) $empId ?>" class="btn secondary" style="padding:6px 12px">📷 ፎቶ ቀይር</a>
         <button class="btn" onclick="window.print()" style="padding:6px 16px;background:#1e5631;border-color:#1e5631">🖨️ መታወቂያውን አትም (Print)</button>
-        <a href="/aleltu-eifms/modules/employees/list.php" class="btn secondary" style="padding:6px 12px">&larr; ወደ ሠራተኞች ዝርዝር</a>
+        <?php if ($isHrOrManager): ?>
+            <a href="<?= BASE_URL ?>/modules/employees/list.php" class="btn secondary" style="padding:6px 12px">&larr; ወደ ሠራተኞች ዝርዝር</a>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -127,9 +159,13 @@ $emergencyContact = !empty($emp['emergency_contact']) ? $emp['emergency_contact'
                 <label style="font-size:12px;font-weight:700">ስልክ ቁጥር</label>
                 <input type="text" name="phone" value="<?= h($emp['phone'] ?? '') ?>" style="width:100%;padding:8px">
             </div>
+            <div class="form-group" style="margin-bottom:12px">
+                <label style="font-size:12px;font-weight:700">የአደጋ ጊዜ ተጠሪ ስም</label>
+                <input type="text" name="emergency_contact" value="<?= h($emp['emergency_contact'] ?? '') ?>" placeholder="ለምሳሌ፡ አቶ አበበ ደሳለኝ" style="width:100%;padding:8px">
+            </div>
             <div class="form-group" style="margin-bottom:16px">
-                <label style="font-size:12px;font-weight:700">የአደጋ ጊዜ ተጠሪ ስልክ</label>
-                <input type="text" name="emergency_contact" value="<?= h($emp['emergency_contact'] ?? '') ?>" style="width:100%;padding:8px">
+                <label style="font-size:12px;font-weight:700">የአደጋ ጊዜ ተጠሪ ስልክ ቁጥር</label>
+                <input type="text" name="emergency_contact_phone" value="<?= h($emp['emergency_contact_phone'] ?? ($emp['phone_alt'] ?? '')) ?>" placeholder="09xxxxxxxx" style="width:100%;padding:8px">
             </div>
 
             <div style="display:flex;justify-content:flex-end;gap:10px">
@@ -477,16 +513,16 @@ $emergencyContact = !empty($emp['emergency_contact']) ? $emp['emergency_contact'
             <div class="fayda-header-ribbon"></div>
             
             <div class="fayda-header">
-                <div style="font-size:22px;line-height:1">🌾</div>
+                <div style="font-size:22px;line-height:1">🐄</div>
                 <div class="fayda-header-text">
-                    <div class="fayda-header-title-am">አለልቱ የተቀናጀ እርሻ — የሠራተኛ ዲጂታል መታወቂያ</div>
-                    <div class="fayda-header-title-en">ALELTU INTEGRATED FARM — EMPLOYEE DIGITAL ID CARD</div>
+                    <div class="fayda-header-title-am">ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት</div>
+                    <div class="fayda-header-title-en">TEKLU GETACHEW CATTLE BREEDING & DAIRY PROCESSING</div>
                 </div>
                 <div style="font-size:14px;font-weight:900;color:#1e5631">🇪🇹</div>
             </div>
 
             <div class="fayda-body">
-                <div class="fayda-watermark">🌾</div>
+                <div class="fayda-watermark">🐄</div>
 
                 <!-- Photo Column -->
                 <div class="fayda-photo-box">
@@ -553,7 +589,11 @@ $emergencyContact = !empty($emp['emergency_contact']) ? $emp['emergency_contact'
             <div class="fayda-back-body">
                 <!-- QR Box -->
                 <div class="fayda-qr-box">
-                    <div id="faydaQrHolder"></div>
+                    <?php if ($qrDataUri): ?>
+                        <img src="<?= $qrDataUri ?>" alt="Verification QR Code" style="width:84px;height:84px;display:block">
+                    <?php else: ?>
+                        <div style="width:84px;height:84px;display:flex;align-items:center;justify-content:center;background:#eee;font-size:10px;color:#666">QR Code</div>
+                    <?php endif; ?>
                     <span style="font-size:8px;font-weight:700;color:#1e5631;margin-top:4px">SCAN TO VERIFY</span>
                 </div>
 
@@ -565,8 +605,12 @@ $emergencyContact = !empty($emp['emergency_contact']) ? $emp['emergency_contact'
                             <td class="val"><?= h($emp['phone'] ?: '+251 911 00 00 00') ?></td>
                         </tr>
                         <tr>
-                            <td class="lbl">የአደጋ ጊዜ ተጠሪ:</td>
-                            <td class="val"><?= h($emergencyContact) ?></td>
+                            <td class="lbl">የአደጋ ጊዜ ተጠሪ ስም:</td>
+                            <td class="val"><?= h($emergencyName) ?></td>
+                        </tr>
+                        <tr>
+                            <td class="lbl">የተጠሪው ስልክ ቁጥር:</td>
+                            <td class="val"><?= h($emergencyPhone) ?></td>
                         </tr>
                         <tr>
                             <td class="lbl">የድርጅቱ አድራሻ:</td>
@@ -585,29 +629,20 @@ $emergencyContact = !empty($emp['emergency_contact']) ? $emp['emergency_contact'
                     </div>
 
                     <div class="fayda-disclaimer">
-                        ይህ ካርድ የአለልቱ የተቀናጀ እርሻ ንብረት ነው። የተገኘ ሰው በአቅራቢያው ለሚገኝ ፖሊስ ጣቢያ ወይም ለድርጅቱ ኃላፊ ያስረክቡ።<br>
-                        Property of Aleltu Integrated Farm. If found, please return to Aleltu Farm HR Office.
+                        ይህ ካርድ የተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት ንብረት ነው። የተገኘ ሰው በአቅራቢያው ለሚገኝ ፖሊስ ጣቢያ ወይም ለድርጅቱ ኃላፊ ያስረክቡ።<br>
+                        Property of Teklu Getachew Dairy Farm. If found, please return to Teklu Getachew Farm HR Office.
                     </div>
                 </div>
             </div>
 
-            <div class="fayda-barcode-strip" style="background:#2c3e50">
-                <span style="font-family:monospace;letter-spacing:1px">IDETHALF<<<<<<<<<<<?= h($emp['employee_number']) ?><<<<<</span>
+            <div class="fayda-barcode-strip" style="background:#1e5631">
+                <span>IDENTITY NO: <?= h($emp['employee_number']) ?></span>
+                <span style="font-size:7.5px;letter-spacing:1px">ALELTU-EIFMS-SECURE-ID</span>
+                <span>STATUS: ACTIVE</span>
             </div>
         </div>
     </div>
 
 </div>
-
-<script>
-new QRCode(document.getElementById('faydaQrHolder'), {
-    text: <?= json_encode($verifyUrl) ?>,
-    width: 96,
-    height: 96,
-    colorDark: '#1e5631',
-    colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.H
-});
-</script>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

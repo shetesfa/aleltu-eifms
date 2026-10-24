@@ -3,11 +3,11 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
 
 if (current_user()) {
-    header('Location: /aleltu-eifms/index.php');
+    header('Location: ' . BASE_URL . '/index.php');
     exit;
 }
 if (empty($_SESSION['pending_2fa_user_id'])) {
-    header('Location: /aleltu-eifms/modules/auth/login.php');
+    header('Location: ' . BASE_URL . '/modules/auth/login.php');
     exit;
 }
 
@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['use_recovery_code'])) {
         $recoveryCode = trim($_POST['recovery_code'] ?? '');
         if (complete_2fa_recovery_login($recoveryCode)) {
-            header('Location: /aleltu-eifms/index.php');
+            header('Location: ' . BASE_URL . '/index.php');
             exit;
         }
         $error = 'Invalid or already used recovery code. Please check your backup codes and try again.';
@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $code = trim($_POST['code'] ?? '');
         if (complete_2fa_login($code)) {
-            header('Location: /aleltu-eifms/index.php');
+            header('Location: ' . BASE_URL . '/index.php');
             exit;
         }
         $error = 'Invalid or expired verification code. Check your authenticator app and try again.';
@@ -40,8 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Two-Factor Verification — Aleltu Farm EIFMS</title>
-    <link rel="stylesheet" href="/aleltu-eifms/assets/css/app.css">
+    <title><?= h(t('company.name')) ?> — 2FA</title>
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/app.css">
 </head>
 <body class="login-body">
 <div class="login-wrap">
@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <p class="text-muted" style="margin-top:25px;text-align:center;border-top:1px solid #eee;padding-top:15px;">
-            <a href="/aleltu-eifms/modules/auth/login.php" style="color:#888;text-decoration:none;">&larr; Back to login</a>
+            <a href="<?= BASE_URL ?>/modules/auth/login.php" style="color:#888;text-decoration:none;">&larr; Back to login</a>
         </p>
     </div>
 </div>

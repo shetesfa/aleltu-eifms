@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             dept_material_request_fulfill($reqId, $warehouseId, current_user()['id']);
             flash('Requisition processed successfully.');
         }
-        header('Location: /aleltu-eifms/modules/warehouse/requisitions.php');
+        header('Location: ' . BASE_URL . '/modules/warehouse/requisitions.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -59,8 +59,8 @@ foreach ($requisitions as $r) {
         <p class="text-muted" style="margin:0">Evaluate incoming requests against live warehouse inventory. Issue available stock or route shortages to Finance.</p>
     </div>
     <div style="display:flex;gap:8px">
-        <a href="/aleltu-eifms/modules/warehouse/receiving.php" class="btn secondary">📥 Store Receiving</a>
-        <a href="/aleltu-eifms/modules/warehouse/stock.php" class="btn secondary">📊 Stock Inventory</a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/receiving.php" class="btn secondary">📥 Store Receiving</a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/stock.php" class="btn secondary">📊 Stock Inventory</a>
     </div>
 </div>
 

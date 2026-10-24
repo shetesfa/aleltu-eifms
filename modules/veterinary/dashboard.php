@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['administer_vaccine'])
         );
         $stmt->execute([$batchNo ?: null, $dosage ?: null, $notes ?: null, $photoPath, current_user()['id'], $vacId]);
         flash(current_locale() === 'am' ? '✓ ክትባቱ በተሳካ ሁኔታ ተሰጥቶ ተመዝግቧል!' : 'Vaccination successfully administered and recorded!');
-        header('Location: /aleltu-eifms/modules/veterinary/dashboard.php');
+        header('Location: ' . BASE_URL . '/modules/veterinary/dashboard.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -44,9 +44,9 @@ require_once __DIR__ . '/../../includes/header.php';
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'የላም፣ የዶሮ እና የዓሳ የተቀናጀ የጤና ምርመራ፣ የክትባት ሰዓት ቆጠራ ማንቂያ እና የበሽታ መቆጣጠሪያ' : 'Integrated health, smart vaccination countdown reminders, and disease monitoring' ?></p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="/aleltu-eifms/modules/veterinary/health.php" class="btn">📋 <?= current_locale() === 'am' ? 'የጤና ምርመራ መዝግብ' : 'Record Health Visit' ?></a>
-        <a href="/aleltu-eifms/modules/veterinary/vaccinations.php" class="btn secondary">💉 <?= current_locale() === 'am' ? 'የክትባት መርሃ-ግብር' : 'Vaccinations' ?></a>
-        <a href="/aleltu-eifms/modules/veterinary/disease.php" class="btn secondary">⚠️ <?= current_locale() === 'am' ? 'የበሽታ ክስተቶች' : 'Disease Incidents' ?></a>
+        <a href="<?= BASE_URL ?>/modules/veterinary/health.php" class="btn">📋 <?= current_locale() === 'am' ? 'የጤና ምርመራ መዝግብ' : 'Record Health Visit' ?></a>
+        <a href="<?= BASE_URL ?>/modules/veterinary/vaccinations.php" class="btn secondary">💉 <?= current_locale() === 'am' ? 'የክትባት መርሃ-ግብር' : 'Vaccinations' ?></a>
+        <a href="<?= BASE_URL ?>/modules/veterinary/disease.php" class="btn secondary">⚠️ <?= current_locale() === 'am' ? 'የበሽታ ክስተቶች' : 'Disease Incidents' ?></a>
     </div>
 </div>
 
@@ -113,7 +113,7 @@ require_once __DIR__ . '/../../includes/header.php';
                 </div>
                 <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center">
                     <span class="badge sold" style="font-size:11px">-<?= $ma['drop_percent'] ?>% <?= current_locale() === 'am' ? 'ቅነሳ' : 'drop' ?></span>
-                    <a href="/aleltu-eifms/modules/veterinary/health.php" class="btn secondary" style="padding:2px 8px;font-size:11px">🩺 <?= current_locale() === 'am' ? 'ምርመራ ጀምር' : 'Examine' ?></a>
+                    <a href="<?= BASE_URL ?>/modules/veterinary/health.php" class="btn secondary" style="padding:2px 8px;font-size:11px">🩺 <?= current_locale() === 'am' ? 'ምርመራ ጀምር' : 'Examine' ?></a>
                 </div>
             </div>
         <?php endforeach; ?>
@@ -142,7 +142,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card" style="margin-bottom:20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <h3 style="margin:0">💉 <?= current_locale() === 'am' ? 'በቅርቡ የሚሰጡ ክትባቶች' : 'Vaccinations Due Soon' ?></h3>
-        <a href="/aleltu-eifms/modules/veterinary/vaccinations.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= current_locale() === 'am' ? 'ሁሉንም እይ' : 'View All' ?></a>
+        <a href="<?= BASE_URL ?>/modules/veterinary/vaccinations.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= current_locale() === 'am' ? 'ሁሉንም እይ' : 'View All' ?></a>
     </div>
     <table>
         <tr>
@@ -155,7 +155,7 @@ require_once __DIR__ . '/../../includes/header.php';
             <tr>
                 <td><strong><?= h(vet_subject_label($v['subject_type'], $v['subject_id'])) ?></strong></td>
                 <td><?= h($v['vaccine_name']) ?></td>
-                <td><?= h($v['scheduled_date']) ?> @ <?= h($v['scheduled_time'] ?? '09:00') ?></td>
+                <td><?= eth_date($v['scheduled_date']) ?> (<?= eth_time($v['scheduled_time'] ?? '09:00') ?>)</td>
                 <td>
                     <button class="btn secondary" onclick="openVaccineModal(<?= (int)$v['id'] ?>, '<?= h(addslashes($v['vaccine_name'])) ?>', '<?= h(addslashes(vet_subject_label($v['subject_type'], $v['subject_id']))) ?>')" style="padding:3px 10px;font-size:11px">
                         ✓ <?= current_locale() === 'am' ? 'ክትባት ስጥ' : 'Administer' ?>
@@ -171,7 +171,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <h3 style="margin:0">📋 <?= current_locale() === 'am' ? 'የቅርብ ጊዜ የሕክምና መዝገቦች' : 'Recent Health Records' ?></h3>
-        <a href="/aleltu-eifms/modules/veterinary/health.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= current_locale() === 'am' ? 'አዲስ መዝግብ' : 'Record New' ?></a>
+        <a href="<?= BASE_URL ?>/modules/veterinary/health.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= current_locale() === 'am' ? 'አዲስ መዝግብ' : 'Record New' ?></a>
     </div>
     <table>
         <tr>
@@ -193,7 +193,7 @@ require_once __DIR__ . '/../../includes/header.php';
                     <?php endif; ?>
                 </td>
                 <td><strong><?= h(vet_subject_label($r['subject_type'], $r['subject_id'])) ?></strong></td>
-                <td><?= h($r['record_date']) ?></td>
+                <td><?= eth_date($r['record_date']) ?></td>
                 <td><?= h($r['condition_name'] ?: '—') ?></td>
                 <td><?= h($r['treatment'] ?: '—') ?></td>
             </tr>

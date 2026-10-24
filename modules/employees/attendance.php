@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             log_activity('attendance', 'create', 'attendance', 0, "Marked ALL active staff as PRESENT for {$attDate}");
             flash(current_locale() === 'am' ? '✓ ሁሉም ንቁ ሰራተኞች ዛሬ "ተገኝተዋል" ተብለው ተመዝግበዋል!' : 'All active staff marked as Present.');
         }
-        header("Location: /aleltu-eifms/modules/employees/attendance.php?date=" . urlencode($date) . "&view=" . urlencode($viewMode) . "&dept_id={$deptFilter}&cal_month={$calMonth}&cal_year={$calYear}");
+        header("Location: " . BASE_URL . "/modules/employees/attendance.php?date=" . urlencode($date) . "&view=" . urlencode($viewMode) . "&dept_id={$deptFilter}&cal_month={$calMonth}&cal_year={$calYear}");
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -45,12 +45,17 @@ $departments = db()->query("SELECT id, name FROM departments ORDER BY name")->fe
 
 // Employee Attendance Query
 $sql = "SELECT e.id, e.employee_number, e.full_name, e.amharic_name, e.job_title, e.photo_path,
-               d.name AS dept_name, a.status AS marked_status, a.check_in_at
+               d.name AS dept_name, 
+               COALESCE(a.status, (
+                   SELECT 'on_leave' FROM leave_requests lr 
+                   WHERE lr.employee_id = e.id AND lr.status = 'approved' AND ? BETWEEN lr.start_date AND lr.end_date LIMIT 1
+               )) AS marked_status, 
+               a.check_in_at
         FROM employees e
         LEFT JOIN departments d ON d.id = e.department_id
         LEFT JOIN attendance a ON a.employee_id = e.id AND a.attendance_date = ?
-        WHERE e.status = 'active'";
-$params = [$date];
+        WHERE e.status != 'terminated'";
+$params = [$date, $date];
 
 if ($deptFilter > 0) {
     $sql .= " AND e.department_id = ?";
@@ -131,7 +136,7 @@ if ($viewMode === 'matrix') {
             </button>
         </form>
         <button class="btn secondary" onclick="window.print()">🖨️ <?= current_locale() === 'am' ? 'አትም / PDF' : 'Print Timesheet' ?></button>
-        <a href="/aleltu-eifms/modules/employees/dashboard.php" class="btn secondary">← <?= current_locale() === 'am' ? 'ወደ HR ዳሽቦርድ' : 'HR Dashboard' ?></a>
+        <a href="<?= BASE_URL ?>/modules/employees/dashboard.php" class="btn secondary">← <?= current_locale() === 'am' ? 'ወደ HR ዳሽቦርድ' : 'HR Dashboard' ?></a>
     </div>
 </div>
 
@@ -452,7 +457,7 @@ if ($viewMode === 'matrix') {
             status: next
         });
 
-        fetch('/aleltu-eifms/modules/employees/attendance_ajax.php', {
+        fetch(BASE_URL . '/modules/employees/attendance_ajax.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: body

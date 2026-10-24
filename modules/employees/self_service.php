@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $emp) {
                 ->execute([$taskId, $empId]);
             flash(current_locale() === 'am' ? '✓ የስራ ተግባር መጠናቀቁ ተረጋግጧል!' : 'Task marked as completed.');
         }
-        header('Location: /aleltu-eifms/modules/employees/self_service.php');
+        header('Location: ' . BASE_URL . '/modules/employees/self_service.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -160,7 +160,7 @@ $greeting = $hour < 12
                         <?= strtoupper(substr($emp['full_name'], 0, 1)) ?>
                     </div>
                 <?php endif; ?>
-                <a href="/aleltu-eifms/modules/employees/photo_upload.php?id=<?= (int)$emp['id'] ?>" title="Change Photo" style="position:absolute;bottom:-2px;right:-2px;background:var(--primary);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--card);text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,0.2)">📷</a>
+                <a href="<?= BASE_URL ?>/modules/employees/photo_upload.php?id=<?= (int)$emp['id'] ?>" title="Change Photo" style="position:absolute;bottom:-2px;right:-2px;background:var(--primary);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--card);text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,0.2)">📷</a>
             </div>
             <div>
                 <div style="display:flex;align-items:center;gap:8px;">
@@ -202,7 +202,7 @@ $greeting = $hour < 12
             <?php endif; ?>
 
             <!-- ID Card Link -->
-            <a href="/aleltu-eifms/modules/employees/id_card.php?id=<?= $empId ?>" class="btn secondary" target="_blank" style="padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:600;">
+            <a href="<?= BASE_URL ?>/modules/employees/id_card.php?id=<?= $empId ?>" class="btn secondary" target="_blank" style="padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:600;">
                 🪪 <?= current_locale() === 'am' ? 'ዲጂታል መታወቂያ' : 'Digital ID' ?>
             </a>
         </div>
@@ -210,7 +210,7 @@ $greeting = $hour < 12
 </div>
 
 <!-- Modern KPI Metrics Grid -->
-<div class="kpi-row" style="margin-bottom:24px;display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;">
+<div class="kpi-row" style="margin-bottom:24px;display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;">
     
     <!-- 1. Present Days -->
     <div class="kpi" style="border-radius:12px;padding:18px 20px;border-left:5px solid var(--success, #2e7d32);background:var(--card);color:var(--text);box-shadow:0 4px 15px rgba(0,0,0,0.03);">
@@ -254,7 +254,7 @@ $greeting = $hour < 12
 </div>
 
 <!-- Core Sections 2x2 Responsive Grid -->
-<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:22px;margin-bottom:28px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:20px;margin-bottom:28px;">
     
     <!-- SECTION 1: ATTENDANCE HISTORY -->
     <div class="card" style="border-radius:12px;padding:22px;box-shadow:0 4px 18px rgba(0,0,0,0.04);border:1px solid var(--border);">
@@ -305,12 +305,12 @@ $greeting = $hour < 12
         <form method="post" style="margin-bottom:18px;background:var(--card);padding:16px;border-radius:10px;border:1px solid var(--border);">
             <?= csrf_field() ?>
             <input type="hidden" name="submit_leave" value="1">
-            <div class="form-row" style="display:flex;gap:12px;margin-bottom:12px;">
-                <div class="form-group" style="flex:1;margin:0;">
+            <div class="form-row" style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+                <div class="form-group" style="flex:1;min-width:120px;margin:0;">
                     <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;"><?= current_locale() === 'am' ? 'የመጀመሪያ ቀን *' : 'Start Date *' ?></label>
                     <input type="date" name="start_date" required min="<?= date('Y-m-d') ?>" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:var(--card);color:var(--text)">
                 </div>
-                <div class="form-group" style="flex:1;margin:0;">
+                <div class="form-group" style="flex:1;min-width:120px;margin:0;">
                     <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;"><?= current_locale() === 'am' ? 'የማብቂያ ቀን *' : 'End Date *' ?></label>
                     <input type="date" name="end_date" required min="<?= date('Y-m-d') ?>" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:var(--card);color:var(--text)">
                 </div>
@@ -392,7 +392,7 @@ $greeting = $hour < 12
                             <?php endif; ?>
                         </td>
                         <td style="padding:10px;text-align:right;">
-                            <a href="/aleltu-eifms/modules/finance/payslip_print.php?id=<?= (int)$p['id'] ?>" class="btn secondary" style="padding:4px 10px;font-size:12px;border-radius:6px;text-decoration:none;" target="_blank">
+                            <a href="<?= BASE_URL ?>/modules/finance/payslip_print.php?id=<?= (int)$p['id'] ?>" class="btn secondary" style="padding:4px 10px;font-size:12px;border-radius:6px;text-decoration:none;" target="_blank">
                                 🖨️ <?= current_locale() === 'am' ? 'አትም' : 'Print' ?>
                             </a>
                         </td>
@@ -456,15 +456,30 @@ $greeting = $hour < 12
 </div>
 
 <script>
-// Real-time Digital Clock
+// Real-time Ethiopian Digital Clock (12-hour local format)
 function updateLiveClock() {
     const el = document.getElementById('liveClock');
     if (!el) return;
     const now = new Date();
-    const h = String(now.getHours()).padStart(2, '0');
+    const h = now.getHours();
     const m = String(now.getMinutes()).padStart(2, '0');
     const s = String(now.getSeconds()).padStart(2, '0');
-    el.textContent = `${h}:${m}:${s}`;
+    
+    let ethHour = (h >= 6) ? (h - 6) : (h + 6);
+    if (ethHour === 0) ethHour = 12;
+
+    let period = '';
+    if (h >= 6 && h < 12) {
+        period = 'ጠዋት';
+    } else if (h >= 12 && h < 18) {
+        period = 'ከሰዓት';
+    } else if (h >= 18 && h < 24) {
+        period = 'ምሽት';
+    } else {
+        period = 'ሌሊት';
+    }
+
+    el.textContent = `${ethHour}:${m}:${s} (${period})`;
 }
 setInterval(updateLiveClock, 1000);
 updateLiveClock();

@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
     require_permission('system', 'admin');
     $settings = [
-        'company_name'        => trim($_POST['company_name'] ?? 'Aleltu Enterprise Farm'),
+        'company_name'        => trim($_POST['company_name'] ?? 'ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት'),
         'company_location'    => trim($_POST['company_location'] ?? ''),
         'default_locale'      => $_POST['default_locale'] ?? 'en',
         'default_theme'       => $_POST['default_theme'] ?? 'light',
@@ -25,14 +25,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     log_activity('system', 'update', 'system_settings', 0, 'Settings updated by ' . (current_user()['name'] ?? 'admin'));
     flash('System settings saved.');
-    header('Location: /aleltu-eifms/modules/admin/settings.php');
+    header('Location: ' . BASE_URL . '/modules/admin/settings.php');
     exit;
 }
 
 require_once __DIR__ . '/../../includes/header.php';
 
 // Load existing settings
-$company_name     = setting_get('company_name')     ?? 'Aleltu Enterprise Farm';
+$company_name     = setting_get('company_name')     ?? 'ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት';
 $company_location = setting_get('company_location') ?? '';
 $default_locale   = setting_get('default_locale')   ?? 'en';
 $default_theme    = setting_get('default_theme')     ?? 'light';
@@ -118,11 +118,11 @@ $empCount  = db()->query("SELECT COUNT(*) FROM employees WHERE status='active'")
 <div class="card" style="margin-top:20px">
     <h3><?= current_locale() === 'am' ? 'ፈጣን የአስተዳደር አቋራጮች' : 'Quick Administration' ?></h3>
     <div style="display:flex;flex-wrap:wrap;gap:10px">
-        <a href="/aleltu-eifms/modules/admin/users.php"           class="btn secondary">👤 <?= h(t('nav.user_mgmt', 'Manage Users')) ?></a>
-        <a href="/aleltu-eifms/modules/audit_log.php"             class="btn secondary">🔍 <?= h(t('nav.audit_log', 'Audit Log')) ?></a>
-        <a href="/aleltu-eifms/modules/notifications.php"         class="btn secondary">🔔 <?= h(t('nav.notifications', 'Notifications')) ?></a>
-        <a href="/aleltu-eifms/modules/module_reports.php"        class="btn secondary">📋 <?= h(t('nav.module_reports', 'Module Reports')) ?></a>
-        <a href="/aleltu-eifms/system_check.php"                  class="btn secondary">🩺 <?= current_locale() === 'am' ? 'የሲስተም ጤንነት' : 'System Health' ?></a>
+        <a href="<?= BASE_URL ?>/modules/admin/users.php"           class="btn secondary">👤 <?= h(t('nav.user_mgmt', 'Manage Users')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/audit_log.php"             class="btn secondary">🔍 <?= h(t('nav.audit_log', 'Audit Log')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/notifications.php"         class="btn secondary">🔔 <?= h(t('nav.notifications', 'Notifications')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/module_reports.php"        class="btn secondary">📋 <?= h(t('nav.module_reports', 'Module Reports')) ?></a>
+        <a href="<?= BASE_URL ?>/system_check.php"                  class="btn secondary">🩺 <?= current_locale() === 'am' ? 'የሲስተም ጤንነት' : 'System Health' ?></a>
     </div>
 </div>
 

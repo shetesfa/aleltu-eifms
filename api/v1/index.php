@@ -21,8 +21,8 @@ require_once __DIR__ . '/../../includes/functions.php';
 // Simple router: map method+path to handler files
 $method = $_SERVER['REQUEST_METHOD'];
 $uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-// Normalize: strip /aleltu-eifms/api/v1
-$path = preg_replace('#^/aleltu-eifms/api/v1#', '', $uri);
+// Normalize: strip base path and /api/v1
+$path = preg_replace('#^(' . preg_quote(BASE_URL, '#') . ')?/api/v1#', '', $uri);
 $path = rtrim($path, '/') ?: '/';
 
 // Route map

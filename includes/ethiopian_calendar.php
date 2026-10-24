@@ -106,6 +106,57 @@ class EthiopianDate {
         $t = self::formatTime($dateTimeStr);
         return "{$d} {$t}";
     }
+
+    public static function today(): array {
+        $t = time();
+        return self::fromGregorian((int)date('Y', $t), (int)date('n', $t), (int)date('j', $t));
+    }
+
+    public static function currentYear(): int {
+        return self::today()[0];
+    }
+
+    public static function currentMonth(): int {
+        return self::today()[1];
+    }
+
+    public static function currentDay(): int {
+        return self::today()[2];
+    }
+
+    public static function currentMonthName(): string {
+        return self::$months[self::currentMonth()] ?? '';
+    }
+
+    public static function ethMonthRange(?int $ey = null, ?int $em = null): array {
+        if ($ey === null || $em === null) {
+            [$curY, $curM] = self::today();
+            $ey = $ey ?? $curY;
+            $em = $em ?? $curM;
+        }
+        $lastDay = ($em === 13) ? ((($ey % 4) === 3) ? 6 : 5) : 30;
+        [$sy, $sm, $sd] = self::toGregorian($ey, $em, 1);
+        [$ey2, $em2, $ed2] = self::toGregorian($ey, $em, $lastDay);
+        return [
+            'from' => sprintf('%04d-%02d-%02d', $sy, $sm, $sd),
+            'to'   => sprintf('%04d-%02d-%02d', $ey2, $em2, $ed2)
+        ];
+    }
+
+    public static function ethYearRange(?int $ey = null): array {
+        $ey = $ey ?? self::currentYear();
+        $pagumeDays = (($ey % 4) === 3) ? 6 : 5;
+        [$sy, $sm, $sd] = self::toGregorian($ey, 1, 1);
+        [$ey2, $em2, $ed2] = self::toGregorian($ey, 13, $pagumeDays);
+        return [
+            'from' => sprintf('%04d-%02d-%02d', $sy, $sm, $sd),
+            'to'   => sprintf('%04d-%02d-%02d', $ey2, $em2, $ed2)
+        ];
+    }
+
+    public static function getMonths(): array {
+        return self::$months;
+    }
 }
 
 // Global procedural helper functions
@@ -120,3 +171,20 @@ function eth_time(?string $timeStr): string {
 function eth_datetime(?string $dateTimeStr): string {
     return EthiopianDate::formatDateTime($dateTimeStr);
 }
+
+function eth_month_range(?int $ey = null, ?int $em = null): array {
+    return EthiopianDate::ethMonthRange($ey, $em);
+}
+
+function eth_year_range(?int $ey = null): array {
+    return EthiopianDate::ethYearRange($ey);
+}
+
+function eth_current_year(): int {
+    return EthiopianDate::currentYear();
+}
+
+function eth_current_month(): int {
+    return EthiopianDate::currentMonth();
+}
+

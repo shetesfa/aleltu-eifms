@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         unset($_SESSION['fresh_2fa_recovery_codes']);
         log_activity('auth', 'update', 'users', $userId, 'Two-factor authentication disabled');
         flash('Two-factor authentication has been disabled.');
-        header('Location: /aleltu-eifms/modules/profile/two_factor.php');
+        header('Location: ' . BASE_URL . '/modules/profile/two_factor.php');
         exit;
     }
 
@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['pending_2fa_setup_secret']);
             log_activity('auth', 'update', 'users', $userId, 'Two-factor authentication enabled with recovery codes');
             flash('Two-factor authentication is now active on your account! Please save your recovery codes below.');
-            header('Location: /aleltu-eifms/modules/profile/two_factor.php');
+            header('Location: ' . BASE_URL . '/modules/profile/two_factor.php');
             exit;
         }
         $error = 'That code didn\'t match. Make sure your authenticator app is showing the current code, then try again.';
@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['fresh_2fa_recovery_codes'] = $newRecoveryCodes;
         log_activity('auth', 'update', 'users', $userId, '2FA recovery codes regenerated');
         flash('New recovery codes generated. Your previous recovery codes are now invalid.');
-        header('Location: /aleltu-eifms/modules/profile/two_factor.php');
+        header('Location: ' . BASE_URL . '/modules/profile/two_factor.php');
         exit;
     }
 }

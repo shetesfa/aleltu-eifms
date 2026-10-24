@@ -232,18 +232,26 @@ function milking_session_total(int $sessionId): float
  * warehouse as one Receiving transaction (SAD section 2.1 step 3).
  * Dairy never touches wh_stock_batches directly — only through stock_receive().
  */
-function milking_close_and_transfer(int $sessionId, int $warehouseId, int $milkItemId): void
+function milking_close_and_transfer(int $sessionId, int $warehouseId, int $milkItemId, float $calfLiters = 0.0, float $otherLiters = 0.0, string $notes = ''): void
 {
-    $total = milking_session_total($sessionId);
+    $grossTotal = milking_session_total($sessionId);
     $session = db()->query("SELECT * FROM dairy_milking_sessions WHERE id = " . (int)$sessionId)->fetch();
     $sessionType = $session['session_type'] ?? 'milking';
     $sessionDate = $session['session_date'] ?? date('Y-m-d');
 
-    if ($total > 0) {
+    // Master Prompt 5.4: Net warehouse milk = Gross milk production - Calf milk consumption - Other
+    $netTransfer = max(0.0, $grossTotal - $calfLiters - $otherLiters);
+
+    // Record calf and other allocations on the session
+    db()->prepare("UPDATE dairy_milking_sessions SET closed_at = NOW(), calf_liters = ?, other_liters = ?, notes = ? WHERE id = ?")
+        ->execute([$calfLiters, $otherLiters, $notes ?: null, $sessionId]);
+
+    if ($netTransfer > 0) {
         // Automatically create incoming intake for Storekeeper in Partition 1 (Finished Products)
         $dispatchCode = 'MILK-' . $sessionId . '-' . date('Ymd') . '-' . rand(1000, 9999);
         $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
         
+        $desc = "Daily Milking ({$sessionType} session, {$sessionDate}): Gross {$grossTotal}L, Calf Consumed {$calfLiters}L, Net to Store {$netTransfer}L";
         $stmt = db()->prepare(
             "INSERT INTO wh_store_receiving
              (dispatch_code, source_type, source_reference, warehouse_id, stock_item_id, sent_quantity, sent_by, status)
@@ -251,20 +259,19 @@ function milking_close_and_transfer(int $sessionId, int $warehouseId, int $milkI
         );
         $stmt->execute([
             $dispatchCode,
-            "Daily Milking ({$sessionType} session, {$sessionDate})",
+            $desc,
             $warehouseId,
             $milkItemId,
-            $total,
+            $netTransfer,
             $userId
         ]);
 
         notify_targeted(
             'warehouse',
-            "Daily milk yield from Dairy ({$total} Liters, {$sessionType} session) sent to Store Partition 1 for physical verification.",
-            'high', null, 8, null, '/aleltu-eifms/modules/warehouse/receiving.php'
+            "Daily milk yield from Dairy ({$netTransfer} Liters net of {$grossTotal}L gross, {$sessionType} session) sent to Store Partition 1 for physical verification.",
+            'high', null, 8, null, BASE_URL . '/modules/warehouse/receiving.php'
         );
     }
-    db()->prepare("UPDATE dairy_milking_sessions SET closed_at = NOW() WHERE id = ?")->execute([$sessionId]);
 }
 
 // Morning + evening totals for one calendar day (used by the milking
@@ -591,7 +598,7 @@ function poultry_egg_collection_record(int $flockId, string $date, int $round, i
         notify_targeted(
             'warehouse',
             "Daily egg collection ({$whole} whole eggs, Round #{$round}) sent to Store Partition 1 for physical verification.",
-            'medium', null, 8, null, '/aleltu-eifms/modules/warehouse/receiving.php'
+            'medium', null, 8, null, BASE_URL . '/modules/warehouse/receiving.php'
         );
     }
 
@@ -603,16 +610,30 @@ function poultry_egg_collection_record(int $flockId, string $date, int $round, i
 function employee_register(array $data): int
 {
     $stmt = db()->prepare(
-        "INSERT INTO employees (department_id, employee_number, full_name, job_title, phone, hire_date, base_salary, is_driver, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')"
+        "INSERT INTO employees (
+            department_id, employee_number, full_name, amharic_name, job_title,
+            employment_type, national_id, blood_group, emergency_contact, emergency_contact_phone,
+            phone, hire_date, base_salary, is_driver, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
     );
     $stmt->execute([
-        $data['department_id'] ?: null, $data['employee_number'], $data['full_name'],
-        $data['job_title'] ?: null, $data['phone'] ?: null, $data['hire_date'] ?: null,
-        $data['base_salary'] ?: null, isset($data['is_driver']) ? 1 : 0,
+        $data['department_id'] ?: null,
+        $data['employee_number'],
+        $data['full_name'],
+        $data['amharic_name'] ?: null,
+        $data['job_title'] ?: null,
+        $data['employment_type'] ?: 'permanent',
+        $data['national_id'] ?: null,
+        $data['blood_group'] ?? null,
+        $data['emergency_contact'] ?: null,
+        $data['emergency_contact_phone'] ?: null,
+        $data['phone'] ?: null,
+        $data['hire_date'] ?: null,
+        $data['base_salary'] ?: null,
+        isset($data['is_driver']) ? 1 : 0,
     ]);
     $id = (int) db()->lastInsertId();
-    log_activity('employee', 'create', 'employees', $id, "Registered employee {$data['employee_number']}");
+    log_activity('employee', 'create', 'employees', $id, "Registered employee {$data['employee_number']} ({$data['full_name']})");
     return $id;
 }
 
@@ -684,6 +705,40 @@ function leave_decide(int $leaveId, string $decision): void
     $status = $decision === 'approve' ? 'approved' : 'rejected';
     db()->prepare("UPDATE leave_requests SET status = ? WHERE id = ?")->execute([$status, $leaveId]);
     log_activity('employee', 'update', 'leave_requests', $leaveId, "Leave {$status}");
+
+    if ($status === 'approved') {
+        $lr = db()->query("SELECT employee_id, start_date, end_date FROM leave_requests WHERE id = {$leaveId}")->fetch();
+        if ($lr) {
+            $empId = (int)$lr['employee_id'];
+            try {
+                $start = new DateTime($lr['start_date']);
+                $end   = new DateTime($lr['end_date']);
+                $end->modify('+1 day'); // inclusive
+
+                $period = new DatePeriod($start, new DateInterval('P1D'), $end);
+                foreach ($period as $dt) {
+                    $dayStr = $dt->format('Y-m-d');
+                    $chk = db()->prepare("SELECT id FROM attendance WHERE employee_id = ? AND attendance_date = ?");
+                    $chk->execute([$empId, $dayStr]);
+                    $attId = $chk->fetchColumn();
+
+                    if ($attId) {
+                        db()->prepare("UPDATE attendance SET status = 'on_leave' WHERE id = ?")->execute([(int)$attId]);
+                    } else {
+                        db()->prepare("INSERT INTO attendance (employee_id, attendance_date, status) VALUES (?, ?, 'on_leave')")
+                            ->execute([$empId, $dayStr]);
+                    }
+                }
+
+                $today = date('Y-m-d');
+                if ($today >= $lr['start_date'] && $today <= $lr['end_date']) {
+                    db()->prepare("UPDATE employees SET status = 'on_leave' WHERE id = ?")->execute([$empId]);
+                }
+            } catch (Throwable) {
+                // Keep resilient
+            }
+        }
+    }
 }
 
 function task_assign(int $employeeId, string $title, string $description, ?string $module, ?string $dueDate, int $assignedBy): int
@@ -860,9 +915,89 @@ function po_record_payment(int $poId, float $amount, string $paymentMethod, ?str
 function finance_cash_position(): array
 {
     $opening = (float) db()->query("SELECT COALESCE(SUM(opening_balance),0) FROM fin_bank_accounts")->fetchColumn();
-    $inflow = (float) db()->query("SELECT COALESCE(SUM(amount),0) FROM fin_transactions WHERE direction='inflow'")->fetchColumn();
-    $outflow = (float) db()->query("SELECT COALESCE(SUM(amount),0) FROM fin_transactions WHERE direction='outflow'")->fetchColumn();
+    $inflow = (float) db()->query("SELECT COALESCE(SUM(amount),0) FROM fin_transactions WHERE direction='inflow' AND category != 'internal_transfer'")->fetchColumn();
+    $outflow = (float) db()->query("SELECT COALESCE(SUM(amount),0) FROM fin_transactions WHERE direction='outflow' AND category != 'internal_transfer'")->fetchColumn();
     return ['opening' => $opening, 'inflow' => $inflow, 'outflow' => $outflow, 'balance' => $opening + $inflow - $outflow];
+}
+
+/**
+ * Master Prompt 6.1: Atomic internal transfer between financial accounts.
+ * E.g., Telebirr -> Oromia International Bank.
+ * Debits source, credits destination under one shared transfer reference.
+ * Not counted as new corporate revenue or operational expense.
+ */
+function finance_internal_transfer(int $fromAccountId, int $toAccountId, float $amount, ?string $notes, int $userId): string
+{
+    if ($fromAccountId <= 0 || $toAccountId <= 0) {
+        throw new InvalidArgumentException("ምንጭ እና መዳረሻ የሂሳብ አካውንቶች መመረጥ አለባቸው (Both source and destination accounts are required).");
+    }
+    if ($fromAccountId === $toAccountId) {
+        throw new InvalidArgumentException("ገንዘብ ወደ ራሱ አካውንት ማስተላለፍ አይቻልም (Source and destination accounts must be different).");
+    }
+    if ($amount <= 0) {
+        throw new InvalidArgumentException("የዝውውሩ መጠን ከ 0 በላይ መሆን አለበት (Transfer amount must be greater than zero).");
+    }
+
+    $pdo = db();
+    $stmtFrom = $pdo->prepare("SELECT * FROM fin_bank_accounts WHERE id = ?");
+    $stmtFrom->execute([$fromAccountId]);
+    $fromAcc = $stmtFrom->fetch();
+
+    $stmtTo = $pdo->prepare("SELECT * FROM fin_bank_accounts WHERE id = ?");
+    $stmtTo->execute([$toAccountId]);
+    $toAcc = $stmtTo->fetch();
+
+    if (!$fromAcc || !$toAcc) {
+        throw new RuntimeException("የተመረጡት የሂሳብ አካውንቶች አልተገኙም (One or both bank accounts not found).");
+    }
+
+    // Verify sufficient balance in source account
+    $balances = finance_balance_by_method();
+    $sourceBalance = 0.0;
+    foreach ($balances['_accounts'] as $acc) {
+        if ((int)$acc['id'] === $fromAccountId) {
+            $sourceBalance = (float)$acc['balance'];
+            break;
+        }
+    }
+    if ($amount > $sourceBalance + 0.01) {
+        throw new RuntimeException("በቂ ቀሪ ሂሳብ የለም (Insufficient balance in {$fromAcc['bank_name']}: available " . number_format($sourceBalance, 2) . " ETB).");
+    }
+
+    $transferRef = 'TRF-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+
+    $pdo->beginTransaction();
+    try {
+        $fromMethod = match($fromAcc['account_type']) { 'bank' => 'bank', 'mobile' => 'telebirr', default => 'cash' };
+        $toMethod = match($toAcc['account_type']) { 'bank' => 'bank', 'mobile' => 'telebirr', default => 'cash' };
+
+        $fromName = $fromAcc['bank_name'] ?: $fromAcc['account_name'];
+        $toName   = $toAcc['bank_name'] ?: $toAcc['account_name'];
+        $transferDesc = "ከ {$fromName} ➜ ወደ {$toName}" . ($notes ? " ({$notes})" : "");
+        $descOut = "ወጪ፦ " . $transferDesc;
+        $descIn  = "ገቢ፦ " . $transferDesc;
+
+        // 1. Debit (outflow) from source account
+        $stmtOut = $pdo->prepare(
+            "INSERT INTO fin_transactions (direction, amount, unit_tag, category, source_table, source_id, transaction_date, description, recorded_by, payment_method, bank_account_id, reference_number)
+             VALUES ('outflow', ?, 'general_overhead', 'internal_transfer', 'fin_bank_accounts', ?, CURDATE(), ?, ?, ?, ?, ?)"
+        );
+        $stmtOut->execute([$amount, $fromAccountId, $descOut, $userId, $fromMethod, $fromAccountId, $transferRef]);
+
+        // 2. Credit (inflow) to destination account
+        $stmtIn = $pdo->prepare(
+            "INSERT INTO fin_transactions (direction, amount, unit_tag, category, source_table, source_id, transaction_date, description, recorded_by, payment_method, bank_account_id, reference_number)
+             VALUES ('inflow', ?, 'general_overhead', 'internal_transfer', 'fin_bank_accounts', ?, CURDATE(), ?, ?, ?, ?, ?)"
+        );
+        $stmtIn->execute([$amount, $toAccountId, $descIn, $userId, $toMethod, $toAccountId, $transferRef]);
+
+        $pdo->commit();
+        log_activity('finance', 'create', 'fin_transactions', $fromAccountId, "Internal transfer {$transferRef}: {$amount} ETB from {$fromAcc['bank_name']} to {$toAcc['bank_name']}");
+        return $transferRef;
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
 }
 
 /**
@@ -1216,7 +1351,7 @@ function purchase_order_receive(int $poId, int $warehouseId): void
         notify_targeted(
             'warehouse',
             "Purchased goods from {$po['supplier_name']} (PO#{$poId}, {$po['quantity']} units of {$itemName}) sent to Store for physical check.",
-            'high', null, 8, null, '/aleltu-eifms/modules/warehouse/receiving.php'
+            'high', null, 8, null, BASE_URL . '/modules/warehouse/receiving.php'
         );
 
         db()->commit();
@@ -1244,6 +1379,12 @@ function budget_variance(array $budget): array
 // active employee has at least one attendance row somewhere in the period.
 function payroll_can_finalize(string $start, string $end): bool
 {
+    // International HR Rule: Cannot finalize payroll for future or ongoing uncompleted periods
+    $today = date('Y-m-d');
+    if ($end > $today) {
+        return false;
+    }
+
     $stmt = db()->prepare(
         "SELECT COUNT(*) FROM employees e
          WHERE e.status = 'active' AND NOT EXISTS (
@@ -1256,11 +1397,150 @@ function payroll_can_finalize(string $start, string $end): bool
 
 function payroll_run_create(string $start, string $end): int
 {
+    $today = date('Y-m-d');
+    if ($start > $today) {
+        throw new InvalidArgumentException(
+            current_locale() === 'am' 
+                ? 'ደመወዝ የሚሰላው ለተሰራ ያለፈ ወር ብቻ ነው። ወደፊት ላልተሰራበት ወር ደመወዝ መፍጠር አይቻልም።' 
+                : 'Payroll can only be created for past worked periods in arrears, not in advance.'
+        );
+    }
+
+    // Check for overlapping run
+    $overlap = db()->prepare("SELECT id FROM fin_payroll_runs WHERE (period_start <= ? AND period_end >= ?)");
+    $overlap->execute([$end, $start]);
+    if ($overlap->fetch()) {
+        throw new InvalidArgumentException(
+            current_locale() === 'am' 
+                ? 'ለዚህ ወቅት አስቀድሞ የተፈጠረ የደመወዝ ዙር አለ። የተደራረበ የደመወዝ ክፍያ መፍጠር አይቻልም።' 
+                : 'An existing payroll run overlaps with this date range.'
+        );
+    }
+
+    $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
     $stmt = db()->prepare("INSERT INTO fin_payroll_runs (period_start, period_end, status, processed_by) VALUES (?, ?, 'draft', ?)");
-    $stmt->execute([$start, $end, current_user()['id']]);
+    $stmt->execute([$start, $end, $userId]);
     $id = (int) db()->lastInsertId();
     log_activity('finance', 'create', 'fin_payroll_runs', $id, "Payroll run created {$start} to {$end}");
     return $id;
+}
+
+/**
+ * Calculates Ethiopian Employment Income Tax according to Proclamation No. 979/2016
+ *
+ * Taxable Income Bracket (ETB)  | Tax Rate | Deduction (ETB)
+ * 0 - 2,000                     | 0%       | 0
+ * 2,001 - 4,000                 | 15%      | 300
+ * 4,001 - 7,000                 | 20%      | 500
+ * 7,001 - 10,000                | 25%      | 850
+ * 10,001 - 14,000               | 30%      | 1,350
+ * Over 14,000                   | 35%      | 2,050
+ */
+function payroll_get_tax_brackets(): array
+{
+    $json = setting_get('payroll_tax_brackets');
+    if (!empty($json)) {
+        $decoded = json_decode($json, true);
+        if (is_array($decoded) && !empty($decoded)) {
+            return $decoded;
+        }
+    }
+
+    // Default Ethiopian Employment Income Tax Brackets (Proclamation No. 979/2016)
+    // FIX: brackets now use continuous boundaries (max of one = min of next) so
+    // fractional incomes like 2000.50 or 4000.75 never fall into a gap and return 0.
+    $exempt = (float)(setting_get('tax_exempt_threshold') ?? 2000.0);
+    $defaults = [
+        ['min' => 0.0,    'max' => $exempt, 'rate' => 0.0,  'deduction' => 0.0,                     'label' => 'ከስራ ግብር ነፃ (Exempt)'],
+        ['min' => $exempt, 'max' => 4000.0, 'rate' => 15.0, 'deduction' => round($exempt * 0.15, 2), 'label' => 'እርከን 1 (15%)'],
+        ['min' => 4000.0,  'max' => 7000.0, 'rate' => 20.0, 'deduction' => 500.0,                    'label' => 'እርከን 2 (20%)'],
+        ['min' => 7000.0,  'max' => 10000.0,'rate' => 25.0, 'deduction' => 850.0,                    'label' => 'እርከን 3 (25%)'],
+        ['min' => 10000.0, 'max' => 14000.0,'rate' => 30.0, 'deduction' => 1350.0,                   'label' => 'እርከን 4 (30%)'],
+        ['min' => 14000.0, 'max' => null,   'rate' => 35.0, 'deduction' => 2050.0,                   'label' => 'እርከን 5 (35% እና ከዚያ በላይ)'],
+    ];
+
+    setting_set('payroll_tax_brackets', json_encode($defaults, JSON_UNESCAPED_UNICODE));
+    return $defaults;
+}
+
+function payroll_save_tax_brackets(array $brackets): void
+{
+    $clean = [];
+    foreach ($brackets as $b) {
+        $min = (float)($b['min'] ?? 0);
+        $maxVal = isset($b['max']) && $b['max'] !== '' && $b['max'] !== null ? trim((string)$b['max']) : '';
+        $max = ($maxVal === '' || strtolower($maxVal) === 'null' || strtolower($maxVal) === 'ያልተገደበ') ? null : (float)$maxVal;
+        $rate = (float)($b['rate'] ?? 0);
+        $ded = (float)($b['deduction'] ?? 0);
+        $lbl = trim($b['label'] ?? '');
+        $clean[] = [
+            'min' => $min,
+            'max' => $max,
+            'rate' => $rate,
+            'deduction' => $ded,
+            'label' => $lbl,
+        ];
+    }
+    setting_set('payroll_tax_brackets', json_encode($clean, JSON_UNESCAPED_UNICODE));
+    if (!empty($clean) && isset($clean[0]['max']) && $clean[0]['max'] !== null) {
+        setting_set('tax_exempt_threshold', (string)$clean[0]['max']);
+    }
+}
+
+function payroll_calculate_tax(float $taxableIncome): float
+{
+    if ($taxableIncome <= 0.0) {
+        return 0.0;
+    }
+    $brackets = payroll_get_tax_brackets();
+
+    // Sort brackets ascending by min so we always match the correct band
+    usort($brackets, fn($a, $b) => (float)($a['min'] ?? 0) <=> (float)($b['min'] ?? 0));
+
+    foreach ($brackets as $b) {
+        $min = (float)($b['min'] ?? 0);
+        $max = (isset($b['max']) && $b['max'] !== '' && $b['max'] !== null) ? (float)$b['max'] : null;
+        $rate = (float)($b['rate'] ?? 0);
+        $deduction = (float)($b['deduction'] ?? 0);
+
+        if ($max === null) {
+            // Top (open-ended) bracket: income strictly above this band's floor
+            if ($taxableIncome > $min) {
+                return max(0.0, round(($taxableIncome * ($rate / 100.0)) - $deduction, 2));
+            }
+        } else {
+            // BUG FIX: Use > $min (not >= $min) so there are NO gaps between adjacent
+            // brackets whose max/min differ by fractional amounts (e.g. 4000 / 4001).
+            // The exempt band (min=0) uses >= 0 to include zero-income edge case.
+            $lowerBound = ($min <= 0.0) ? ($taxableIncome >= $min) : ($taxableIncome > $min);
+            if ($lowerBound && $taxableIncome <= $max) {
+                return max(0.0, round(($taxableIncome * ($rate / 100.0)) - $deduction, 2));
+            }
+        }
+    }
+    return 0.0;
+}
+
+/**
+ * Calculates Pension according to Ethiopian Private Organization Employees Pension Proclamation
+ * Rates are customizable via system settings.
+ */
+function payroll_calculate_pension(float $baseSalary, string $employmentType = 'permanent'): array
+{
+    if (in_array(strtolower(trim($employmentType)), ['permanent', 'ቋሚ', 'ቋሚ ሰራተኛ'])) {
+        $empRate = (float)(setting_get('pension_employee_rate') ?? 7.0) / 100.0;
+        $emprRate = (float)(setting_get('pension_employer_rate') ?? 11.0) / 100.0;
+        $employeePension = round($baseSalary * $empRate, 2);
+        $employerPension = round($baseSalary * $emprRate, 2);
+        return [
+            'employee' => $employeePension,
+            'employer' => $employerPension,
+        ];
+    }
+    return [
+        'employee' => 0.0,
+        'employer' => 0.0,
+    ];
 }
 
 function payroll_finalize(int $runId): void
@@ -1268,29 +1548,93 @@ function payroll_finalize(int $runId): void
     $run = db()->query("SELECT * FROM fin_payroll_runs WHERE id = " . (int) $runId)->fetch();
     if (!$run) throw new RuntimeException('Payroll run not found.');
 
+    $today = date('Y-m-d');
+    if ($run['period_end'] > $today) {
+        throw new RuntimeException(
+            current_locale() === 'am' 
+                ? 'የደመወዝ ክፍያ ወቅቱ ገና አልተጠናቀቀም። ደመወዝ የሚሰላውና የሚከፈለው የወሩ የስራ ቀናት ሲጠናቀቁ ብቻ ነው።' 
+                : 'Cannot finalize payroll for an ongoing or future pay period. Payroll is processed in arrears after the period ends.'
+        );
+    }
+
     if (!payroll_can_finalize($run['period_start'], $run['period_end'])) {
-        throw new RuntimeException('Not every active employee has attendance recorded for this period yet (BR-FN03).');
+        throw new RuntimeException(
+            current_locale() === 'am' 
+                ? 'የሁሉም ንቁ ሰራተኞች የስራ መገኘት (attendance) ገና አልተጠናቀቀም።' 
+                : 'Not every active employee has attendance recorded for this period yet.'
+        );
     }
 
     db()->beginTransaction();
     try {
         $employees = db()->query("SELECT * FROM employees WHERE status = 'active'")->fetchAll();
         foreach ($employees as $emp) {
-            $stmt = db()->prepare("SELECT COUNT(*) FROM attendance WHERE employee_id = ? AND attendance_date BETWEEN ? AND ? AND status IN ('present', 'half_day')");
-            $stmt->execute([$emp['id'], $run['period_start'], $run['period_end']]);
-            $daysPresent = (int) $stmt->fetchColumn();
-            
             $monthlyBase = (float) ($emp['base_salary'] ?? 0);
             $dailyRate = round($monthlyBase / 26, 2);
-            $netPay = round($dailyRate * $daysPresent, 2);
+            $empType = $emp['employment_type'] ?? 'permanent';
+
+            // Detailed attendance summary for the period
+            $stmtAtt = db()->prepare(
+                "SELECT 
+                    SUM(status = 'present') AS present_cnt,
+                    SUM(status = 'half_day') AS half_cnt,
+                    SUM(status = 'on_leave') AS leave_cnt,
+                    SUM(status = 'absent') AS absent_cnt
+                 FROM attendance 
+                 WHERE employee_id = ? AND attendance_date BETWEEN ? AND ?"
+            );
+            $stmtAtt->execute([$emp['id'], $run['period_start'], $run['period_end']]);
+            $att = $stmtAtt->fetch();
+
+            $presentCnt = (int)($att['present_cnt'] ?? 0);
+            $halfCnt    = (int)($att['half_cnt'] ?? 0);
+            $leaveCnt   = (int)($att['leave_cnt'] ?? 0);
+            $absentCnt  = (int)($att['absent_cnt'] ?? 0);
+
+            // Effective payable calendar days (Present + Half Day * 0.5 + Approved Paid Leave)
+            $effectiveDays = $presentCnt + ($halfCnt * 0.5) + $leaveCnt;
+
+            // International Standard HR Payroll — Strictly Prorated by calendar days worked:
+            // If employee worked 6 days after last paid date, salary is calculated for EXACTLY 6 days (Daily Rate * 6).
+            // A full monthly salary is paid only if employee completed the full monthly schedule (26 working days).
+            // FIX: Use integer-safe formula (base * days / 26) instead of (round(base/26,2) * days)
+            // to avoid rounding drift that accumulates across many payslips over time.
+            if ($effectiveDays >= 26.0) {
+                $grossEarned = $monthlyBase;
+                $workedDays = 26;
+            } elseif ($effectiveDays > 0) {
+                $grossEarned = min($monthlyBase, round($monthlyBase * $effectiveDays / 26.0, 2));
+                $workedDays = (float)$effectiveDays;
+            } else {
+                $grossEarned = 0.0;
+                $workedDays = 0;
+            }
+
+            $pension = payroll_calculate_pension($grossEarned, $empType);
+            $pensionEmp = $pension['employee'];
+            $pensionOrg = $pension['employer'];
+
+            $taxableIncome = max(0.0, $grossEarned - $pensionEmp);
+            $taxAmount = payroll_calculate_tax($taxableIncome);
+
+            $totalDeductions = round($pensionEmp + $taxAmount, 2);
+            $netPay = max(0.0, round($grossEarned - $totalDeductions, 2));
 
             db()->prepare(
-                "INSERT INTO fin_payslips (payroll_run_id, employee_id, base_salary, daily_rate, days_present, net_pay, total_paid) VALUES (?, ?, ?, ?, ?, ?, 0)"
-            )->execute([$runId, $emp['id'], $monthlyBase, $dailyRate, $daysPresent, $netPay]);
+                "INSERT INTO fin_payslips (
+                    payroll_run_id, employee_id, base_salary, daily_rate, days_present,
+                    gross_pay, allowances, tax_amount, pension_employee, pension_employer,
+                    deductions, net_pay, total_paid
+                ) VALUES (?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, 0.00)"
+            )->execute([
+                $runId, $emp['id'], $monthlyBase, $dailyRate, $workedDays,
+                $grossEarned, $taxAmount, $pensionEmp, $pensionOrg,
+                $totalDeductions, $netPay
+            ]);
         }
         db()->prepare("UPDATE fin_payroll_runs SET status = 'finalized', finalized_at = NOW() WHERE id = ?")->execute([$runId]);
         db()->commit();
-        log_activity('finance', 'update', 'fin_payroll_runs', $runId, 'Payroll finalized (BR-FN03 satisfied)');
+        log_activity('finance', 'update', 'fin_payroll_runs', $runId, "Payroll finalized for period {$run['period_start']} to {$run['period_end']}");
     } catch (Throwable $e) {
         db()->rollBack();
         throw $e;
@@ -1796,7 +2140,7 @@ function vehicle_register(string $plate, ?string $type, ?float $capacityKg, ?str
  * Creates a vehicle dispatch for selling/delivering farm products.
  * Deducts stock from warehouse 1 and calculates total sales value.
  */
-function dispatch_create(int $vehicleId, ?string $driverName, string $destination, int $warehouseId, int $stockItemId, float $quantity, float $unitPrice = 0.00, ?string $saleChannel = null): int
+function dispatch_create(?int $vehicleId, ?string $driverName, string $destination, int $warehouseId, int $stockItemId, float $quantity, float $unitPrice = 0.00, ?string $saleChannel = null): int
 {
     if ($quantity <= 0) {
         throw new InvalidArgumentException('Dispatch quantity must be greater than zero.');
@@ -1804,15 +2148,6 @@ function dispatch_create(int $vehicleId, ?string $driverName, string $destinatio
 
     $totalPrice = $quantity * max(0, $unitPrice);
 
-    // Deduct stock from warehouse. Outside the transaction below: stock_issue()
-    // manages its own transaction/row-locking internally (PDO doesn't nest
-    // transactions) — same established pattern as fish_harvest()'s call to
-    // stock_receive(). Accepted trade-off: if stock_issue() succeeds but the
-    // dist_dispatches insert below then fails, stock is deducted with no
-    // dispatch record — an orphaned movement rather than a duplicate/negative
-    // one. Changing this would mean either nested-transaction emulation
-    // (savepoints) or reordering + compensating logic, which is an
-    // architecture change, not a local fix, so it was not made in this pass.
     stock_issue($warehouseId, $stockItemId, $quantity, 'distribution');
 
     $ownsTx = false;
@@ -1827,17 +2162,20 @@ function dispatch_create(int $vehicleId, ?string $driverName, string $destinatio
              (vehicle_id, driver_name, destination_pos_location, warehouse_id, stock_item_id, quantity_dispatched, unit_price, total_price, amount_paid, payment_status, planned_dispatch_at, dispatched_at, status, created_by)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.00, 'unpaid', NOW(), NOW(), 'dispatched', ?)"
         );
-        $stmt->execute([$vehicleId, $driverName ?: null, $destination, $warehouseId, $stockItemId, $quantity, $unitPrice, $totalPrice, $userId]);
+        $stmt->execute([$vehicleId ?: null, $driverName ?: null, $destination, $warehouseId, $stockItemId, $quantity, $unitPrice, $totalPrice, $userId]);
         $id = (int) db()->lastInsertId();
-        // Analytics (migration 011): remember if this was a shop transfer / direct sale / internal use.
-        // Silently skipped if the column does not exist yet, so the form never breaks before the migration is run.
+        
         if (in_array($saleChannel, ['direct_sale', 'shop_transfer', 'internal_use'], true)) {
             try {
                 db()->prepare("UPDATE dist_dispatches SET sale_channel = ? WHERE id = ?")->execute([$saleChannel, $id]);
             } catch (Throwable) { /* column not created yet */ }
         }
 
-        db()->prepare("UPDATE dist_vehicles SET status = 'in_use' WHERE id = ?")->execute([$vehicleId]);
+        if ($vehicleId > 0) {
+            try {
+                db()->prepare("UPDATE dist_vehicles SET status = 'in_use' WHERE id = ?")->execute([$vehicleId]);
+            } catch (Throwable) { }
+        }
 
         if ($ownsTx && db()->inTransaction()) {
             db()->commit();
@@ -2433,7 +2771,7 @@ function store_send_to_warehouse(string $sourceType, ?string $sourceRef, int $wa
     $stmt->execute([$dispatchCode, $sourceType, $sourceRef, $materialRequestId, $warehouseId, $stockItemId, $sentQty, $sentBy]);
     
     // Notify Storekeeper role (role_id 8 = warehouse_keeper)
-    notify_targeted('warehouse', "አዲስ ገቢ ምርት/ዕቃ ደርሷል፡ {$dispatchCode} ({$sentQty} መጠን) ማረጋገጫ ይጠብቃል።", 'high', null, 8, null, '/aleltu-eifms/modules/warehouse/receiving.php');
+    notify_targeted('warehouse', "አዲስ ገቢ ምርት/ዕቃ ደርሷል፡ {$dispatchCode} ({$sentQty} መጠን) ማረጋገጫ ይጠብቃል።", 'high', null, 8, null, BASE_URL . '/modules/warehouse/receiving.php');
     
     return $dispatchCode;
 }
@@ -2513,11 +2851,11 @@ function store_confirm_receipt(int $receivingId, float $receivedQty, ?string $va
                 $matReq = db()->query("SELECT d.name AS dept_name, d.id AS dept_id FROM dept_material_requests mr JOIN departments d ON d.id = mr.department_id WHERE mr.id = {$matReqId}")->fetch();
                 if ($matReq) {
                     $deptName = strtolower($matReq['dept_name'] ?? '');
-                    $deptUrl = '/aleltu-eifms/modules/dairy/material_request.php';
+                    $deptUrl = BASE_URL . '/modules/dairy/material_request.php';
                     if (str_contains($deptName, 'poultry') || str_contains($deptName, 'ዶሮ')) {
-                        $deptUrl = '/aleltu-eifms/modules/poultry/material_request.php';
+                        $deptUrl = BASE_URL . '/modules/poultry/material_request.php';
                     } elseif (str_contains($deptName, 'fish') || str_contains($deptName, 'ዓሳ') || str_contains($deptName, 'ዓሣ')) {
-                        $deptUrl = '/aleltu-eifms/modules/fish/material_request.php';
+                        $deptUrl = BASE_URL . '/modules/fish/material_request.php';
                     }
                     notify_targeted('warehouse', "መጋዘን {$receivedQty} {$row['item_name']} ለክፍልዎ ልኳል። እባክዎ ርክክቡን ያረጋግጡ።", 'high', null, null, (int)$matReq['dept_id'], $deptUrl);
                 }
@@ -2576,7 +2914,7 @@ function dept_material_request_create(int $deptId, int $stockItemId, float $requ
     // Look up item name for notification
     $itemName = db()->query("SELECT name FROM wh_stock_items WHERE id = {$stockItemId}")->fetchColumn() ?: "Item #{$stockItemId}";
     
-    notify_targeted('warehouse', "New material requisition #{$reqId} for {$itemName} ({$requestedQty} units).", 'medium', null, 8, null, '/aleltu-eifms/modules/warehouse/requisitions.php');
+    notify_targeted('warehouse', "New material requisition #{$reqId} for {$itemName} ({$requestedQty} units).", 'medium', null, 8, null, BASE_URL . '/modules/warehouse/requisitions.php');
     log_activity('warehouse', 'create', 'dept_material_requests', $reqId, "New material request #{$reqId} ({$requestedQty} units of {$itemName})");
 
     return $reqId;
@@ -2601,7 +2939,7 @@ function dept_material_request_fulfill(int $requestId, int $warehouseId, int $fu
     // attribute consumption to the correct department) and as the notification
     // module/link, so notifications route back to the department that actually asked.
     $deptUnitTag = $req['dept_unit_tag'] ?: 'general_overhead';
-    $deptRequestLink = "/aleltu-eifms/modules/{$deptUnitTag}/material_request.php";
+    $deptRequestLink = BASE_URL . "/modules/{$deptUnitTag}/material_request.php";
     
     // Check available stock in warehouse
     $availStmt = db()->prepare("SELECT COALESCE(SUM(quantity_on_hand), 0) FROM wh_stock_batches WHERE warehouse_id = ? AND stock_item_id = ? AND quantity_on_hand > 0");
@@ -2640,7 +2978,7 @@ function dept_material_request_fulfill(int $requestId, int $warehouseId, int $fu
             db()->prepare("UPDATE dept_material_requests SET issued_quantity = ?, shortage_quantity = ?, status = 'shortage_purchase_raised', purchase_request_id = ?, fulfilled_by = ? WHERE id = ?")
                 ->execute([$issued, $shortage, $poReqId, $fulfilledBy, $requestId]);
             
-            notify_targeted('finance', "Shortage purchase required: {$shortage} units of {$req['item_name']} for {$req['dept_name']}.", 'high', null, 10, null, '/aleltu-eifms/modules/finance/purchasing.php');
+            notify_targeted('finance', "Shortage purchase required: {$shortage} units of {$req['item_name']} for {$req['dept_name']}.", 'high', null, 10, null, BASE_URL . '/modules/finance/purchasing.php');
             notify_targeted($deptUnitTag, "Store issued partial stock ({$issued} units). Shortage of {$shortage} units forwarded to Finance for purchase.", 'medium', null, null, (int)$req['department_id'], $deptRequestLink);
             log_activity('warehouse', 'update', 'dept_material_requests', $requestId, "Partially fulfilled #{$requestId}: issued {$issued}, shortage {$shortage} forwarded to Finance as PR #{$poReqId}");
         } else {
@@ -2653,7 +2991,7 @@ function dept_material_request_fulfill(int $requestId, int $warehouseId, int $fu
             db()->prepare("UPDATE dept_material_requests SET issued_quantity = 0, shortage_quantity = ?, status = 'shortage_purchase_raised', purchase_request_id = ?, fulfilled_by = ? WHERE id = ?")
                 ->execute([$shortage, $poReqId, $fulfilledBy, $requestId]);
             
-            notify_targeted('finance', "Out of stock purchase required: {$shortage} units of {$req['item_name']} for {$req['dept_name']}.", 'high', null, 10, null, '/aleltu-eifms/modules/finance/purchasing.php');
+            notify_targeted('finance', "Out of stock purchase required: {$shortage} units of {$req['item_name']} for {$req['dept_name']}.", 'high', null, 10, null, BASE_URL . '/modules/finance/purchasing.php');
             notify_targeted($deptUnitTag, "Item is out of stock. Full request ({$shortage} units) forwarded to Finance for purchase.", 'medium', null, null, (int)$req['department_id'], $deptRequestLink);
             log_activity('warehouse', 'update', 'dept_material_requests', $requestId, "Out of stock for #{$requestId}: forwarded full {$shortage} units to Finance as PR #{$poReqId}");
         }
@@ -2694,7 +3032,7 @@ function dept_material_request_confirm_received(int $requestId, int $confirmedBy
             throw new RuntimeException("Already confirmed received.");
         }
 
-        notify_targeted('warehouse', "Department confirmed receipt of {$req['item_name']} (Request #{$requestId}).", 'medium', null, 8, null, '/aleltu-eifms/modules/warehouse/requisitions.php');
+        notify_targeted('warehouse', "Department confirmed receipt of {$req['item_name']} (Request #{$requestId}).", 'medium', null, 8, null, BASE_URL . '/modules/warehouse/requisitions.php');
         log_activity('warehouse', 'update', 'dept_material_requests', $requestId, "Department confirmed physical receipt of request #{$requestId}. Marked as COMPLETED.");
         if ($ownsTx && db()->inTransaction()) {
             db()->commit();
@@ -2826,7 +3164,7 @@ function employee_save_photo(int $employeeId, string $base64DataUrl): string
         }
     }
 
-    $relPath = '/aleltu-eifms/assets/uploads/employee_photos/' . $filename;
+    $relPath = BASE_URL . '/assets/uploads/employee_photos/' . $filename;
     db()->prepare("UPDATE employees SET photo_path = ? WHERE id = ?")->execute([$relPath, $employeeId]);
     log_activity('employee', 'update', 'employees', $employeeId, 'ID photo updated');
     return $relPath;
@@ -2905,41 +3243,164 @@ function employee_save_photo_file(int $employeeId, array $file): string
         }
     }
 
-    $relPath = '/aleltu-eifms/assets/uploads/employee_photos/' . $filename;
+    $relPath = BASE_URL . '/assets/uploads/employee_photos/' . $filename;
     db()->prepare("UPDATE employees SET photo_path = ? WHERE id = ?")->execute([$relPath, $employeeId]);
     log_activity('employee', 'update', 'employees', $employeeId, 'ID photo uploaded from file');
     return $relPath;
 }
 
 // Payroll Partial Payment Recording
-function payroll_record_payment(int $payslipId, float $amount, string $paymentMethod, ?string $notes, int $recordedBy): void
+function payroll_record_payment(int $payslipId, float $amount, string $paymentMethod, ?string $notes, int $recordedBy, ?int $bankAccountId = null): void
 {
     $payslip = db()->query("SELECT * FROM fin_payslips WHERE id = " . (int)$payslipId)->fetch();
     if (!$payslip) {
         throw new RuntimeException("Payslip not found.");
     }
-    
+
+    $methodTag = 'cash';
+    if ($bankAccountId > 0) {
+        $acc = db()->query("SELECT account_type FROM fin_bank_accounts WHERE id = {$bankAccountId}")->fetch();
+        if ($acc) {
+            $methodTag = match($acc['account_type']) { 'bank' => 'bank', 'mobile' => 'telebirr', default => 'cash' };
+        }
+    } else {
+        $methodTag = match(strtolower($paymentMethod)) {
+            'bank transfer', 'bank', 'oromia bank', 'cbe' => 'bank',
+            'telebirr' => 'telebirr',
+            default => 'cash'
+        };
+        $accId = db()->query("SELECT id FROM fin_bank_accounts WHERE account_type = '{$methodTag}' ORDER BY id ASC LIMIT 1")->fetchColumn();
+        if ($accId) $bankAccountId = (int)$accId;
+    }
+
     db()->beginTransaction();
     try {
         $stmt = db()->prepare("INSERT INTO fin_payroll_payments (payslip_id, amount_paid, payment_date, payment_method, notes, recorded_by) VALUES (?, ?, CURDATE(), ?, ?, ?)");
         $stmt->execute([$payslipId, $amount, $paymentMethod, $notes ?: null, $recordedBy]);
-        
+
         // Update total paid on payslip
         db()->prepare("UPDATE fin_payslips SET total_paid = total_paid + ? WHERE id = ?")->execute([$amount, $payslipId]);
-        
+
         // Record outflow transaction in finance
         $emp = db()->query("SELECT full_name, employee_number FROM employees WHERE id = " . (int)$payslip['employee_id'])->fetch();
         $empName = $emp ? "{$emp['full_name']} ({$emp['employee_number']})" : "Employee #{$payslip['employee_id']}";
-        
-        db()->prepare("INSERT INTO fin_transactions (direction, amount, unit_tag, category, source_table, source_id, transaction_date, description, recorded_by) VALUES ('outflow', ?, 'general_overhead', 'payroll_payment', 'fin_payslips', ?, CURDATE(), ?, ?)")
-            ->execute([$amount, $payslipId, "Salary payment for {$empName}", $recordedBy]);
-            
+
+        db()->prepare("INSERT INTO fin_transactions (direction, amount, unit_tag, category, source_table, source_id, transaction_date, description, recorded_by, payment_method, bank_account_id) VALUES ('outflow', ?, 'general_overhead', 'payroll_payment', 'fin_payslips', ?, CURDATE(), ?, ?, ?, ?)")
+            ->execute([$amount, $payslipId, "Salary payment for {$empName}" . ($notes ? " ({$notes})" : ""), $recordedBy, $methodTag, $bankAccountId]);
+
         db()->commit();
         log_activity('finance', 'create', 'fin_payroll_payments', $payslipId, "Recorded payroll payment of {$amount} ETB for {$empName}");
     } catch (Throwable $e) {
         db()->rollBack();
         throw $e;
     }
+}
+
+/**
+ * Cheque Management Functions (Issued & Received Cheques)
+ */
+function cheque_create(array $d): int
+{
+    $type = $d['cheque_type'] ?? 'issued';
+    $num = trim($d['cheque_number'] ?? '');
+    $bankName = trim($d['bank_name'] ?? '');
+    $bankAccId = !empty($d['bank_account_id']) ? (int)$d['bank_account_id'] : null;
+    $person = trim($d['payee_or_drawer'] ?? '');
+    $amount = (float)($d['amount'] ?? 0);
+    $issueDate = !empty($d['issue_date']) ? $d['issue_date'] : date('Y-m-d');
+    $dueDate = !empty($d['due_date']) ? $d['due_date'] : date('Y-m-d');
+    $notes = trim($d['notes'] ?? '');
+    $module = trim($d['related_module'] ?? 'finance');
+    $userId = (int)($d['recorded_by'] ?? ((function_exists('current_user') && current_user()) ? current_user()['id'] : 1));
+
+    if (empty($num) || empty($bankName) || empty($person) || $amount <= 0) {
+        throw new InvalidArgumentException(current_locale() === 'am' ? 'እባክዎ የቼክ ቁጥር፣ ባንክ፣ ስም እና ትክክለኛ የብር መጠን ያስገቡ።' : 'Please fill all required cheque fields correctly.');
+    }
+
+    $stmt = db()->prepare(
+        "INSERT INTO fin_cheques 
+         (cheque_type, cheque_number, bank_name, bank_account_id, payee_or_drawer, amount, issue_date, due_date, status, related_module, notes, recorded_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)"
+    );
+    $stmt->execute([$type, $num, $bankName, $bankAccId, $person, $amount, $issueDate, $dueDate, $module, $notes ?: null, $userId]);
+    $chequeId = (int)db()->lastInsertId();
+
+    log_activity('finance', 'create', 'fin_cheques', $chequeId, "Recorded {$type} cheque #{$num} of {$amount} ETB for {$person}");
+    return $chequeId;
+}
+
+function cheque_clear(int $chequeId, int $bankAccountId, string $clearDate, ?string $notes = null): void
+{
+    $ch = db()->query("SELECT * FROM fin_cheques WHERE id = {$chequeId}")->fetch();
+    if (!$ch) {
+        throw new RuntimeException("Cheque not found.");
+    }
+    if ($ch['status'] === 'cleared') {
+        throw new RuntimeException("Cheque is already cleared.");
+    }
+
+    $bank = db()->query("SELECT bank_name, account_number FROM fin_bank_accounts WHERE id = {$bankAccountId}")->fetch();
+    if (!$bank) {
+        throw new RuntimeException("Bank account not found.");
+    }
+
+    db()->beginTransaction();
+    try {
+        $direction = ($ch['cheque_type'] === 'received') ? 'inflow' : 'outflow';
+        $category = ($ch['cheque_type'] === 'received') ? 'cheque_deposit' : 'cheque_payment';
+        $desc = ($ch['cheque_type'] === 'received')
+            ? "Cheque deposit #{$ch['cheque_number']} from {$ch['payee_or_drawer']}"
+            : "Cheque disbursement #{$ch['cheque_number']} to {$ch['payee_or_drawer']}";
+        if ($notes) {
+            $desc .= " ({$notes})";
+        }
+
+        $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
+
+        $stmt = db()->prepare(
+            "INSERT INTO fin_transactions 
+             (bank_account_id, direction, amount, payment_method, unit_tag, category, source_table, source_id, transaction_date, description, reference_number, recorded_by)
+             VALUES (?, ?, ?, 'check', 'general_overhead', ?, 'fin_cheques', ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([$bankAccountId, $direction, $ch['amount'], $category, $chequeId, $clearDate, $desc, $ch['cheque_number'], $userId]);
+        $txId = (int)db()->lastInsertId();
+
+        db()->prepare(
+            "UPDATE fin_cheques 
+             SET status = 'cleared', cleared_date = ?, cleared_bank_account_id = ?, transaction_id = ?, notes = CONCAT(IFNULL(notes,''), IF(notes IS NULL OR notes='', '', ' | '), ?)
+             WHERE id = ?"
+        )->execute([$clearDate, $bankAccountId, $txId, $notes ? "Cleared: " . $notes : "Cleared", $chequeId]);
+
+        db()->commit();
+        log_activity('finance', 'update', 'fin_cheques', $chequeId, "Cheque #{$ch['cheque_number']} marked as cleared in {$bank['bank_name']}");
+    } catch (Throwable $e) {
+        db()->rollBack();
+        throw $e;
+    }
+}
+
+function cheque_bounce(int $chequeId, string $reason): void
+{
+    $ch = db()->query("SELECT * FROM fin_cheques WHERE id = {$chequeId}")->fetch();
+    if (!$ch) throw new RuntimeException("Cheque not found.");
+    if ($ch['status'] === 'cleared') throw new RuntimeException("Cannot bounce an already cleared cheque.");
+
+    db()->prepare("UPDATE fin_cheques SET status = 'bounced', notes = CONCAT(IFNULL(notes,''), IF(notes IS NULL OR notes='', '', ' | '), ?) WHERE id = ?")
+        ->execute(["Bounced: " . $reason, $chequeId]);
+
+    log_activity('finance', 'update', 'fin_cheques', $chequeId, "Cheque #{$ch['cheque_number']} marked as bounced: {$reason}");
+}
+
+function cheque_cancel(int $chequeId, string $reason): void
+{
+    $ch = db()->query("SELECT * FROM fin_cheques WHERE id = {$chequeId}")->fetch();
+    if (!$ch) throw new RuntimeException("Cheque not found.");
+    if ($ch['status'] === 'cleared') throw new RuntimeException("Cannot cancel an already cleared cheque.");
+
+    db()->prepare("UPDATE fin_cheques SET status = 'cancelled', notes = CONCAT(IFNULL(notes,''), IF(notes IS NULL OR notes='', '', ' | '), ?) WHERE id = ?")
+        ->execute(["Cancelled: " . $reason, $chequeId]);
+
+    log_activity('finance', 'update', 'fin_cheques', $chequeId, "Cheque #{$ch['cheque_number']} marked as cancelled: {$reason}");
 }
 
 // Granular RBAC Permissions Check
@@ -2978,7 +3439,7 @@ function require_permission(string $module, string $actionCode): void
             exit;
         }
         flash("Access denied: you need {$module}.{$actionCode} permission.", 'error');
-        header('Location: /aleltu-eifms/index.php');
+        header('Location: ' . BASE_URL . '/index.php');
         exit;
     }
 }
@@ -3135,7 +3596,7 @@ function save_uploaded_photo(string $inputName, string $subfolder = 'general'): 
         throw new RuntimeException('Failed to save uploaded image file.');
     }
 
-    return '/aleltu-eifms/uploads/' . trim($subfolder, '/') . '/' . $fileName;
+    return BASE_URL . '/uploads/' . trim($subfolder, '/') . '/' . $fileName;
 }
 
 function vet_process_scheduled_reminders(): array
@@ -3158,7 +3619,7 @@ function vet_process_scheduled_reminders(): array
         // 1. Alert for 1 Day before (<= 24h & > 2h)
         if ($diffSeconds <= 86400 && $diffSeconds > 7200 && empty($v['reminder_1day_sent'])) {
             $msg = (current_locale() === 'am' ? "የነገ የክትባት አስታዋሽ፡ ለ{$subjectLabel} የሚሰጥ የ{$v['vaccine_name']} ክትባት በ{$v['scheduled_time']} ሰዓት ተይዟል።" : "Upcoming Vaccination Tomorrow: {$v['vaccine_name']} for {$subjectLabel} at {$v['scheduled_time']}.");
-            notify_targeted('veterinary', $msg, 'high', null, 10, null, '/aleltu-eifms/modules/veterinary/dashboard.php');
+            notify_targeted('veterinary', $msg, 'high', null, 10, null, BASE_URL . '/modules/veterinary/dashboard.php');
             db()->prepare("UPDATE vet_vaccination_records SET reminder_1day_sent = 1 WHERE id = ?")->execute([$v['id']]);
         }
 
@@ -3174,7 +3635,7 @@ function vet_process_scheduled_reminders(): array
             // pre-vaccination reminder was being silently dropped every
             // time, while reminder_2hr_sent was still marked sent
             // immediately after, permanently losing that specific alert.
-            notify_targeted('veterinary', $msg, 'high', null, 10, null, '/aleltu-eifms/modules/veterinary/dashboard.php');
+            notify_targeted('veterinary', $msg, 'high', null, 10, null, BASE_URL . '/modules/veterinary/dashboard.php');
             db()->prepare("UPDATE vet_vaccination_records SET reminder_2hr_sent = 1 WHERE id = ?")->execute([$v['id']]);
         }
 
@@ -3184,7 +3645,7 @@ function vet_process_scheduled_reminders(): array
             // Same fix as the 2-hour reminder above — 'urgent' is not a
             // valid priority value; this was silently dropping the most
             // time-critical vaccination reminder of the three.
-            notify_targeted('veterinary', $msg, 'high', null, 10, null, '/aleltu-eifms/modules/veterinary/dashboard.php');
+            notify_targeted('veterinary', $msg, 'high', null, 10, null, BASE_URL . '/modules/veterinary/dashboard.php');
             db()->prepare("UPDATE vet_vaccination_records SET reminder_1hr_sent = 1 WHERE id = ?")->execute([$v['id']]);
         }
 
@@ -3318,4 +3779,486 @@ function smart_get_poultry_laying_efficiency(): array
         'status' => $rate >= 80 ? 'optimal' : ($rate >= 60 ? 'moderate' : 'low')
     ];
 }
+
+/**
+ * Global helper to create and distribute system notifications across user roles.
+ * Resolves calls like create_notification($message, $targetRoles, $linkUrl).
+ */
+function create_notification(string $message, array|string $targetRoles = [], string $url = '', string $priority = 'medium'): void
+{
+    try {
+        if (is_string($targetRoles)) {
+            $targetRoles = [$targetRoles];
+        }
+        if (empty($targetRoles)) {
+            // Default target: General Manager & Super Admin
+            $targetRoles = ['general_manager', 'super_admin'];
+        }
+
+        foreach ($targetRoles as $roleSlug) {
+            $role = db()->prepare("SELECT id FROM roles WHERE name = ? LIMIT 1");
+            $role->execute([$roleSlug]);
+            $roleId = $role->fetchColumn();
+            if ($roleId) {
+                $stmt = db()->prepare(
+                    "INSERT INTO notifications (module, priority, message, link_url, target_role_id, created_at)
+                     VALUES ('warehouse', ?, ?, ?, ?, NOW())"
+                );
+                $stmt->execute([$priority, $message, $url, (int)$roleId]);
+            }
+        }
+    } catch (Throwable) {
+        // Notification failure should never halt application processing
+    }
+}
+
+/**
+ * Per-Cow Comprehensive Financial History & Profitability Summary
+ */
+function cow_financial_summary(int $cowId): array
+{
+    $cow = db()->query("SELECT * FROM dairy_cows WHERE id = " . (int)$cowId)->fetch();
+    if (!$cow) {
+        throw new RuntimeException("Cow record not found.");
+    }
+
+    $milkPrice = (float)(setting_get('milk_price_per_liter') ?? 75.0);
+
+    // 1. Total Milk Yield & Revenue
+    $yieldStmt = db()->prepare(
+        "SELECT COALESCE(SUM(yield_liters), 0) AS total_liters,
+                COUNT(id) AS total_milking_sessions,
+                COALESCE(AVG(yield_liters), 0) AS avg_per_session
+         FROM dairy_milk_yield_entries
+         WHERE cow_id = ?"
+    );
+    $yieldStmt->execute([$cowId]);
+    $yieldData = $yieldStmt->fetch();
+
+    $totalMilkLiters  = (float)$yieldData['total_liters'];
+    $totalMilkRevenue = round($totalMilkLiters * $milkPrice, 2);
+
+    // Monthly breakdown of milk revenue
+    $monthlyMilkStmt = db()->prepare(
+        "SELECT DATE_FORMAT(s.session_date, '%Y-%m') AS ym,
+                SUM(e.yield_liters) AS monthly_liters,
+                COUNT(e.id) AS session_count
+         FROM dairy_milk_yield_entries e
+         JOIN dairy_milking_sessions s ON s.id = e.milking_session_id
+         WHERE e.cow_id = ?
+         GROUP BY ym
+         ORDER BY ym DESC
+         LIMIT 12"
+    );
+    $monthlyMilkStmt->execute([$cowId]);
+    $monthlyMilk = $monthlyMilkStmt->fetchAll();
+
+    // 2. Health & Medical Costs
+    $healthStmt = db()->prepare(
+        "SELECT id, record_date, condition_name, treatment, cost
+         FROM vet_health_records
+         WHERE subject_type = 'dairy_cow' AND subject_id = ?
+         ORDER BY record_date DESC"
+    );
+    $healthStmt->execute([$cowId]);
+    $healthRecords = $healthStmt->fetchAll();
+    $totalHealthCost = (float)array_sum(array_column($healthRecords, 'cost'));
+
+    // 3. Vaccination Costs
+    $vacStmt = db()->prepare(
+        "SELECT id, vaccine_name, administered_date, cost
+         FROM vet_vaccination_records
+         WHERE subject_type = 'dairy_cow' AND subject_id = ? AND status = 'administered'
+         ORDER BY administered_date DESC"
+    );
+    $vacStmt->execute([$cowId]);
+    $vacRecords = $vacStmt->fetchAll();
+    $totalVacCost = (float)array_sum(array_column($vacRecords, 'cost'));
+
+    // 4. Initial Purchase Cost
+    $purchaseCost = (float)($cow['purchase_price'] ?? 0.0);
+
+    // 5. Estimated Feed Cost
+    $startDateStr = !empty($cow['acquired_date']) ? $cow['acquired_date'] : substr($cow['created_at'], 0, 10);
+    $daysOnFarm   = max(1, (int)ceil((strtotime(date('Y-m-d')) - strtotime($startDateStr)) / 86400));
+    $dailyFeedRate = (float)(setting_get('cow_daily_feed_cost') ?? 40.0);
+    $totalFeedCost = round($daysOnFarm * $dailyFeedRate, 2);
+
+    // Total Expenses & Net Profit
+    $totalExpenses = round($purchaseCost + $totalHealthCost + $totalVacCost + $totalFeedCost, 2);
+    $netProfit     = round($totalMilkRevenue - $totalExpenses, 2);
+    $roiPercent    = ($totalExpenses > 0) ? round(($netProfit / $totalExpenses) * 100, 1) : 0.0;
+
+    $profitStatus = 'neutral';
+    if ($netProfit > 5000) {
+        $profitStatus = 'highly_profitable';
+    } elseif ($netProfit >= 0) {
+        $profitStatus = 'profitable';
+    } else {
+        $profitStatus = 'loss';
+    }
+
+    return [
+        'cow'                => $cow,
+        'milk_price'         => $milkPrice,
+        'total_milk_liters'  => $totalMilkLiters,
+        'total_milk_revenue' => $totalMilkRevenue,
+        'monthly_milk'       => $monthlyMilk,
+        'purchase_cost'      => $purchaseCost,
+        'health_cost'        => $totalHealthCost,
+        'health_records'     => $healthRecords,
+        'vaccination_cost'   => $totalVacCost,
+        'vaccination_records'=> $vacRecords,
+        'days_on_farm'       => $daysOnFarm,
+        'daily_feed_rate'    => $dailyFeedRate,
+        'feed_cost'          => $totalFeedCost,
+        'total_expenses'     => $totalExpenses,
+        'net_profit'         => $netProfit,
+        'roi_percent'        => $roiPercent,
+        'profit_status'      => $profitStatus,
+    ];
+}
+
+/**
+ * Enterprise Department Profitability Engine (Cross-Unit P&L with Date Filter)
+ */
+function finance_department_profitability(?string $startDate = null, ?string $endDate = null): array
+{
+    $startDate = $startDate ?: '2024-01-01';
+    $endDate   = $endDate ?: date('Y-m-d');
+
+    $departments = [
+        'dairy' => [
+            'name_am' => 'የወተት እርሻ',
+            'name_en' => 'Dairy Farm',
+            'icon'    => '',
+            'color'   => '#1565c0',
+            'scope'   => 'dairy',
+            'product_classes' => ['milk'],
+            'sku_prefix'      => 'MILK%',
+        ],
+        'poultry' => [
+            'name_am' => 'የዶሮና እንቁላል እርባታ',
+            'name_en' => 'Poultry & Eggs',
+            'icon'    => '',
+            'color'   => '#e65100',
+            'scope'   => 'poultry',
+            'product_classes' => ['eggs', 'poultry_meat', 'birds', 'general'],
+            'sku_prefix'      => 'EGG%',
+        ],
+        'fish' => [
+            'name_am' => 'የዓሳ እርባታ',
+            'name_en' => 'Fish Aquaculture',
+            'icon'    => '',
+            'color'   => '#00838f',
+            'scope'   => 'fish',
+            'product_classes' => ['fish', 'fingerlings'],
+            'sku_prefix'      => 'FISH%',
+        ],
+        'feed_production' => [
+            'name_am' => 'የመኖ ምርትና እርሻ',
+            'name_en' => 'Feed Production & Crops',
+            'icon'    => '',
+            'color'   => '#2e7d32',
+            'scope'   => 'feed_production',
+            'product_classes' => ['feed', 'crop'],
+            'sku_prefix'      => 'FEED%',
+        ],
+        'warehouse' => [
+            'name_am' => 'መጋዘንና ግዢ',
+            'name_en' => 'Warehouse & Inventory',
+            'icon'    => '',
+            'color'   => '#6a1b9a',
+            'scope'   => 'warehouse',
+            'product_classes' => ['materials_supplies', 'equipment', 'spare_parts'],
+            'sku_prefix'      => 'EQUIP%',
+        ],
+        'distribution' => [
+            'name_am' => 'ስርጭትና መዳረሻ ሱቆች',
+            'name_en' => 'Distribution & Sales Outlets',
+            'icon'    => '',
+            'color'   => '#ad1457',
+            'scope'   => 'distribution',
+            'product_classes' => [],
+            'sku_prefix'      => null,
+        ],
+        'veterinary' => [
+            'name_am' => 'የእንስሳት ህክምና',
+            'name_en' => 'Veterinary Clinic',
+            'icon'    => '',
+            'color'   => '#00695c',
+            'scope'   => 'veterinary',
+            'product_classes' => ['medicine', 'vaccine'],
+            'sku_prefix'      => 'MED%',
+        ],
+        'general_overhead' => [
+            'name_am' => 'አጠቃላይ አስተዳደርና ደመወዝ',
+            'name_en' => 'General Overhead & Admin',
+            'icon'    => '',
+            'color'   => '#455a64',
+            'scope'   => 'general_overhead',
+            'product_classes' => [],
+            'sku_prefix'      => null,
+        ],
+    ];
+
+    $summary = [];
+    $totalFarmRevenue = 0.0;
+    $totalFarmExpense = 0.0;
+
+    foreach ($departments as $key => $meta) {
+        $dispatchRev = 0.0;
+        $cashCollected = 0.0;
+        $breakdown = [
+            'revenues' => [],
+            'expenses' => [],
+        ];
+
+        // 1. Sales revenue from Dispatches for producing departments
+        if (!empty($meta['scope']) && in_array($key, ['dairy', 'poultry', 'fish', 'feed_production', 'warehouse', 'veterinary'], true)) {
+            $dispatchStmt = db()->prepare(
+                "SELECT 
+                    d.id,
+                    DATE(COALESCE(d.dispatched_at, d.planned_dispatch_at, d.created_at)) AS dispatch_date,
+                    d.destination_pos_location,
+                    d.quantity_dispatched,
+                    d.unit_price,
+                    d.total_price,
+                    d.amount_paid,
+                    d.payment_status,
+                    d.payment_notes,
+                    i.name AS item_name,
+                    i.unit
+                 FROM dist_dispatches d
+                 JOIN wh_stock_items i ON i.id = d.stock_item_id
+                 WHERE (i.department_scope = ? OR i.sku LIKE ? OR i.product_class IN ('" . implode("','", $meta['product_classes']) . "'))
+                   AND d.status NOT IN ('failed', 'cancelled')
+                   AND DATE(COALESCE(d.dispatched_at, d.planned_dispatch_at, d.created_at)) BETWEEN ? AND ?
+                 ORDER BY dispatch_date DESC"
+            );
+            $skuPattern = $meta['sku_prefix'] ?: '___NONE___';
+            $dispatchStmt->execute([$meta['scope'], $skuPattern, $startDate, $endDate]);
+            $dispRows = $dispatchStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($dispRows as $dr) {
+                $tot = (float)$dr['total_price'];
+                $paid = (float)$dr['amount_paid'];
+                $unpaid = max(0.0, $tot - $paid);
+                $dispatchRev += $tot;
+                $cashCollected += $paid;
+
+                $breakdown['revenues'][] = [
+                    'id'             => $dr['id'],
+                    'date'           => $dr['dispatch_date'],
+                    'item'           => $dr['item_name'],
+                    'quantity'       => (float)$dr['quantity_dispatched'] . ' ' . $dr['unit'],
+                    'unit_price'     => (float)$dr['unit_price'],
+                    'destination'    => $dr['destination_pos_location'],
+                    'total_amount'   => $tot,
+                    'cash_paid'      => $paid,
+                    'credit_unpaid'  => $unpaid,
+                    'payment_status' => $dr['payment_status'],
+                    'notes'          => $dr['payment_notes'] ?: '',
+                ];
+            }
+        }
+
+        // 2. Direct inflow transactions (excluding internal transfers and retail sales double-count)
+        $txInflowStmt = db()->prepare(
+            "SELECT id, transaction_date, amount, payment_method, description, category
+             FROM fin_transactions
+             WHERE unit_tag = ? AND direction = 'inflow' 
+               AND category NOT IN ('internal_transfer', 'sales_revenue')
+               AND transaction_date BETWEEN ? AND ?
+             ORDER BY transaction_date DESC"
+        );
+        $txInflowStmt->execute([$key, $startDate, $endDate]);
+        $txInflows = $txInflowStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $txInflow = 0.0;
+        foreach ($txInflows as $ti) {
+            $amt = (float)$ti['amount'];
+            $txInflow += $amt;
+            $cashCollected += $amt;
+            $breakdown['revenues'][] = [
+                'id'             => $ti['id'],
+                'date'           => $ti['transaction_date'],
+                'item'           => $ti['description'] ?: $ti['category'],
+                'quantity'       => '1 አገልግሎት',
+                'unit_price'     => $amt,
+                'destination'    => 'ቀጥተኛ የፋይናንስ ገቢ (' . $ti['payment_method'] . ')',
+                'total_amount'   => $amt,
+                'cash_paid'      => $amt,
+                'credit_unpaid'  => 0.0,
+                'payment_status' => 'paid',
+                'notes'          => $ti['description'] ?: '',
+            ];
+        }
+
+        $totalRevenue = round($dispatchRev + $txInflow, 2);
+
+        // 3. Operating Expenses from fin_expenses
+        $expStmt = db()->prepare(
+            "SELECT e.id, e.expense_date, e.category, e.withdrawal_type, e.recipient_name, e.amount, e.status, e.description,
+                    b.bank_name, b.account_type
+             FROM fin_expenses e
+             LEFT JOIN fin_bank_accounts b ON b.id = e.bank_account_id
+             WHERE e.unit_tag = ? AND e.status IN ('approved', 'paid')
+               AND e.expense_date BETWEEN ? AND ?
+             ORDER BY e.expense_date DESC"
+        );
+        $expStmt->execute([$key, $startDate, $endDate]);
+        $directExpRows = $expStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $directExp = 0.0;
+        foreach ($directExpRows as $de) {
+            $amt = (float)$de['amount'];
+            $directExp += $amt;
+            $breakdown['expenses'][] = [
+                'id'              => $de['id'],
+                'date'            => $de['expense_date'],
+                'category'        => $de['category'],
+                'withdrawal_type' => $de['withdrawal_type'] ?: 'operating_expense',
+                'recipient'       => $de['recipient_name'] ?: '—',
+                'description'     => $de['description'] ?: $de['category'],
+                'bank_name'       => $de['bank_name'] ?: 'ዋና ካዝና',
+                'amount'          => $amt,
+                'status'          => $de['status'],
+                'source'          => 'fin_expenses',
+            ];
+        }
+
+        // 4. Outflow transactions from fin_transactions (purchases, payments)
+        $txOutflowStmt = db()->prepare(
+            "SELECT id, transaction_date, category, amount, payment_method, description
+             FROM fin_transactions
+             WHERE unit_tag = ? AND direction = 'outflow' 
+               AND category NOT IN ('internal_transfer')
+               AND transaction_date BETWEEN ? AND ?
+             ORDER BY transaction_date DESC"
+        );
+        $txOutflowStmt->execute([$key, $startDate, $endDate]);
+        $txOutflowRows = $txOutflowStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $txOutflow = 0.0;
+        foreach ($txOutflowRows as $to) {
+            $amt = (float)$to['amount'];
+            $txOutflow += $amt;
+            // Only add if not duplicate category from direct expenses
+            if ($directExp == 0 || $key === 'warehouse' || $key === 'distribution') {
+                $breakdown['expenses'][] = [
+                    'id'          => $to['id'],
+                    'date'        => $to['transaction_date'],
+                    'category'    => $to['category'],
+                    'description' => $to['description'] ?: $to['category'],
+                    'amount'      => $amt,
+                    'status'      => 'paid (' . $to['payment_method'] . ')',
+                    'source'      => 'fin_transactions',
+                ];
+            }
+        }
+
+        // Use the larger of direct expenses or transaction outflows for that unit
+        $unitOperationalCost = ($directExp > 0 && ($key !== 'warehouse' && $key !== 'distribution')) ? $directExp : max($directExp, $txOutflow);
+
+        // 5. Veterinary health & vaccination record costs (assigned to veterinary or unit)
+        $vetRecordCost = 0.0;
+        if ($key === 'veterinary') {
+            $hStmt = db()->prepare("SELECT id, record_date, condition_name, treatment, cost FROM vet_health_records WHERE record_date BETWEEN ? AND ? ORDER BY record_date DESC");
+            $hStmt->execute([$startDate, $endDate]);
+            $hRows = $hStmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($hRows as $hr) {
+                $c = (float)$hr['cost'];
+                $vetRecordCost += $c;
+                if ($c > 0) {
+                    $breakdown['expenses'][] = [
+                        'id'          => $hr['id'],
+                        'date'        => $hr['record_date'],
+                        'category'    => 'የህክምና ወጪ',
+                        'description' => $hr['condition_name'] . ' - ' . $hr['treatment'],
+                        'amount'      => $c,
+                        'status'      => 'recorded',
+                        'source'      => 'vet_health_records',
+                    ];
+                }
+            }
+
+            $vStmt = db()->prepare("SELECT id, administered_date, vaccine_name, cost FROM vet_vaccination_records WHERE administered_date BETWEEN ? AND ? ORDER BY administered_date DESC");
+            $vStmt->execute([$startDate, $endDate]);
+            $vRows = $vStmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($vRows as $vr) {
+                $c = (float)$vr['cost'];
+                $vetRecordCost += $c;
+                if ($c > 0) {
+                    $breakdown['expenses'][] = [
+                        'id'          => $vr['id'],
+                        'date'        => $vr['administered_date'],
+                        'category'    => 'የክትባት ወጪ',
+                        'description' => $vr['vaccine_name'],
+                        'amount'      => $c,
+                        'status'      => 'recorded',
+                        'source'      => 'vet_vaccination_records',
+                    ];
+                }
+            }
+        }
+
+        // 6. Enterprise Payroll allocation (General Overhead or by employee department)
+        $payrollExp = 0.0;
+        if ($key === 'general_overhead') {
+            $payrollStmt = db()->prepare(
+                "SELECT pr.id, pr.period_start, pr.period_end, COUNT(ps.id) as staff_count, COALESCE(SUM(ps.net_pay + ps.allowances), 0) as total_payroll
+                 FROM fin_payroll_runs pr
+                 JOIN fin_payslips ps ON ps.payroll_run_id = pr.id
+                 WHERE pr.period_start BETWEEN ? AND ? OR pr.period_end BETWEEN ? AND ?
+                 GROUP BY pr.id"
+            );
+            $payrollStmt->execute([$startDate, $endDate, $startDate, $endDate]);
+            $pRuns = $payrollStmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($pRuns as $pr) {
+                $pTot = (float)$pr['total_payroll'];
+                $payrollExp += $pTot;
+                $breakdown['expenses'][] = [
+                    'id'          => $pr['id'],
+                    'date'        => $pr['period_end'],
+                    'category'    => 'የሰራተኞች ወርሃዊ ደመወዝ',
+                    'description' => "ደመወዝ ክፍያ ({$pr['staff_count']} ሰራተኞች - {$pr['period_start']} እስከ {$pr['period_end']})",
+                    'amount'      => $pTot,
+                    'status'      => 'paid',
+                    'source'      => 'fin_payroll_runs',
+                ];
+            }
+        }
+
+        $totalExpense = round($unitOperationalCost + $vetRecordCost + $payrollExp, 2);
+        $netProfit    = round($totalRevenue - $totalExpense, 2);
+        $margin       = ($totalRevenue > 0) ? round(($netProfit / $totalRevenue) * 100, 1) : ($netProfit < 0 ? -100.0 : 0.0);
+        $creditUnpaid = max(0.0, round($totalRevenue - $cashCollected, 2));
+
+        $summary[$key] = array_merge($meta, [
+            'revenue'        => $totalRevenue,
+            'cash_collected' => $cashCollected,
+            'credit_unpaid'  => $creditUnpaid,
+            'expense'        => $totalExpense,
+            'net_profit'     => $netProfit,
+            'margin'         => $margin,
+            'breakdown'      => $breakdown,
+        ]);
+
+        $totalFarmRevenue += $totalRevenue;
+        $totalFarmExpense += $totalExpense;
+    }
+
+    $totalFarmNetProfit = round($totalFarmRevenue - $totalFarmExpense, 2);
+
+    return [
+        'start_date'        => $startDate,
+        'end_date'          => $endDate,
+        'departments'       => $summary,
+        'total_revenue'     => $totalFarmRevenue,
+        'total_expense'     => $totalFarmExpense,
+        'total_net_profit'  => $totalFarmNetProfit,
+    ];
+}
+
 

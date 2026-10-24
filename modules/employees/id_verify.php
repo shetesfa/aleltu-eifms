@@ -22,7 +22,7 @@ if ($code !== '') {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Employee Verification — Aleltu Farm</title>
+    <title>Employee Verification — Teklu Getachew Dairy Farm</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -184,9 +184,9 @@ if ($code !== '') {
 
 <div class="card">
     <div class="banner">
-        <div class="banner-logo">🌾</div>
-        <div class="banner-title">የአለልቱ የተቀናጀ እርሻ</div>
-        <div class="banner-sub">ALELTU INTEGRATED FARM &bull; DIGITAL ID VERIFY</div>
+        <div class="banner-logo">🐄</div>
+        <div class="banner-title">ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት</div>
+        <div class="banner-sub">TEKLU GETACHEW DAIRY FARM &bull; DIGITAL ID VERIFY</div>
     </div>
 
     <?php if ($emp): ?>
@@ -237,7 +237,7 @@ if ($code !== '') {
             <?php endif; ?>
 
             <div class="footer-note">
-                🔒 የተረጋገጠ ዲጂታል ማንነት &bull; Aleltu Farm EIFMS
+                🔒 የተረጋገጠ ዲጂታል ማንነት &bull; Teklu Getachew Dairy Farm
             </div>
         </div>
     <?php else: ?>
@@ -246,7 +246,7 @@ if ($code !== '') {
             <h3 style="color:#c62828;margin:0 0 8px">ምንም መረጃ አልተገኘም</h3>
             <p style="color:#6b7280;font-size:14px;margin:0 0 20px">No matching employee record found for code: <strong><?= h($code) ?></strong></p>
             <div class="footer-note">
-                Aleltu Integrated Farm Verification Portal
+                Teklu Getachew Dairy Farm Verification Portal
             </div>
         </div>
     <?php endif; ?>

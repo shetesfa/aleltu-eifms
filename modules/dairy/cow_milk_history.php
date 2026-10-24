@@ -12,7 +12,7 @@ if (!$cow) {
         $cow = db()->query("SELECT * FROM dairy_cows WHERE id = {$cowId}")->fetch();
     } else {
         flash('No cow records found.', 'error');
-        header('Location: /aleltu-eifms/modules/dairy/cows.php');
+        header('Location: ' . BASE_URL . '/modules/dairy/cows.php');
         exit;
     }
 }
@@ -60,7 +60,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <h2 class="mt-0"><?= h(t('dairy.milking_entry', 'Milk Yield History')) ?> — Cow <?= h($cow['tag_number']) ?> (<?= h($cow['name'] ?: 'Unnamed') ?>)</h2>
-    <a href="/aleltu-eifms/modules/dairy/cow_view.php?id=<?= $cowId ?>" class="btn secondary">&larr; <?= h(t('common.back', 'Back to Cow Profile')) ?></a>
+    <a href="<?= BASE_URL ?>/modules/dairy/cow_view.php?id=<?= $cowId ?>" class="btn secondary">&larr; <?= h(t('common.back', 'Back to Cow Profile')) ?></a>
 </div>
 
 <div class="kpi-row">

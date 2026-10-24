@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_feed_burn'])) {
         db()->prepare("INSERT INTO wh_minimum_stock_rules (warehouse_id, stock_item_id, minimum_threshold, daily_burn_override) VALUES (1, ?, 10.00, ?)")->execute([$itemId, $burn]);
     }
     flash(current_locale() === 'am' ? '✓ የመኖ ዕለታዊ ፍጆታ መጠን ተስተካክሏል።' : 'Daily feed burn rate updated successfully.');
-    header('Location: /aleltu-eifms/modules/warehouse/dashboard.php');
+    header('Location: ' . BASE_URL . '/modules/warehouse/dashboard.php');
     exit;
 }
 
@@ -75,10 +75,10 @@ $smartFeeds = smart_get_feed_depletion_forecast();
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'የተጠናቀቁ ምርቶች (ክፍል 1)፣ የእንስሳት መኖዎች (ክፍል 2) እና ዕቃዎችና መድኃኒት (ክፍል 3) የተቀናጀ አስተዳደር' : 'Consolidated store: Finished Products (Part 1), Feeds (Part 2), Materials & Supplies (Part 3)' ?></p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="/aleltu-eifms/modules/warehouse/receiving.php" class="btn">📥 <?= current_locale() === 'am' ? 'የዕቃ ርክክብ ገጽ' : 'Receiving' ?></a>
-        <a href="/aleltu-eifms/modules/warehouse/requisitions.php" class="btn secondary">📦 <?= current_locale() === 'am' ? 'የክፍሎች ጥያቄዎች' : 'Requisitions' ?> (<?= $pendingRequisitions ?>)</a>
-        <a href="/aleltu-eifms/modules/warehouse/stock.php" class="btn secondary">📊 <?= current_locale() === 'am' ? 'የክምችት ዝርዝር' : 'Stock Inventory' ?></a>
-        <a href="/aleltu-eifms/modules/warehouse/stock_adjust.php" class="btn secondary">⚖️ <?= current_locale() === 'am' ? 'ክምችት አስተካክል' : 'Stock Adjustment' ?></a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/receiving.php" class="btn">📥 <?= current_locale() === 'am' ? 'የዕቃ ርክክብ ገጽ' : 'Receiving' ?></a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/requisitions.php" class="btn secondary">📦 <?= current_locale() === 'am' ? 'የክፍሎች ጥያቄዎች' : 'Requisitions' ?> (<?= $pendingRequisitions ?>)</a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/stock.php" class="btn secondary">📊 <?= current_locale() === 'am' ? 'የክምችት ዝርዝር' : 'Stock Inventory' ?></a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/stock_adjust.php" class="btn secondary">⚖️ <?= current_locale() === 'am' ? 'ክምችት አስተካክል' : 'Stock Adjustment' ?></a>
     </div>
 </div>
 
@@ -99,7 +99,7 @@ $smartFeeds = smart_get_feed_depletion_forecast();
                 <div style="font-size:11px;color:#666"><?= current_locale() === 'am' ? 'የዕቃ ዓይነቶች' : 'Item Types' ?></div>
                 <strong style="font-size:18px;color:#2e7d32"><?= (int)$part1Items['cnt'] ?></strong>
             </div>
-            <a href="/aleltu-eifms/modules/warehouse/stock.php?partition=finished_products" class="btn secondary" style="padding:4px 10px;font-size:12px">
+            <a href="<?= BASE_URL ?>/modules/warehouse/stock.php?partition=finished_products" class="btn secondary" style="padding:4px 10px;font-size:12px">
                 <?= current_locale() === 'am' ? 'ክፍል 1ን እይ →' : 'View Part 1 →' ?>
             </a>
         </div>
@@ -120,7 +120,7 @@ $smartFeeds = smart_get_feed_depletion_forecast();
                 <div style="font-size:11px;color:#666"><?= current_locale() === 'am' ? 'የዕቃ ዓይነቶች' : 'Item Types' ?></div>
                 <strong style="font-size:18px;color:#92400e"><?= (int)$part2Items['cnt'] ?></strong>
             </div>
-            <a href="/aleltu-eifms/modules/warehouse/stock.php?partition=feed_nutrition" class="btn secondary" style="padding:4px 10px;font-size:12px">
+            <a href="<?= BASE_URL ?>/modules/warehouse/stock.php?partition=feed_nutrition" class="btn secondary" style="padding:4px 10px;font-size:12px">
                 <?= current_locale() === 'am' ? 'ክፍል 2ን እይ →' : 'View Part 2 →' ?>
             </a>
         </div>
@@ -141,7 +141,7 @@ $smartFeeds = smart_get_feed_depletion_forecast();
                 <div style="font-size:11px;color:#666"><?= current_locale() === 'am' ? 'የዕቃ ዓይነቶች' : 'Item Types' ?></div>
                 <strong style="font-size:18px;color:#0369a1"><?= (int)$part3Items['cnt'] ?></strong>
             </div>
-            <a href="/aleltu-eifms/modules/warehouse/stock.php?partition=materials_supplies" class="btn secondary" style="padding:4px 10px;font-size:12px">
+            <a href="<?= BASE_URL ?>/modules/warehouse/stock.php?partition=materials_supplies" class="btn secondary" style="padding:4px 10px;font-size:12px">
                 <?= current_locale() === 'am' ? 'ክፍል 3ን እይ →' : 'View Part 3 →' ?>
             </a>
         </div>
@@ -201,7 +201,7 @@ $smartFeeds = smart_get_feed_depletion_forecast();
 <div class="card" style="margin-bottom:20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h3 style="margin:0">📥 <?= current_locale() === 'am' ? 'ማረጋገጫ የሚጠብቁ የገቡ ጭነቶች (ዕለታዊ ወተት፣ ዕንቁላል እና ግዥዎች)' : 'Incoming Deliveries Awaiting Verification' ?></h3>
-        <a href="/aleltu-eifms/modules/warehouse/receiving.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= current_locale() === 'am' ? 'የበር ርክክብ ገጽ ክፈት →' : 'Open Receiving Portal →' ?></a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/receiving.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= current_locale() === 'am' ? 'የበር ርክክብ ገጽ ክፈት →' : 'Open Receiving Portal →' ?></a>
     </div>
     <table>
         <thead>
@@ -230,9 +230,9 @@ $smartFeeds = smart_get_feed_depletion_forecast();
                     <td><span class="badge active"><?= h(ucfirst(str_replace('_', ' ', $p['source_type']))) ?></span></td>
                     <td><strong><?= h($p['item_name']) ?></strong></td>
                     <td><strong style="color:#006837"><?= number_format($p['sent_quantity'], 2) ?> <?= h($p['unit']) ?></strong></td>
-                    <td><?= h(substr($p['sent_at'], 0, 16)) ?></td>
+                    <td style="font-size:12px;white-space:nowrap"><?= h(eth_datetime($p['sent_at'])) ?></td>
                     <td>
-                        <a href="/aleltu-eifms/modules/warehouse/receiving.php#rcv-<?= (int)$p['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= current_locale() === 'am' ? 'መርምርና ተረከብ' : 'Review & Receive' ?></a>
+                        <a href="<?= BASE_URL ?>/modules/warehouse/receiving.php#rcv-<?= (int)$p['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= current_locale() === 'am' ? 'መርምርና ተረከብ' : 'Review & Receive' ?></a>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -247,7 +247,7 @@ $smartFeeds = smart_get_feed_depletion_forecast();
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h3 style="margin:0">📋 <?= current_locale() === 'am' ? 'የስራ ክፍሎች የዕቃ ጥያቄዎች ዝርዝር' : 'Department Requisitions Queue' ?></h3>
-        <a href="/aleltu-eifms/modules/warehouse/requisitions.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= current_locale() === 'am' ? 'ሁሉንም ጥያቄዎች እይ →' : 'View All Requisitions →' ?></a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/requisitions.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= current_locale() === 'am' ? 'ሁሉንም ጥያቄዎች እይ →' : 'View All Requisitions →' ?></a>
     </div>
     <table>
         <thead>
@@ -264,14 +264,14 @@ $smartFeeds = smart_get_feed_depletion_forecast();
         <tbody>
             <?php foreach ($pendingReqs as $r): ?>
                 <tr>
-                    <td><?= h(substr($r['created_at'], 0, 16)) ?></td>
+                    <td style="font-size:12px;white-space:nowrap"><?= eth_datetime($r['created_at']) ?></td>
                     <td><strong><?= h($r['dept_name']) ?></strong></td>
                     <td><?= h($r['item_name']) ?> <span class="text-muted">(<?= h($r['unit']) ?>)</span></td>
                     <td><?= number_format($r['requested_quantity'], 1) ?></td>
                     <td><span class="badge dry"><?= h(str_replace('_', ' ', $r['status'])) ?></span></td>
                     <td><?= h($r['requester_name']) ?></td>
                     <td>
-                        <a href="/aleltu-eifms/modules/warehouse/requisitions.php" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= current_locale() === 'am' ? 'መርምርና ወጪ አድርግ' : 'Check & Issue' ?></a>
+                        <a href="<?= BASE_URL ?>/modules/warehouse/requisitions.php" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= current_locale() === 'am' ? 'መርምርና ወጪ አድርግ' : 'Check & Issue' ?></a>
                     </td>
                 </tr>
             <?php endforeach; ?>

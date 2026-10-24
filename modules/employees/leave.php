@@ -18,10 +18,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newId = leave_request((int)$_POST['employee_id'], $_POST['start_date'], $_POST['end_date'], $_POST['reason'] ?? '');
             log_activity('employees', 'create', 'leave_requests', (int)db()->lastInsertId(), "Leave {$_POST['start_date']} to {$_POST['end_date']}");
             // Notify HR
-            notify_role('hr_officer', 'New Leave Request', 'A new leave request has been submitted and requires approval.', '/aleltu-eifms/modules/employees/leave.php');
+            notify_role('hr_officer', 'New Leave Request', 'A new leave request has been submitted and requires approval.', BASE_URL . '/modules/employees/leave.php');
             flash('Leave requested.');
         }
-        header('Location: /aleltu-eifms/modules/employees/leave.php');
+        header('Location: ' . BASE_URL . '/modules/employees/leave.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');

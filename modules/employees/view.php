@@ -13,7 +13,7 @@ if (!$emp) {
         $emp = db()->query("SELECT e.*, d.name AS department_name FROM employees e LEFT JOIN departments d ON d.id = e.department_id WHERE e.id = {$id}")->fetch();
     } else {
         flash('No employee records found.', 'error');
-        header('Location: /aleltu-eifms/modules/employees/list.php');
+        header('Location: ' . BASE_URL . '/modules/employees/list.php');
         exit;
     }
 }
@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             log_activity('employees', 'update', 'employees', $id, "Changed employee status from {$oldStatus} to {$newStatus}. Reason: {$reason}");
             flash("Employment status updated to {$newStatus}.");
         }
-        header("Location: /aleltu-eifms/modules/employees/view.php?id={$id}");
+        header("Location: " . BASE_URL . "/modules/employees/view.php?id={$id}");
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -99,9 +99,9 @@ $statusLogs = $statusLogs->fetchAll();
         <p class="text-muted" style="margin:0"><?= h($emp['employee_number']) ?> &bull; <?= h($emp['department_name'] ?: 'No Department') ?> &bull; <?= h($emp['job_title'] ?: 'No Title') ?></p>
     </div>
     <div style="display:flex;gap:8px">
-        <a href="/aleltu-eifms/modules/employees/photo_upload.php?id=<?= (int)$id ?>" class="btn secondary">📷 Photo</a>
-        <a href="/aleltu-eifms/modules/employees/id_card.php?id=<?= (int)$id ?>" target="_blank" class="btn secondary">🆔 ID Card</a>
-        <a href="/aleltu-eifms/modules/employees/list.php" class="btn secondary">&larr; Back to Directory</a>
+        <a href="<?= BASE_URL ?>/modules/employees/photo_upload.php?id=<?= (int)$id ?>" class="btn secondary">📷 Photo</a>
+        <a href="<?= BASE_URL ?>/modules/employees/id_card.php?id=<?= (int)$id ?>" target="_blank" class="btn secondary">🆔 ID Card</a>
+        <a href="<?= BASE_URL ?>/modules/employees/list.php" class="btn secondary">&larr; Back to Directory</a>
     </div>
 </div>
 

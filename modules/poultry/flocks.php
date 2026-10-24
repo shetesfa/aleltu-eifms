@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
     }
-    header('Location: /aleltu-eifms/modules/poultry/flocks.php');
+    header('Location: ' . BASE_URL . '/modules/poultry/flocks.php');
     exit;
 }
 require_once __DIR__ . '/../../includes/header.php';
@@ -98,10 +98,10 @@ foreach ($flocks as $f) {
             <tr>
                 <td><?= h($f['house_name']) ?></td>
                 <td><?= h($f['breed']) ?></td>
-                <td><?= h($f['stocking_date']) ?></td>
+                <td><?= eth_date($f['stocking_date']) ?></td>
                 <td><?= (int) $f['initial_population'] ?></td>
                 <td><strong><?= flock_live_population((int)$f['id']) ?></strong></td>
-                <td><a href="/aleltu-eifms/modules/poultry/flock_view.php?id=<?= (int)$f['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view_all', 'View / Log Eggs')) ?> &rarr;</a></td>
+                <td><a href="<?= BASE_URL ?>/modules/poultry/flock_view.php?id=<?= (int)$f['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view_all', 'View / Log Eggs')) ?> &rarr;</a></td>
             </tr>
         <?php endforeach; ?>
         <?php if (empty($flocks)): ?><tr><td colspan="6" class="text-muted"><?= h(t('common.no_records', 'No active flocks.')) ?></td></tr><?php endif; ?>

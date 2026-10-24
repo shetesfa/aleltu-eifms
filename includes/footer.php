@@ -30,13 +30,18 @@
         if (!window.matchMedia('(max-width: 900px)').matches) closeNav();
     });
 })();
+</script>
 
+<script src="<?= BASE_URL ?>/assets/js/ethiopian_calendar.js"></script>
+<?php if (file_exists(__DIR__ . '/../sw.js')): ?>
+<script>
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/aleltu-eifms/sw.js', { scope: '/aleltu-eifms/' })
+        navigator.serviceWorker.register('<?= BASE_URL ?>/sw.js', { scope: '<?= BASE_URL ?>/' })
             .catch(function (err) { console.warn('SW registration failed:', err); });
     });
 }
 </script>
+<?php endif; ?>
 </body>
 </html>

@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         feed_plot_register($_POST['name'], $_POST['area_hectares'] !== '' ? (float) $_POST['area_hectares'] : null);
         flash(current_locale() === 'am' ? '✓ አዲስ የመኖ ማሳ ተመዝግቧል።' : 'Plot registered.');
-        header('Location: /aleltu-eifms/modules/feed_production/plots.php');
+        header('Location: ' . BASE_URL . '/modules/feed_production/plots.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -26,7 +26,7 @@ $plots = db()->query(
 <p class="text-muted"><?= current_locale() === 'am' ? 'የመኖ እርሻ ማሳዎች ምዝገባ፣ ዘር መዝራት፣ አሰባሰብ እና ወደ ማዕከላዊ መጋዘን ርክክብ መቆጣጠሪያ' : 'Planting, harvest, and internal feed distribution.' ?></p>
 
 <div class="card" style="margin-bottom:16px">
-    <a href="/aleltu-eifms/modules/feed_production/distribution.php" class="btn secondary">🚚 <?= current_locale() === 'am' ? 'የመኖ ምርት ርክክብ ወደ መጋዘን' : 'Distribution Requests' ?></a>
+    <a href="<?= BASE_URL ?>/modules/feed_production/distribution.php" class="btn secondary">🚚 <?= current_locale() === 'am' ? 'የመኖ ምርት ርክክብ ወደ መጋዘን' : 'Distribution Requests' ?></a>
 </div>
 
 <div class="card" style="max-width:500px">
@@ -51,7 +51,7 @@ $plots = db()->query(
                 <td><strong><?= h($p['name']) ?></strong></td>
                 <td><?= $p['area_hectares'] ? number_format($p['area_hectares'], 2) : '—' ?></td>
                 <td><span class="badge active"><?= (int) $p['growing_count'] ?> <?= current_locale() === 'am' ? 'ሰብሎች' : 'crop(s)' ?></span></td>
-                <td><a href="/aleltu-eifms/modules/feed_production/plot_view.php?id=<?= (int) $p['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view', 'View')) ?> &rarr;</a></td>
+                <td><a href="<?= BASE_URL ?>/modules/feed_production/plot_view.php?id=<?= (int) $p['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view', 'View')) ?> &rarr;</a></td>
             </tr>
         <?php endforeach; ?>
         <?php if (empty($plots)): ?><tr><td colspan="4" class="text-muted"><?= h(t('common.no_records', 'No plots yet.')) ?></td></tr><?php endif; ?>

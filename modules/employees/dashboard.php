@@ -36,10 +36,10 @@ $recentAtt = db()->query(
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'የሰራተኞች መረጃ፣ የዕለት መገኘት ክትትል፣ የፈቃድ ጥያቄዎች እና የተጣሉ ስራዎች አስተዳደር' : 'Employee records, daily attendance tracking, leave requests, and task assignments.' ?></p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="/aleltu-eifms/modules/employees/add.php" class="btn">+ <?= h(t('emp.add_new', 'Register Employee')) ?></a>
-        <a href="/aleltu-eifms/modules/employees/list.php" class="btn secondary">👥 <?= h(t('nav.employees', 'Employee Directory')) ?></a>
-        <a href="/aleltu-eifms/modules/employees/attendance.php" class="btn secondary">📅 <?= h(t('nav.attendance', 'Attendance Sheet')) ?></a>
-        <a href="/aleltu-eifms/modules/employees/leave.php" class="btn secondary">🏖️ <?= h(t('nav.leave_requests', 'Leave Requests')) ?> (<?= $pendingLeaveReqs ?>)</a>
+        <a href="<?= BASE_URL ?>/modules/employees/add.php" class="btn">+ <?= h(t('emp.add_new', 'Register Employee')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/employees/list.php" class="btn secondary">👥 <?= h(t('nav.employees', 'Employee Directory')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/employees/attendance.php" class="btn secondary">📅 <?= h(t('nav.attendance', 'Attendance Sheet')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/employees/leave.php" class="btn secondary">🏖️ <?= h(t('nav.leave_requests', 'Leave Requests')) ?> (<?= $pendingLeaveReqs ?>)</a>
     </div>
 </div>
 
@@ -68,7 +68,7 @@ $recentAtt = db()->query(
     <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <h3 style="margin:0"><?= current_locale() === 'am' ? 'ማረጋገጫ የሚጠብቁ የፈቃድ ጥያቄዎች' : 'Pending Leave Approvals' ?></h3>
-            <a href="/aleltu-eifms/modules/employees/leave.php" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view_all', 'View All')) ?></a>
+            <a href="<?= BASE_URL ?>/modules/employees/leave.php" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view_all', 'View All')) ?></a>
         </div>
         <table>
             <thead>
@@ -86,7 +86,7 @@ $recentAtt = db()->query(
                         <td><?= h($l['start_date']) ?> → <?= h($l['end_date']) ?></td>
                         <td><?= h($l['reason'] ?: '—') ?></td>
                         <td>
-                            <a href="/aleltu-eifms/modules/employees/leave.php" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= current_locale() === 'am' ? 'መርምር' : 'Review' ?></a>
+                            <a href="<?= BASE_URL ?>/modules/employees/leave.php" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= current_locale() === 'am' ? 'መርምር' : 'Review' ?></a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -101,7 +101,7 @@ $recentAtt = db()->query(
     <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <h3 style="margin:0"><?= current_locale() === 'am' ? 'የዛሬው የሰራተኞች መገኘት' : "Today's Attendance Check-Ins" ?></h3>
-            <a href="/aleltu-eifms/modules/employees/attendance.php" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= current_locale() === 'am' ? 'ሙሉ መዝገብ' : 'Full Attendance Sheet' ?></a>
+            <a href="<?= BASE_URL ?>/modules/employees/attendance.php" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= current_locale() === 'am' ? 'ሙሉ መዝገብ' : 'Full Attendance Sheet' ?></a>
         </div>
         <table>
             <thead>

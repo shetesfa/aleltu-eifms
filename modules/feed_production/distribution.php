@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             flash(current_locale() === 'am' ? "✓ የመኖ ምርት ወደ መጋዘን ተልኳል፤ የመላኪያ ኮድ፡ {$dispatchCode}። የመጋዘን ኃላፊው ርክክቡን ያረጋግጣል።" : "Feed sent to Store. Dispatch code: {$dispatchCode}. Storekeeper will confirm actual receipt.");
         }
-        header('Location: /aleltu-eifms/modules/feed_production/distribution.php');
+        header('Location: ' . BASE_URL . '/modules/feed_production/distribution.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -139,7 +139,7 @@ function autoFillHarvestQty() {
 <?php else: ?>
 <div class="card">
     <p class="text-muted"><?= current_locale() === 'am' ? 'በአሁኑ ወቅት ወደ መጋዘን የሚላክ የተሰበሰበ ሰብል የለም።' : 'No harvested crops are currently recorded in the database.' ?>
-        <a href="/aleltu-eifms/modules/feed_production/plots.php"><?= current_locale() === 'am' ? 'ወደ ማሳዎች ዝርዝር ሂድ →' : 'Go to Plots →' ?></a>
+        <a href="<?= BASE_URL ?>/modules/feed_production/plots.php"><?= current_locale() === 'am' ? 'ወደ ማሳዎች ዝርዝር ሂድ →' : 'Go to Plots →' ?></a>
     </p>
 </div>
 <?php endif; ?>
@@ -147,7 +147,7 @@ function autoFillHarvestQty() {
 <div class="card">
     <h3><?= current_locale() === 'am' ? 'የቅርብ ጊዜ የመኖ ርክክብ ታሪክ' : 'Recent Feed → Store Shipments' ?></h3>
     <p class="text-muted" style="font-size:13px"><?= current_locale() === 'am' ? 'የመጋዘን ኃላፊው ርክክቡን በ' : 'Storekeeper must confirm receipt in the' ?>
-        <a href="/aleltu-eifms/modules/warehouse/receiving.php"><?= current_locale() === 'am' ? 'የመጋዘን ርክክብ ገጽ' : 'Warehouse Receiving' ?></a> <?= current_locale() === 'am' ? 'ላይ ማረጋገጥ አለበት።' : 'page.' ?>
+        <a href="<?= BASE_URL ?>/modules/warehouse/receiving.php"><?= current_locale() === 'am' ? 'የመጋዘን ርክክብ ገጽ' : 'Warehouse Receiving' ?></a> <?= current_locale() === 'am' ? 'ላይ ማረጋገጥ አለበት።' : 'page.' ?>
     </p>
     <table>
         <thead>
@@ -205,5 +205,5 @@ function autoFillHarvestQty() {
     </table>
 </div>
 
-<a href="/aleltu-eifms/modules/feed_production/plots.php">&larr; <?= current_locale() === 'am' ? 'ወደ ማሳዎች ዝርዝር ተመለስ' : 'Back to Plots' ?></a>
+<a href="<?= BASE_URL ?>/modules/feed_production/plots.php">&larr; <?= current_locale() === 'am' ? 'ወደ ማሳዎች ዝርዝር ተመለስ' : 'Back to Plots' ?></a>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

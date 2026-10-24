@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/auth.php';
-require_login();
+require_role(['super_admin', 'general_manager', 'hr_officer']);
 
 $empId = (int) ($_GET['id'] ?? 0);
 $emp = $empId > 0 ? db()->query("SELECT id, full_name, employee_number, photo_path FROM employees WHERE id = {$empId}")->fetch() : null;
@@ -12,7 +12,7 @@ if (!$emp) {
         $emp = db()->query("SELECT id, full_name, employee_number, photo_path FROM employees WHERE id = {$empId}")->fetch();
     } else {
         flash('No employee records found.', 'error');
-        header('Location: /aleltu-eifms/modules/employees/list.php');
+        header('Location: ' . BASE_URL . '/modules/employees/list.php');
         exit;
     }
 }
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($saved) {
             flash(t('idc.photo_updated', 'Photo updated successfully.'));
-            header("Location: /aleltu-eifms/modules/employees/id_card.php?id={$empId}");
+            header("Location: " . BASE_URL . "/modules/employees/id_card.php?id={$empId}");
             exit;
         } else {
             flash('Please choose an image file to upload.', 'error');
@@ -50,7 +50,7 @@ require_once __DIR__ . '/../../includes/header.php';
         <h2 class="mt-0" style="margin-bottom:4px"><?= h(t('idc.change_photo_title', 'Change Photo')) ?> — <?= h($emp['full_name']) ?></h2>
         <span class="text-muted"><?= h($emp['employee_number']) ?></span>
     </div>
-    <a href="/aleltu-eifms/modules/employees/id_card.php?id=<?= (int) $empId ?>" class="btn secondary">← <?= h(t('idc.back_to_id', 'Back to ID Card')) ?></a>
+    <a href="<?= BASE_URL ?>/modules/employees/id_card.php?id=<?= (int) $empId ?>" class="btn secondary">← <?= h(t('idc.back_to_id', 'Back to ID Card')) ?></a>
 </div>
 
 <div class="card" style="max-width:520px;margin:0 auto;box-shadow:0 8px 24px rgba(0,0,0,0.06);border-radius:12px;">
@@ -96,7 +96,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
         <div style="margin-top:20px;display:flex;gap:10px">
             <button class="btn" type="submit" id="saveBtn" disabled style="flex:1;padding:12px;font-size:15px">💾 <?= h(t('idc.save_photo', 'Save Photo')) ?></button>
-            <a href="/aleltu-eifms/modules/employees/id_card.php?id=<?= (int) $empId ?>" class="btn secondary" style="padding:12px 18px"><?= h(t('idc.cancel', 'Cancel')) ?></a>
+            <a href="<?= BASE_URL ?>/modules/employees/id_card.php?id=<?= (int) $empId ?>" class="btn secondary" style="padding:12px 18px"><?= h(t('idc.cancel', 'Cancel')) ?></a>
         </div>
     </form>
 </div>

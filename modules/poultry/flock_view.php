@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_eggs'])) {
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
     }
-    header('Location: /aleltu-eifms/modules/poultry/flock_view.php?id=' . (int) $_POST['flock_id']);
+    header('Location: ' . BASE_URL . '/modules/poultry/flock_view.php?id=' . (int) $_POST['flock_id']);
     exit;
 }
 
@@ -42,7 +42,7 @@ if (!$flock) {
         )->fetch();
     } else {
         flash('No flock records found.', 'error');
-        header('Location: /aleltu-eifms/modules/poultry/flocks.php');
+        header('Location: ' . BASE_URL . '/modules/poultry/flocks.php');
         exit;
     }
 }
@@ -79,7 +79,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <h2 class="mt-0">🐓 <?= current_locale() === 'am' ? 'የዶሮ መንጋ ዝርዝር መረጃ' : 'Flock File' ?> — <?= current_locale() === 'am' ? 'ቤት' : 'House' ?>: <?= h($flock['house_name']) ?> (<?= h($flock['breed']) ?>)</h2>
-    <a href="/aleltu-eifms/modules/poultry/flocks.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ መንጋዎች ዝርዝር ተመለስ' : 'Back to Flocks' ?></a>
+    <a href="<?= BASE_URL ?>/modules/poultry/flocks.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ መንጋዎች ዝርዝር ተመለስ' : 'Back to Flocks' ?></a>
 </div>
 
 <div class="kpi-row">

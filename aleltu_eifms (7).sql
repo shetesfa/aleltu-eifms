@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 12, 2026 at 09:03 PM
+-- Generation Time: Oct 24, 2026 at 02:36 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -137,7 +137,21 @@ INSERT INTO `attendance` (`id`, `employee_id`, `attendance_date`, `check_in_at`,
 (100, 9, '2026-09-27', '2026-09-27 02:23:16', NULL, 'present'),
 (101, 10, '2026-09-27', '2026-09-27 02:23:16', NULL, 'present'),
 (102, 11, '2026-09-27', '2026-09-27 02:23:16', NULL, 'present'),
-(116, 12, '2026-10-29', '2026-09-27 02:24:08', NULL, 'present');
+(116, 12, '2026-10-29', '2026-09-27 02:24:08', NULL, 'present'),
+(117, 11, '2026-10-22', '2026-10-22 01:41:47', NULL, 'present'),
+(118, 1, '2026-10-22', '2026-10-22 16:08:54', NULL, 'present'),
+(119, 2, '2026-10-22', '2026-10-22 16:08:54', NULL, 'present'),
+(120, 3, '2026-10-22', '2026-10-22 16:08:54', NULL, 'present'),
+(121, 4, '2026-10-22', '2026-10-22 16:08:54', NULL, 'present'),
+(122, 5, '2026-10-22', '2026-10-22 16:08:54', NULL, 'present'),
+(123, 6, '2026-10-22', '2026-10-22 16:08:54', NULL, 'present'),
+(124, 7, '2026-10-22', '2026-10-22 16:08:54', NULL, 'present'),
+(125, 8, '2026-10-22', '2026-10-22 16:08:54', NULL, 'present'),
+(126, 9, '2026-10-22', '2026-10-22 16:08:54', NULL, 'present'),
+(127, 10, '2026-10-22', '2026-10-22 16:08:54', NULL, 'present'),
+(129, 12, '2026-10-22', '2026-10-22 16:08:55', NULL, 'present'),
+(130, 13, '2026-10-22', '2026-10-22 16:08:55', NULL, 'present'),
+(141, 8, '2026-10-24', '2026-10-24 01:45:43', NULL, 'present');
 
 -- --------------------------------------------------------
 
@@ -166,7 +180,18 @@ INSERT INTO `audit_log` (`id`, `user_id`, `module`, `action`, `record_table`, `r
 (2, 3, 'dairy', 'create', 'dairy_milking_sessions', 1, 'Morning milking session completed: 205 Liters recorded', '127.0.0.1', '2026-09-25 21:35:46'),
 (3, 8, 'warehouse', 'receive', 'wh_stock_batches', 1, 'Storekeeper received 205 Liters milk into Partition 1', '127.0.0.1', '2026-09-25 21:35:46'),
 (4, 9, 'distribution', 'dispatch', 'dist_dispatches', 1, 'Dispatched 250L milk to Bole Fresh Shop', '127.0.0.1', '2026-09-25 21:35:46'),
-(5, 10, 'finance', 'payment', 'dist_dispatch_payments', 1, 'Finance recorded 18,750 ETB bank payment from Bole Shop', '127.0.0.1', '2026-09-25 21:35:46');
+(5, 10, 'finance', 'payment', 'dist_dispatch_payments', 1, 'Finance recorded 18,750 ETB bank payment from Bole Shop', '127.0.0.1', '2026-09-25 21:35:46'),
+(6, 1, 'analytics', 'view', 'analytics', 0, 'from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 14:57:29'),
+(7, 1, 'analytics', 'view_unit', 'analytics', 0, 'unit=dairy from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 14:57:40'),
+(8, 1, 'analytics', 'view_unit', 'analytics', 0, 'unit=dairy from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 16:20:42'),
+(9, 1, 'analytics', 'view_unit', 'analytics', 0, 'unit=dairy from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 16:20:47'),
+(10, 1, 'analytics', 'view_unit', 'analytics', 0, 'unit=dairy from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 16:23:22'),
+(11, 1, 'analytics', 'view_unit', 'analytics', 0, 'unit=dairy from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 16:35:21'),
+(12, 1, 'analytics', 'view_unit', 'analytics', 0, 'unit=dairy from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 16:35:25'),
+(13, 1, 'analytics', 'view_unit', 'analytics', 0, 'unit=dairy from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 16:39:13'),
+(14, 1, 'analytics', 'view', 'analytics', 0, 'from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 16:39:28'),
+(15, 1, 'analytics', 'view', 'analytics', 0, 'from=2026-10-11 to=2026-10-23', '::1', '2026-10-23 00:02:54'),
+(16, 1, 'analytics', 'view', 'analytics', 0, 'from=2026-10-11 to=2026-10-24', '::1', '2026-10-24 01:06:20');
 
 -- --------------------------------------------------------
 
@@ -220,6 +245,7 @@ CREATE TABLE `dairy_cows` (
   `lifecycle_status` enum('registered','calf','heifer','milking','dry','pregnant','sold','deceased') NOT NULL DEFAULT 'registered',
   `is_sick` tinyint(1) NOT NULL DEFAULT 0,
   `acquired_date` date DEFAULT NULL,
+  `purchase_price` decimal(12,2) NOT NULL DEFAULT 0.00,
   `source` enum('born_on_farm','purchased') DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
@@ -229,17 +255,17 @@ CREATE TABLE `dairy_cows` (
 -- Dumping data for table `dairy_cows`
 --
 
-INSERT INTO `dairy_cows` (`id`, `tag_number`, `name`, `photo_path`, `sex`, `date_of_birth`, `breed`, `dam_id`, `sire_id`, `cow_group_id`, `lifecycle_status`, `is_sick`, `acquired_date`, `source`, `created_at`, `updated_at`) VALUES
-(1, 'COW-001', 'ቦራ (Bora)', NULL, 'female', '2021-03-15', 'Holstein Friesian', NULL, NULL, 1, 'milking', 0, '2023-01-01', 'purchased', '2026-09-25 21:35:31', '2026-09-25 21:35:31'),
-(2, 'COW-002', 'ፀደይ (Tsedey)', NULL, 'female', '2021-06-20', 'Holstein Cross', NULL, NULL, 1, 'milking', 0, '2023-01-01', 'purchased', '2026-09-25 21:35:31', '2026-09-25 21:35:31'),
-(3, 'COW-003', 'ሎሚ (Lomi)', '/aleltu-eifms/uploads/cows/img_6ab95d269b3040.20763542.jpg', 'female', '2021-09-10', 'Jersey Cross', NULL, NULL, 2, 'milking', 0, '2023-01-01', 'born_on_farm', '2026-09-25 21:35:32', '2026-09-27 21:15:02'),
-(4, 'COW-004', 'ብርቱካን (Birtukan)', NULL, 'female', '2020-11-05', 'Holstein Friesian', NULL, NULL, 1, 'milking', 0, '2023-01-01', 'purchased', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
-(5, 'COW-005', 'ምሕረት (Mihret)', NULL, 'female', '2022-01-18', 'Holstein Friesian', NULL, NULL, 1, 'milking', 0, '2023-01-01', 'born_on_farm', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
-(6, 'COW-006', 'መስከረም (Meskerem)', NULL, 'female', '2020-04-12', 'Crossbreed', NULL, NULL, 3, 'dry', 0, '2023-01-01', 'purchased', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
-(7, 'COW-007', 'ገነት (Genet)', NULL, 'female', '2021-08-25', 'Holstein Cross', NULL, NULL, 3, 'pregnant', 0, '2023-01-01', 'born_on_farm', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
-(8, 'COW-008', 'ውበት (Wubet)', NULL, 'female', '2023-02-14', 'Jersey Cross', NULL, NULL, 4, 'heifer', 0, '2023-01-01', 'born_on_farm', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
-(9, 'COW-009', 'ጥሩፋት (Tirufat)', NULL, 'female', '2024-03-01', 'Holstein', NULL, NULL, 4, 'calf', 0, '2023-01-01', 'born_on_farm', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
-(10, 'COW-010', 'ባሮ (Baro)', NULL, 'male', '2024-05-10', 'Holstein Cross', NULL, NULL, 4, 'calf', 0, '2023-01-01', 'born_on_farm', '2026-09-25 21:35:32', '2026-09-25 21:35:32');
+INSERT INTO `dairy_cows` (`id`, `tag_number`, `name`, `photo_path`, `sex`, `date_of_birth`, `breed`, `dam_id`, `sire_id`, `cow_group_id`, `lifecycle_status`, `is_sick`, `acquired_date`, `purchase_price`, `source`, `created_at`, `updated_at`) VALUES
+(1, 'COW-001', 'ቦራ (Bora)', NULL, 'female', '2021-03-15', 'Holstein Friesian', NULL, NULL, 1, 'milking', 0, '2023-01-01', 0.00, 'purchased', '2026-09-25 21:35:31', '2026-09-25 21:35:31'),
+(2, 'COW-002', 'ፀደይ (Tsedey)', NULL, 'female', '2021-06-20', 'Holstein Cross', NULL, NULL, 1, 'milking', 0, '2023-01-01', 0.00, 'purchased', '2026-09-25 21:35:31', '2026-09-25 21:35:31'),
+(3, 'COW-003', 'ሎሚ (Lomi)', '/aleltu-eifms/uploads/cows/img_6ab95d269b3040.20763542.jpg', 'female', '2021-09-10', 'Jersey Cross', NULL, NULL, 2, 'milking', 0, '2023-01-01', 0.00, 'born_on_farm', '2026-09-25 21:35:32', '2026-09-27 21:15:02'),
+(4, 'COW-004', 'ብርቱካን (Birtukan)', NULL, 'female', '2020-11-05', 'Holstein Friesian', NULL, NULL, 1, 'milking', 0, '2023-01-01', 0.00, 'purchased', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
+(5, 'COW-005', 'ምሕረት (Mihret)', NULL, 'female', '2022-01-18', 'Holstein Friesian', NULL, NULL, 1, 'milking', 0, '2023-01-01', 0.00, 'born_on_farm', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
+(6, 'COW-006', 'መስከረም (Meskerem)', NULL, 'female', '2020-04-12', 'Crossbreed', NULL, NULL, 3, 'dry', 0, '2023-01-01', 0.00, 'purchased', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
+(7, 'COW-007', 'ገነት (Genet)', NULL, 'female', '2021-08-25', 'Holstein Cross', NULL, NULL, 3, 'pregnant', 0, '2023-01-01', 0.00, 'born_on_farm', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
+(8, 'COW-008', 'ውበት (Wubet)', NULL, 'female', '2023-02-14', 'Jersey Cross', NULL, NULL, 4, 'heifer', 0, '2023-01-01', 0.00, 'born_on_farm', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
+(9, 'COW-009', 'ጥሩፋት (Tirufat)', NULL, 'female', '2024-03-01', 'Holstein', NULL, NULL, 4, 'calf', 0, '2023-01-01', 0.00, 'born_on_farm', '2026-09-25 21:35:32', '2026-09-25 21:35:32'),
+(10, 'COW-010', 'ባሮ (Baro)', NULL, 'male', '2024-05-10', 'Holstein Cross', NULL, NULL, 4, 'calf', 0, '2023-01-01', 0.00, 'born_on_farm', '2026-09-25 21:35:32', '2026-09-25 21:35:32');
 
 -- --------------------------------------------------------
 
@@ -316,30 +342,35 @@ CREATE TABLE `dairy_milking_sessions` (
   `session_date` date NOT NULL,
   `session_type` enum('morning','evening') NOT NULL,
   `recorded_by` int(11) NOT NULL,
-  `closed_at` datetime DEFAULT NULL
+  `closed_at` datetime DEFAULT NULL,
+  `calf_liters` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `other_liters` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `notes` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `dairy_milking_sessions`
 --
 
-INSERT INTO `dairy_milking_sessions` (`id`, `session_date`, `session_type`, `recorded_by`, `closed_at`) VALUES
-(1, '2026-09-24', 'morning', 3, '2026-09-25 21:35:32'),
-(2, '2026-09-24', 'evening', 3, '2026-09-25 21:35:33'),
-(3, '2026-09-25', 'morning', 3, '2026-09-25 21:35:33'),
-(4, '2026-09-25', 'evening', 3, '2026-09-25 21:35:33'),
-(5, '2026-09-27', 'evening', 3, NULL),
-(6, '2026-09-26', 'evening', 3, NULL),
-(7, '2026-09-30', 'evening', 3, NULL),
-(8, '2026-09-26', 'morning', 3, NULL),
-(9, '2026-10-01', 'morning', 1, '2026-10-01 22:18:44'),
-(10, '2026-10-01', 'evening', 1, '2026-10-01 22:18:28'),
-(11, '2026-10-02', 'morning', 1, NULL),
-(12, '2026-10-02', 'evening', 1, NULL),
-(13, '2026-10-03', 'morning', 1, NULL),
-(14, '2026-10-03', 'evening', 1, NULL),
-(15, '2026-10-11', 'morning', 1, NULL),
-(16, '2026-10-11', 'evening', 1, NULL);
+INSERT INTO `dairy_milking_sessions` (`id`, `session_date`, `session_type`, `recorded_by`, `closed_at`, `calf_liters`, `other_liters`, `notes`) VALUES
+(1, '2026-09-24', 'morning', 3, '2026-09-25 21:35:32', 0.00, 0.00, NULL),
+(2, '2026-09-24', 'evening', 3, '2026-09-25 21:35:33', 0.00, 0.00, NULL),
+(3, '2026-09-25', 'morning', 3, '2026-09-25 21:35:33', 0.00, 0.00, NULL),
+(4, '2026-09-25', 'evening', 3, '2026-09-25 21:35:33', 0.00, 0.00, NULL),
+(5, '2026-09-27', 'evening', 3, NULL, 0.00, 0.00, NULL),
+(6, '2026-09-26', 'evening', 3, NULL, 0.00, 0.00, NULL),
+(7, '2026-09-30', 'evening', 3, NULL, 0.00, 0.00, NULL),
+(8, '2026-09-26', 'morning', 3, NULL, 0.00, 0.00, NULL),
+(9, '2026-10-01', 'morning', 1, '2026-10-01 22:18:44', 0.00, 0.00, NULL),
+(10, '2026-10-01', 'evening', 1, '2026-10-01 22:18:28', 0.00, 0.00, NULL),
+(11, '2026-10-02', 'morning', 1, NULL, 0.00, 0.00, NULL),
+(12, '2026-10-02', 'evening', 1, NULL, 0.00, 0.00, NULL),
+(13, '2026-10-03', 'morning', 1, NULL, 0.00, 0.00, NULL),
+(14, '2026-10-03', 'evening', 1, NULL, 0.00, 0.00, NULL),
+(15, '2026-10-11', 'morning', 1, NULL, 0.00, 0.00, NULL),
+(16, '2026-10-11', 'evening', 1, NULL, 0.00, 0.00, NULL),
+(17, '2026-10-24', 'morning', 3, '2026-10-24 02:10:47', 5.00, 0.00, NULL),
+(18, '2026-10-24', 'evening', 3, NULL, 0.00, 0.00, NULL);
 
 -- --------------------------------------------------------
 
@@ -386,7 +417,8 @@ INSERT INTO `dairy_milk_yield_entries` (`id`, `milking_session_id`, `cow_id`, `y
 (21, 8, 1, 50.00, NULL, 0, 3, '2026-09-27 22:12:31'),
 (24, 6, 1, 20.00, NULL, 0, 3, '2026-09-27 22:18:38'),
 (25, 9, 1, 20.00, NULL, 0, 1, '2026-10-01 22:18:06'),
-(26, 10, 1, 20.00, NULL, 0, 1, '2026-10-01 22:18:21');
+(26, 10, 1, 20.00, NULL, 0, 1, '2026-10-01 22:18:21'),
+(27, 17, 1, 20.00, NULL, 0, 3, '2026-10-24 02:09:29');
 
 -- --------------------------------------------------------
 
@@ -484,7 +516,7 @@ INSERT INTO `dept_material_requests` (`id`, `department_id`, `stock_item_id`, `c
 
 CREATE TABLE `dist_dispatches` (
   `id` int(11) NOT NULL,
-  `vehicle_id` int(11) NOT NULL,
+  `vehicle_id` int(11) DEFAULT NULL,
   `driver_id` int(11) DEFAULT NULL,
   `driver_name` varchar(150) DEFAULT NULL,
   `destination_pos_location` varchar(150) NOT NULL,
@@ -496,6 +528,7 @@ CREATE TABLE `dist_dispatches` (
   `amount_paid` decimal(12,2) NOT NULL DEFAULT 0.00,
   `payment_status` enum('unpaid','partial','paid') NOT NULL DEFAULT 'unpaid',
   `payment_notes` varchar(255) DEFAULT NULL,
+  `sale_channel` enum('direct_sale','shop_transfer','internal_use') DEFAULT NULL COMMENT 'direct_sale=outside buyer; shop_transfer=to company shop; internal_use=gift/protocol/food at price 0',
   `quantity_delivered` decimal(12,2) DEFAULT NULL,
   `variance_flagged` tinyint(1) NOT NULL DEFAULT 0,
   `planned_dispatch_at` datetime NOT NULL,
@@ -510,11 +543,11 @@ CREATE TABLE `dist_dispatches` (
 -- Dumping data for table `dist_dispatches`
 --
 
-INSERT INTO `dist_dispatches` (`id`, `vehicle_id`, `driver_id`, `driver_name`, `destination_pos_location`, `warehouse_id`, `stock_item_id`, `quantity_dispatched`, `unit_price`, `total_price`, `amount_paid`, `payment_status`, `payment_notes`, `quantity_delivered`, `variance_flagged`, `planned_dispatch_at`, `dispatched_at`, `confirmed_at`, `status`, `created_by`, `created_at`) VALUES
-(1, 1, 11, 'ሙሉጌታ ወርቁ', 'ቦሌ ፍሬሽ መሸጫ ሱቅ (Bole Fresh Corner) [ተረካቢ: አቶ ቴዎድሮስ ካሳ]', 1, 1, 250.00, 75.00, 18750.00, 18750.00, 'paid', 'በሲቢኢ ባንክ ሙሉ በሙሉ ተከፍሏል', 250.00, 0, '2026-09-23 08:30:00', '2026-09-23 09:00:00', '2026-09-23 10:30:00', 'delivered', 9, '2026-09-25 21:35:39'),
-(2, 1, 11, 'ሙሉጌታ ወርቁ', 'መገናኛ የወተት ማዕከል (Megenagna Dairy Hub) [ተረካቢ: ወ/ሮ ሰላማዊት አበራ]', 1, 2, 1200.00, 13.00, 15600.00, 10000.00, 'partial', '10,000 ብር በቴሌብር ተከፍሏል፤ 5,600 ብር ቀሪ', 1200.00, 0, '2026-09-24 08:30:00', '2026-09-24 09:00:00', '2026-09-24 10:45:00', 'delivered', 9, '2026-09-25 21:35:40'),
-(3, 3, 11, 'ሙሉጌታ ወርቁ', 'የእርሻው በር መሸጫ ሱቅ (Farm Gate Retail Shop) [ተረካቢ: አቶ ታምራት ደሳለኝ]', 1, 1, 100.00, 70.00, 7000.00, 7000.00, 'paid', 'በጥሬ ገንዘብ በደረሰኝ ተከፍሏል', 100.00, 0, '2026-09-25 07:00:00', '2026-09-25 07:15:00', '2026-09-25 07:30:00', 'delivered', 9, '2026-09-25 21:35:40'),
-(4, 2, 9, 'ሰለሞን አበበ', 'ቀጥተኛ ገዢ፡ ኃይሌ ግራንድ ሆቴል (Haile Grand Hotel)', 1, 1, 300.00, 75.00, 22500.00, 0.00, 'unpaid', 'የወር መጨረሻ የሚከፈል የብድር ሽያጭ', 300.00, 0, '2026-09-25 06:30:00', '2026-09-25 07:00:00', '2026-09-25 08:30:00', 'delivered', 9, '2026-09-25 21:35:40');
+INSERT INTO `dist_dispatches` (`id`, `vehicle_id`, `driver_id`, `driver_name`, `destination_pos_location`, `warehouse_id`, `stock_item_id`, `quantity_dispatched`, `unit_price`, `total_price`, `amount_paid`, `payment_status`, `payment_notes`, `sale_channel`, `quantity_delivered`, `variance_flagged`, `planned_dispatch_at`, `dispatched_at`, `confirmed_at`, `status`, `created_by`, `created_at`) VALUES
+(1, 1, 11, 'ሙሉጌታ ወርቁ', 'ቦሌ ፍሬሽ መሸጫ ሱቅ (Bole Fresh Corner) [ተረካቢ: አቶ ቴዎድሮስ ካሳ]', 1, 1, 250.00, 75.00, 18750.00, 18750.00, 'paid', 'በሲቢኢ ባንክ ሙሉ በሙሉ ተከፍሏል', 'shop_transfer', 250.00, 0, '2026-09-23 08:30:00', '2026-09-23 09:00:00', '2026-09-23 10:30:00', 'delivered', 9, '2026-09-25 21:35:39'),
+(2, 1, 11, 'ሙሉጌታ ወርቁ', 'መገናኛ የወተት ማዕከል (Megenagna Dairy Hub) [ተረካቢ: ወ/ሮ ሰላማዊት አበራ]', 1, 2, 1200.00, 13.00, 15600.00, 10000.00, 'partial', '10,000 ብር በቴሌብር ተከፍሏል፤ 5,600 ብር ቀሪ', 'shop_transfer', 1200.00, 0, '2026-09-24 08:30:00', '2026-09-24 09:00:00', '2026-09-24 10:45:00', 'delivered', 9, '2026-09-25 21:35:40'),
+(3, 3, 11, 'ሙሉጌታ ወርቁ', 'የእርሻው በር መሸጫ ሱቅ (Farm Gate Retail Shop) [ተረካቢ: አቶ ታምራት ደሳለኝ]', 1, 1, 100.00, 70.00, 7000.00, 7000.00, 'paid', 'በጥሬ ገንዘብ በደረሰኝ ተከፍሏል', 'shop_transfer', 100.00, 0, '2026-09-25 07:00:00', '2026-09-25 07:15:00', '2026-09-25 07:30:00', 'delivered', 9, '2026-09-25 21:35:40'),
+(4, 2, 9, 'ሰለሞን አበበ', 'ቀጥተኛ ገዢ፡ ኃይሌ ግራንድ ሆቴል (Haile Grand Hotel)', 1, 1, 300.00, 75.00, 22500.00, 0.00, 'unpaid', 'የወር መጨረሻ የሚከፈል የብድር ሽያጭ', NULL, 300.00, 0, '2026-09-25 06:30:00', '2026-09-25 07:00:00', '2026-09-25 08:30:00', 'delivered', 9, '2026-09-25 21:35:40');
 
 -- --------------------------------------------------------
 
@@ -564,7 +597,7 @@ CREATE TABLE `dist_shops` (
 INSERT INTO `dist_shops` (`id`, `shop_name`, `manager_name`, `phone`, `address`, `created_at`) VALUES
 (1, 'ቦሌ ፍሬሽ መሸጫ ሱቅ (Bole Fresh Corner)', 'አቶ ቴዎድሮስ ካሳ', '0911223344', 'Bole Medhanialem, Near Edna Mall, Addis Ababa', '2026-09-25 21:35:39'),
 (2, 'መገናኛ የወተት ማዕከል (Megenagna Dairy Hub)', 'ወ/ሮ ሰላማዊት አበራ', '0922334455', 'Megenagna Zefmesh Grand Mall Ground Floor, Addis Ababa', '2026-09-25 21:35:39'),
-(3, 'የእርሻው በር መሸጫ ሱቅ (Farm Gate Retail Shop)', 'አቶ ታምራት ደሳለኝ', '0933445566', 'Aleltu Farm Main Compound Gate, Aleltu', '2026-09-25 21:35:39');
+(3, 'የእርሻው በር መሸጫ ሱቅ (Farm Gate Retail Shop)', 'አቶ ታምራት ደሳለኝ', '0933445566', 'Teklu Getachew Dairy Farm Main Compound Gate, Aleltu', '2026-09-25 21:35:39');
 
 -- --------------------------------------------------------
 
@@ -609,8 +642,10 @@ CREATE TABLE `employees` (
   `full_name` varchar(150) NOT NULL,
   `amharic_name` varchar(150) DEFAULT NULL,
   `job_title` varchar(100) DEFAULT NULL,
+  `employment_type` enum('permanent','contract','daily','temporary') NOT NULL DEFAULT 'permanent',
   `phone` varchar(30) DEFAULT NULL,
   `emergency_contact` varchar(150) DEFAULT NULL,
+  `emergency_contact_phone` varchar(50) DEFAULT NULL,
   `photo_path` varchar(255) DEFAULT NULL,
   `phone_alt` varchar(20) DEFAULT NULL,
   `hire_date` date DEFAULT NULL,
@@ -623,20 +658,20 @@ CREATE TABLE `employees` (
 -- Dumping data for table `employees`
 --
 
-INSERT INTO `employees` (`id`, `user_id`, `department_id`, `employee_number`, `national_id`, `blood_group`, `full_name`, `amharic_name`, `job_title`, `phone`, `emergency_contact`, `photo_path`, `phone_alt`, `hire_date`, `base_salary`, `is_driver`, `status`) VALUES
-(1, 1, 1, 'EMP-001', 'ETH-1001', 'O+', 'Tesfaye Bekele', 'ተስፋዬ በቀለ', 'General Manager (ዋና ሥራ አስኪያጅ)', '0911122233', '0922233344', NULL, NULL, '2023-01-01', 28000.00, 0, 'active'),
-(2, 2, 1, 'EMP-002', 'ETH-1002', 'A+', 'Teklu Alemu', 'ተክሉ አለሙ', 'Operations Manager (የስራ አስኪያጅ)', '0911334455', '0922445566', NULL, NULL, '2023-01-15', 24000.00, 0, 'active'),
-(3, 3, 2, 'EMP-003', 'ETH-1003', 'B+', 'Aster Melaku', 'አስቴር መላኩ', 'Dairy Farm Specialist (የወተት ላም ኃላፊ)', '0911445566', '0922556677', '/aleltu-eifms/assets/uploads/employee_photos/emp_3_1790538321_938e26.png', NULL, '2023-03-01', 19000.00, 0, 'active'),
-(4, 4, 3, 'EMP-004', 'ETH-1004', 'O+', 'Dawit Kebede', 'ዳዊት ከበደ', 'Poultry Production Head (የዶሮ እርባታ ኃላፊ)', '0911556677', '0922667788', NULL, NULL, '2023-04-10', 17000.00, 0, 'active'),
-(5, 5, 4, 'EMP-005', 'ETH-1005', 'A-', 'Birhanu Desta', 'ብርሃኑ ደስታ', 'Aquaculture Specialist (የዓሣ እርባታ ኃላፊ)', '0911667788', '0922778899', NULL, NULL, '2023-05-01', 16500.00, 0, 'active'),
-(6, 6, 5, 'EMP-006', 'ETH-1006', 'AB+', 'Tadesse Alemu', 'ታደሰ አለሙ', 'Feed Mill & Agronomy Head (የመኖና ሰብል ኃላፊ)', '0911778899', '0922889900', NULL, NULL, '2023-02-15', 18000.00, 0, 'active'),
-(7, 7, 6, 'EMP-007', 'ETH-1007', 'O+', 'Dr. Yohannes Girma', 'ዶ/ር ዮሐንስ ግርማ', 'Senior Veterinarian (ዋና የእንስሳት ሐኪም)', '0911889900', '0922990011', NULL, NULL, '2023-01-20', 22000.00, 0, 'active'),
-(8, 8, 7, 'EMP-008', 'ETH-1008', 'B-', 'Sintayehu Haile', 'ስንታየሁ ኃይሌ', 'Storekeeper (የዋና መጋዘን ኃላፊ)', '0911990011', '0922001122', NULL, NULL, '2023-06-01', 14500.00, 0, 'active'),
-(9, 9, 7, 'EMP-009', 'ETH-1009', 'A+', 'Solomon Abebe', 'ሰለሞን አበበ', 'Logistics Officer (የስርጭት ኦፊሰር)', '0912001122', '0923112233', NULL, NULL, '2023-06-15', 14000.00, 0, 'active'),
-(10, 10, 8, 'EMP-010', 'ETH-1010', 'O+', 'Tigist Mamo', 'ትዕግሥት ማሞ', 'Chief Accountant (ዋና አካውንታንት)', '0912112233', '0923223344', NULL, NULL, '2023-01-10', 20000.00, 0, 'active'),
-(11, 11, 9, 'EMP-011', 'ETH-1011', 'O-', 'Mulugeta Worku', 'ሙሉጌታ ወርቁ', 'Refrigerated Truck Driver (አሽከርካሪ)', '0912223344', '0923334455', NULL, NULL, '2023-07-01', 12000.00, 1, 'active'),
-(12, 12, 2, 'EMP-012', 'ETH-1012', 'B+', 'Almaz Tadesse', 'አልማዝ ታደሰ', 'Senior Milking Attendant (የወተት አላቢ)', '0912334455', '0923445566', '/aleltu-eifms/assets/uploads/employee_photos/emp_12_1790465140.png', NULL, '2023-08-01', 8500.00, 0, 'active'),
-(13, 13, 1, 'EMP-ST013', NULL, 'O+', 'tesfa', NULL, 'Farm Staff Member', NULL, NULL, NULL, NULL, '2026-09-27', NULL, 0, 'active');
+INSERT INTO `employees` (`id`, `user_id`, `department_id`, `employee_number`, `national_id`, `blood_group`, `full_name`, `amharic_name`, `job_title`, `employment_type`, `phone`, `emergency_contact`, `emergency_contact_phone`, `photo_path`, `phone_alt`, `hire_date`, `base_salary`, `is_driver`, `status`) VALUES
+(1, 1, 1, 'EMP-001', 'ETH-1001', 'O+', 'Tesfaye Bekele', 'ተስፋዬ በቀለ', 'General Manager (ዋና ሥራ አስኪያጅ)', 'permanent', '0911122233', '0922233344', NULL, NULL, NULL, '2023-01-01', 28000.00, 0, 'active'),
+(2, 2, 1, 'EMP-002', 'ETH-1002', 'A+', 'Teklu Alemu', 'ተክሉ አለሙ', 'Operations Manager (የስራ አስኪያጅ)', 'permanent', '0911334455', '0922445566', NULL, NULL, NULL, '2023-01-15', 24000.00, 0, 'active'),
+(3, 3, 2, 'EMP-003', 'ETH-1003', 'B+', 'Aster Melaku', 'አስቴር መላኩ', 'Dairy Farm Specialist (የወተት ላም ኃላፊ)', 'permanent', '0911445566', '0922556677', NULL, '/aleltu-eifms/assets/uploads/employee_photos/emp_3_1790538321_938e26.png', NULL, '2023-03-01', 19000.00, 0, 'active'),
+(4, 4, 3, 'EMP-004', 'ETH-1004', 'O+', 'Dawit Kebede', 'ዳዊት ከበደ', 'Poultry Production Head (የዶሮ እርባታ ኃላፊ)', 'permanent', '0911556677', '0922667788', NULL, NULL, NULL, '2023-04-10', 17000.00, 0, 'active'),
+(5, 5, 4, 'EMP-005', 'ETH-1005', 'A-', 'Birhanu Desta', 'ብርሃኑ ደስታ', 'Aquaculture Specialist (የዓሣ እርባታ ኃላፊ)', 'permanent', '0911667788', '0922778899', NULL, NULL, NULL, '2023-05-01', 16500.00, 0, 'active'),
+(6, 6, 5, 'EMP-006', 'ETH-1006', 'AB+', 'Tadesse Alemu', 'ታደሰ አለሙ', 'Feed Mill & Agronomy Head (የመኖና ሰብል ኃላፊ)', 'permanent', '0911778899', '0922889900', NULL, NULL, NULL, '2023-02-15', 18000.00, 0, 'active'),
+(7, 7, 6, 'EMP-007', 'ETH-1007', 'O+', 'Dr. Yohannes Girma', 'ዶ/ር ዮሐንስ ግርማ', 'Senior Veterinarian (ዋና የእንስሳት ሐኪም)', 'permanent', '0911889900', '0922990011', NULL, NULL, NULL, '2023-01-20', 22000.00, 0, 'active'),
+(8, 8, 7, 'EMP-008', 'ETH-1008', 'B-', 'Sintayehu Haile', 'ስንታየሁ ኃይሌ', 'Storekeeper (የዋና መጋዘን ኃላፊ)', 'permanent', '0911990011', '0922001122', NULL, NULL, NULL, '2023-06-01', 14500.00, 0, 'active'),
+(9, 9, 7, 'EMP-009', 'ETH-1009', 'A+', 'Solomon Abebe', 'ሰለሞን አበበ', 'Logistics Officer (የስርጭት ኦፊሰር)', 'permanent', '0912001122', '0923112233', NULL, NULL, NULL, '2023-06-15', 14000.00, 0, 'active'),
+(10, 10, 8, 'EMP-010', 'ETH-1010', 'O+', 'Tigist Mamo', 'ትዕግሥት ማሞ', 'Chief Accountant (ዋና አካውንታንት)', 'permanent', '0912112233', '0923223344', NULL, NULL, NULL, '2023-01-10', 20000.00, 0, 'active'),
+(11, 11, 9, 'EMP-011', 'ETH-1011', 'O-', 'Mulugeta Worku', 'ሙሉጌታ ወርቁ', 'Refrigerated Truck Driver (አሽከርካሪ)', 'permanent', '0912223344', '0923334455', NULL, '/aleltu-eifms/assets/uploads/employee_photos/emp_11_1792674788_82340a.png', NULL, '2023-07-01', 12000.00, 1, 'active'),
+(12, 12, 2, 'EMP-012', 'ETH-1012', 'B+', 'Almaz Tadesse', 'አልማዝ ታደሰ', 'Senior Milking Attendant (የወተት አላቢ)', 'permanent', '0912334455', '0923445566', NULL, '/aleltu-eifms/assets/uploads/employee_photos/emp_12_1790465140.png', NULL, '2023-08-01', 8500.00, 0, 'active'),
+(13, 13, 1, 'EMP-ST013', NULL, 'O+', 'tesfa', NULL, 'Farm Staff Member', 'permanent', NULL, NULL, NULL, NULL, NULL, '2026-09-27', NULL, 0, 'active');
 
 -- --------------------------------------------------------
 
@@ -769,9 +804,54 @@ CREATE TABLE `fin_bank_accounts` (
 --
 
 INSERT INTO `fin_bank_accounts` (`id`, `bank_name`, `account_type`, `account_name`, `account_number`, `opening_balance`, `created_at`) VALUES
-(1, 'ኦሮሚያ ባንክ (Oromia Bank)', 'bank', 'Aleltu Agricultural Enterprise - Oromia Bank', '1092837465001', 850000.00, '2026-09-26 01:56:53'),
-(2, 'ቴሌብር (Telebirr)', 'mobile', 'Aleltu Farm Enterprise Telebirr Merchant', '0911002233', 150000.00, '2026-09-26 01:56:53'),
-(3, 'ጥሬ ገንዘብ / ዋና ካዝና (Cash in Hand)', 'cash', 'Farm Office Cash Safe', 'CASH-SAFE-01', 50000.00, '2026-09-26 01:56:53');
+(1, 'ኦሮሚያ ባንክ (Oromia Bank)', 'bank', 'Teklu Getachew Dairy Enterprise - Oromia Bank', '1092837465001', 850000.00, '2026-09-26 01:56:53'),
+(2, 'ቴሌብር (Telebirr)', 'mobile', 'Teklu Getachew Dairy Telebirr Merchant', '0911002233', 150000.00, '2026-09-26 01:56:53'),
+(3, 'ጥሬ ገንዘብ / ዋና ካዝና (Cash in Hand)', 'cash', 'Farm Office Cash Safe', 'CASH-SAFE-01', 50000.00, '2026-09-26 01:56:53'),
+(4, 'የኢትዮጵያ ንግድ ባንክ (CBE)', 'bank', 'Teklu Getachew Dairy Enterprise - CBE', '1000192837465', 200000.00, '2026-10-16 15:18:43');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `fin_budgets`
+--
+
+CREATE TABLE `fin_budgets` (
+  `id` int(11) NOT NULL,
+  `unit_tag` enum('dairy','poultry','fish','feed_production','warehouse','distribution','general_overhead','veterinary') NOT NULL,
+  `period_start` date NOT NULL,
+  `period_end` date NOT NULL,
+  `planned_amount` decimal(14,2) NOT NULL,
+  `proposed_by` int(11) NOT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `status` enum('draft','proposed','approved') NOT NULL DEFAULT 'draft'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `fin_cheques`
+--
+
+CREATE TABLE `fin_cheques` (
+  `id` int(11) NOT NULL,
+  `cheque_type` enum('issued','received') NOT NULL,
+  `cheque_number` varchar(60) NOT NULL,
+  `bank_name` varchar(100) NOT NULL,
+  `bank_account_id` int(11) DEFAULT NULL,
+  `payee_or_drawer` varchar(150) NOT NULL,
+  `amount` decimal(14,2) NOT NULL,
+  `issue_date` date NOT NULL,
+  `due_date` date NOT NULL,
+  `status` enum('pending','cleared','bounced','cancelled') NOT NULL DEFAULT 'pending',
+  `cleared_date` date DEFAULT NULL,
+  `cleared_bank_account_id` int(11) DEFAULT NULL,
+  `transaction_id` int(11) DEFAULT NULL,
+  `related_module` varchar(50) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `recorded_by` int(11) NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -781,7 +861,7 @@ INSERT INTO `fin_bank_accounts` (`id`, `bank_name`, `account_type`, `account_nam
 
 CREATE TABLE `fin_expenses` (
   `id` int(11) NOT NULL,
-  `unit_tag` enum('dairy','poultry','fish','feed_production','warehouse','distribution','general_overhead') NOT NULL,
+  `unit_tag` enum('dairy','poultry','fish','feed_production','warehouse','distribution','general_overhead','veterinary') NOT NULL,
   `category` varchar(80) NOT NULL,
   `amount` decimal(14,2) NOT NULL,
   `bank_account_id` int(11) DEFAULT NULL,
@@ -806,7 +886,8 @@ INSERT INTO `fin_expenses` (`id`, `unit_tag`, `category`, `amount`, `bank_accoun
 (8, 'general_overhead', 'የባለቤት የግል ማውጣት', 25000.00, 1, 'owner_drawing', '2026-09-19', 'የባለቤቱ የግል ማውጣት (Non-operating owner personal withdrawal)', 'አቶ ተክሉ ጌታቸው (Farm Owner Drawing)', 1, 2, 'approved', '2026-09-26 02:01:32'),
 (9, 'dairy', 'የነዳጅ ወጪ (Diesel Fuel)', 12000.00, 1, 'operating_expense', '2026-09-25', 'ለወተት ማቀዝቀዣ ጄነሬተርና መኖ ማጓጓዣ ናፍጣ', 'ኖክ ነዳጅ ማደያ (NOC Station)', 3, 2, 'approved', '2026-09-26 02:01:32'),
 (10, 'poultry', 'የመብራትና ውሃ (Utilities)', 4500.00, 2, 'operating_expense', '2026-09-22', 'የዶሮ ቤቶች የሙቀትና መብራት ወርሃዊ ክፍያ', 'የኢትዮጵያ ኤሌክትሪክ አገልግሎት (EEU)', 4, 2, 'approved', '2026-09-26 02:01:32'),
-(11, 'feed_production', 'ጥገናና መለዋወጫ (Repairs)', 3200.00, 3, 'operating_expense', '2026-09-26', 'የመኖ መፍጫ ማሽን ቪ-ቤልትና ቅባት ግዢ', 'መካኒክ ወርክሾፕ (Workshop)', 6, 10, 'approved', '2026-09-26 02:01:32');
+(11, 'feed_production', 'ጥገናና መለዋወጫ (Repairs)', 3200.00, 3, 'operating_expense', '2026-09-26', 'የመኖ መፍጫ ማሽን ቪ-ቤልትና ቅባት ግዢ', 'መካኒክ ወርክሾፕ (Workshop)', 6, 10, 'approved', '2026-09-26 02:01:32'),
+(12, 'feed_production', 'መደበኛ የስራ ማስኬጃ', 100.00, 1, 'operating_expense', '2026-10-24', 'test for system', NULL, 10, 10, 'approved', '2026-10-24 03:02:13');
 
 -- --------------------------------------------------------
 
@@ -846,7 +927,8 @@ CREATE TABLE `fin_payroll_runs` (
 --
 
 INSERT INTO `fin_payroll_runs` (`id`, `period_start`, `period_end`, `status`, `processed_by`, `finalized_at`, `created_at`) VALUES
-(1, '2026-09-01', '2026-09-30', 'finalized', 10, '2026-09-25 21:35:43', '2026-09-25 21:35:43');
+(1, '2026-09-01', '2026-09-30', 'finalized', 10, '2026-09-25 21:35:43', '2026-09-25 21:35:43'),
+(2, '2026-10-11', '2026-11-09', 'draft', 10, NULL, '2026-10-24 02:13:42');
 
 -- --------------------------------------------------------
 
@@ -861,6 +943,10 @@ CREATE TABLE `fin_payslips` (
   `base_salary` decimal(12,2) NOT NULL,
   `daily_rate` decimal(10,2) NOT NULL DEFAULT 0.00,
   `days_present` int(11) NOT NULL DEFAULT 0,
+  `gross_pay` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `tax_amount` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `pension_employee` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `pension_employer` decimal(12,2) NOT NULL DEFAULT 0.00,
   `net_pay` decimal(12,2) NOT NULL,
   `total_paid` decimal(12,2) NOT NULL DEFAULT 0.00,
   `remaining_balance` decimal(12,2) GENERATED ALWAYS AS (`net_pay` - `total_paid`) STORED,
@@ -872,19 +958,19 @@ CREATE TABLE `fin_payslips` (
 -- Dumping data for table `fin_payslips`
 --
 
-INSERT INTO `fin_payslips` (`id`, `payroll_run_id`, `employee_id`, `base_salary`, `daily_rate`, `days_present`, `net_pay`, `total_paid`, `allowances`, `deductions`) VALUES
-(1, 1, 1, 28000.00, 933.33, 30, 26300.00, 26300.00, 2500.00, 4200.00),
-(2, 1, 2, 24000.00, 800.00, 30, 22900.00, 22900.00, 2500.00, 3600.00),
-(3, 1, 3, 19000.00, 633.33, 30, 18650.00, 18650.00, 2500.00, 2850.00),
-(4, 1, 4, 17000.00, 566.67, 30, 16950.00, 16950.00, 2500.00, 2550.00),
-(5, 1, 5, 16500.00, 550.00, 30, 16525.00, 16525.00, 2500.00, 2475.00),
-(6, 1, 6, 18000.00, 600.00, 30, 17800.00, 17800.00, 2500.00, 2700.00),
-(7, 1, 7, 22000.00, 733.33, 30, 21200.00, 21200.00, 2500.00, 3300.00),
-(8, 1, 8, 14500.00, 483.33, 30, 13525.00, 13525.00, 1200.00, 2175.00),
-(9, 1, 9, 14000.00, 466.67, 30, 13100.00, 13100.00, 1200.00, 2100.00),
-(10, 1, 10, 20000.00, 666.67, 30, 19500.00, 19500.00, 2500.00, 3000.00),
-(11, 1, 11, 12000.00, 400.00, 30, 11400.00, 11400.00, 1200.00, 1800.00),
-(12, 1, 12, 8500.00, 283.33, 30, 8425.00, 8425.00, 1200.00, 1275.00);
+INSERT INTO `fin_payslips` (`id`, `payroll_run_id`, `employee_id`, `base_salary`, `daily_rate`, `days_present`, `gross_pay`, `tax_amount`, `pension_employee`, `pension_employer`, `net_pay`, `total_paid`, `allowances`, `deductions`) VALUES
+(1, 1, 1, 28000.00, 933.33, 30, 28000.00, 7064.00, 1960.00, 3080.00, 18976.00, 0.00, 2500.00, 9024.00),
+(2, 1, 2, 24000.00, 800.00, 30, 24000.00, 5762.00, 1680.00, 2640.00, 16558.00, 0.00, 2500.00, 7442.00),
+(3, 1, 3, 19000.00, 633.33, 30, 19000.00, 4134.50, 1330.00, 2090.00, 13535.50, 0.00, 2500.00, 5464.50),
+(4, 1, 4, 17000.00, 566.67, 30, 17000.00, 3483.50, 1190.00, 1870.00, 12326.50, 0.00, 2500.00, 4673.50),
+(5, 1, 5, 16500.00, 550.00, 30, 16500.00, 3320.75, 1155.00, 1815.00, 12024.25, 0.00, 2500.00, 4475.75),
+(6, 1, 6, 18000.00, 600.00, 30, 18000.00, 3809.00, 1260.00, 1980.00, 12931.00, 0.00, 2500.00, 5069.00),
+(7, 1, 7, 22000.00, 733.33, 30, 22000.00, 5111.00, 1540.00, 2420.00, 15349.00, 0.00, 2500.00, 6651.00),
+(8, 1, 8, 14500.00, 483.33, 30, 14500.00, 2695.50, 1015.00, 1595.00, 10789.50, 0.00, 1200.00, 3710.50),
+(9, 1, 9, 14000.00, 466.67, 30, 14000.00, 2556.00, 980.00, 1540.00, 10464.00, 0.00, 1200.00, 3536.00),
+(10, 1, 10, 20000.00, 666.67, 30, 20000.00, 4460.00, 1400.00, 2200.00, 14140.00, 0.00, 2500.00, 5860.00),
+(11, 1, 11, 12000.00, 400.00, 30, 12000.00, 1998.00, 840.00, 1320.00, 9162.00, 0.00, 1200.00, 2838.00),
+(12, 1, 12, 8500.00, 283.33, 30, 8500.00, 1126.25, 595.00, 935.00, 6778.75, 0.00, 1200.00, 1721.25);
 
 -- --------------------------------------------------------
 
@@ -943,7 +1029,8 @@ INSERT INTO `fin_purchase_requests` (`id`, `material_request_id`, `stock_item_id
 (1, NULL, 4, 5000.00, 'የወተት ላሞች መኖ ክምችት ማነስ (Low stock replenishment)', 3, 'converted_to_po', '2026-09-15 21:35:41'),
 (2, NULL, 9, 100.00, 'የአፍ እና እግር በሽታ መከላከያ ክትባት (Annual preventive vaccination)', 7, 'converted_to_po', '2026-09-18 21:35:41'),
 (3, NULL, 3, 2000.00, 'የዶሮዎች መኖ ተጨማሪ ትዕዛዝ (Poultry feed shortage)', 4, 'converted_to_po', '2026-09-22 21:35:41'),
-(4, NULL, 10, 10.00, 'ተጨማሪ የወተት ማጓጓዣ ጣሳዎች (Cans for new shop)', 3, 'approved', '2026-09-25 21:35:41');
+(4, NULL, 10, 10.00, 'ተጨማሪ የወተት ማጓጓዣ ጣሳዎች (Cans for new shop)', 3, 'approved', '2026-09-25 21:35:41'),
+(5, NULL, 11, 100.00, '[መጋዘን ቀጥታ ጥያቄ - አስቸኳይነት: critical] we need it', 8, 'pending', '2026-10-23 00:11:17');
 
 -- --------------------------------------------------------
 
@@ -956,13 +1043,14 @@ CREATE TABLE `fin_transactions` (
   `bank_account_id` int(11) DEFAULT NULL,
   `direction` enum('inflow','outflow') NOT NULL,
   `amount` decimal(14,2) NOT NULL,
-  `payment_method` enum('bank','cash') NOT NULL DEFAULT 'bank',
-  `unit_tag` enum('dairy','poultry','fish','feed_production','warehouse','distribution','general_overhead') NOT NULL,
+  `payment_method` enum('bank','cash','telebirr','check') DEFAULT 'bank',
+  `unit_tag` enum('dairy','poultry','fish','feed_production','warehouse','distribution','general_overhead','veterinary') NOT NULL,
   `category` varchar(50) DEFAULT NULL,
   `source_table` varchar(50) DEFAULT NULL,
   `source_id` int(11) DEFAULT NULL,
   `transaction_date` date NOT NULL,
   `description` varchar(255) DEFAULT NULL,
+  `reference_number` varchar(64) DEFAULT NULL,
   `recorded_by` int(11) NOT NULL,
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -971,15 +1059,18 @@ CREATE TABLE `fin_transactions` (
 -- Dumping data for table `fin_transactions`
 --
 
-INSERT INTO `fin_transactions` (`id`, `bank_account_id`, `direction`, `amount`, `payment_method`, `unit_tag`, `category`, `source_table`, `source_id`, `transaction_date`, `description`, `recorded_by`, `created_at`) VALUES
-(1, 1, 'inflow', 18750.00, 'bank', 'distribution', 'sales_revenue', 'dist_dispatches', 1, '2026-09-23', 'የቦሌ ሱቅ ወተት ሽያጭ ገቢ', 10, '2026-09-25 21:35:45'),
-(2, 1, 'inflow', 10000.00, 'bank', 'distribution', 'sales_revenue', 'dist_dispatches', 2, '2026-09-24', 'የመገናኛ ሱቅ የዕንቁላል ሽያጭ ገቢ (ቴሌብር)', 10, '2026-09-25 21:35:45'),
-(3, 3, 'inflow', 7000.00, 'cash', 'distribution', 'sales_revenue', 'dist_dispatches', 3, '2026-09-25', 'የእርሻ በር ሱቅ የጥሬ ገንዘብ ሽያጭ', 10, '2026-09-25 21:35:45'),
-(4, 1, 'outflow', 140000.00, 'bank', 'warehouse', 'purchase', 'fin_purchase_orders', 1, '2026-09-16', 'ለመኖ አቅራቢ (Ethio-Feed) የተከፈለ', 10, '2026-09-25 21:35:45'),
-(5, 3, 'outflow', 4500.00, 'cash', 'warehouse', 'purchase', 'fin_purchase_orders', 2, '2026-09-19', 'ለእንስሳት መድኃኒት የተከፈለ በጥሬ ገንዘብ', 10, '2026-09-25 21:35:45'),
-(6, 1, 'outflow', 22500.00, 'bank', 'distribution', 'expense', 'fin_expenses', 1, '2026-09-19', 'የናፍጣ ነዳጅ ክፍያ (Total)', 10, '2026-09-25 21:35:45'),
-(7, 1, 'outflow', 9800.00, 'bank', 'general_overhead', 'expense', 'fin_expenses', 2, '2026-09-21', 'የኤሌክትሪክ ኃይል ክፍያ', 10, '2026-09-25 21:35:45'),
-(8, 3, 'outflow', 3200.00, 'cash', 'feed_production', 'expense', 'fin_expenses', 11, '2026-09-26', 'የመኖ መፍጫ ማሽን ቪ-ቤልትና ቅባት ግዢ (ተቀባይ/አላማ: መካኒክ ወርክሾፕ (Workshop))', 10, '2026-09-27 23:52:06');
+INSERT INTO `fin_transactions` (`id`, `bank_account_id`, `direction`, `amount`, `payment_method`, `unit_tag`, `category`, `source_table`, `source_id`, `transaction_date`, `description`, `reference_number`, `recorded_by`, `created_at`) VALUES
+(1, 1, 'inflow', 18750.00, 'bank', 'distribution', 'sales_revenue', 'dist_dispatches', 1, '2026-09-23', 'የቦሌ ሱቅ ወተት ሽያጭ ገቢ', NULL, 10, '2026-09-25 21:35:45'),
+(2, 1, 'inflow', 10000.00, 'bank', 'distribution', 'sales_revenue', 'dist_dispatches', 2, '2026-09-24', 'የመገናኛ ሱቅ የዕንቁላል ሽያጭ ገቢ (ቴሌብር)', NULL, 10, '2026-09-25 21:35:45'),
+(3, 3, 'inflow', 7000.00, 'cash', 'distribution', 'sales_revenue', 'dist_dispatches', 3, '2026-09-25', 'የእርሻ በር ሱቅ የጥሬ ገንዘብ ሽያጭ', NULL, 10, '2026-09-25 21:35:45'),
+(4, 1, 'outflow', 140000.00, 'bank', 'warehouse', 'purchase', 'fin_purchase_orders', 1, '2026-09-16', 'ለመኖ አቅራቢ (Ethio-Feed) የተከፈለ', NULL, 10, '2026-09-25 21:35:45'),
+(5, 3, 'outflow', 4500.00, 'cash', 'warehouse', 'purchase', 'fin_purchase_orders', 2, '2026-09-19', 'ለእንስሳት መድኃኒት የተከፈለ በጥሬ ገንዘብ', NULL, 10, '2026-09-25 21:35:45'),
+(6, 1, 'outflow', 22500.00, 'bank', 'distribution', 'expense', 'fin_expenses', 1, '2026-09-19', 'የናፍጣ ነዳጅ ክፍያ (Total)', NULL, 10, '2026-09-25 21:35:45'),
+(7, 1, 'outflow', 9800.00, 'bank', 'general_overhead', 'expense', 'fin_expenses', 2, '2026-09-21', 'የኤሌክትሪክ ኃይል ክፍያ', NULL, 10, '2026-09-25 21:35:45'),
+(8, 3, 'outflow', 3200.00, 'cash', 'feed_production', 'expense', 'fin_expenses', 11, '2026-09-26', 'የመኖ መፍጫ ማሽን ቪ-ቤልትና ቅባት ግዢ (ተቀባይ/አላማ: መካኒክ ወርክሾፕ (Workshop))', NULL, 10, '2026-09-27 23:52:06'),
+(9, 1, 'outflow', 100000.00, 'bank', 'general_overhead', 'internal_transfer', 'fin_bank_accounts', 1, '2026-10-16', 'ከ ኦሮሚያ ባንክ ➜ ወደ ቴሌብር (for test)', 'TRF-20261016-7E15AB', 1, '2026-10-16 16:40:56'),
+(10, 2, 'inflow', 100000.00, 'telebirr', 'general_overhead', 'internal_transfer', 'fin_bank_accounts', 2, '2026-10-16', 'ከ ኦሮሚያ ባንክ ➜ ወደ ቴሌብር (for test)', 'TRF-20261016-7E15AB', 1, '2026-10-16 16:40:57'),
+(12, 1, 'outflow', 100.00, 'bank', 'feed_production', 'expense', 'fin_expenses', 12, '2026-10-24', 'test for system', NULL, 10, '2026-10-24 03:02:18');
 
 -- --------------------------------------------------------
 
@@ -1180,7 +1271,8 @@ INSERT INTO `notifications` (`id`, `module`, `priority`, `target_user_id`, `targ
 (4, 'dairy', 'high', NULL, NULL, 2, 'Store has issued full 4 units of የወተት ማጠራቀሚያ ጣሳ. Please confirm physical receipt.', '/aleltu-eifms/modules/dairy/material_request.php', 0, '2026-09-27 23:39:13'),
 (5, 'warehouse', 'medium', NULL, 8, NULL, 'Department confirmed receipt of የወተት ማጠራቀሚያ ጣሳ (Request #4).', '/aleltu-eifms/modules/warehouse/requisitions.php', 0, '2026-09-27 23:40:32'),
 (6, 'warehouse', 'high', NULL, 8, NULL, 'Daily milk yield from Dairy (20 Liters, evening session) sent to Store Partition 1 for physical verification.', '/aleltu-eifms/modules/warehouse/receiving.php', 0, '2026-10-01 22:18:28'),
-(7, 'warehouse', 'high', NULL, 8, NULL, 'Daily milk yield from Dairy (20 Liters, morning session) sent to Store Partition 1 for physical verification.', '/aleltu-eifms/modules/warehouse/receiving.php', 0, '2026-10-01 22:18:43');
+(7, 'warehouse', 'high', NULL, 8, NULL, 'Daily milk yield from Dairy (20 Liters, morning session) sent to Store Partition 1 for physical verification.', '/aleltu-eifms/modules/warehouse/receiving.php', 0, '2026-10-01 22:18:43'),
+(8, 'warehouse', 'high', NULL, 8, NULL, 'Daily milk yield from Dairy (15 Liters net of 20L gross, morning session) sent to Store Partition 1 for physical verification.', '/aleltu-eifms/modules/warehouse/receiving.php', 0, '2026-10-24 02:10:48');
 
 -- --------------------------------------------------------
 
@@ -1193,6 +1285,16 @@ CREATE TABLE `notification_reads` (
   `user_id` int(11) NOT NULL,
   `read_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `notification_reads`
+--
+
+INSERT INTO `notification_reads` (`notification_id`, `user_id`, `read_at`) VALUES
+(2, 8, '2026-10-24 01:47:05'),
+(5, 8, '2026-10-24 01:47:05'),
+(6, 8, '2026-10-24 01:47:05'),
+(7, 8, '2026-10-24 01:46:22');
 
 -- --------------------------------------------------------
 
@@ -1583,13 +1685,36 @@ INSERT INTO `role_permissions` (`role_id`, `permission_id`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `rpt_item_unit_map`
+--
+
+CREATE TABLE `rpt_item_unit_map` (
+  `stock_item_id` int(11) NOT NULL,
+  `business_unit` enum('dairy','poultry','fish','feed_production','veterinary') NOT NULL,
+  `source` varchar(40) NOT NULL DEFAULT 'manual',
+  `updated_by` int(11) DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `rpt_item_unit_map`
+--
+
+INSERT INTO `rpt_item_unit_map` (`stock_item_id`, `business_unit`, `source`, `updated_by`, `updated_at`) VALUES
+(1, 'dairy', 'auto:product_class=milk', NULL, '2026-10-16 14:40:59'),
+(2, 'poultry', 'auto:sku_prefix_EGG', NULL, '2026-10-16 14:40:59'),
+(11, 'fish', 'auto:sku_prefix_FISH', NULL, '2026-10-16 14:40:59');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `settings`
 --
 
 CREATE TABLE `settings` (
   `id` int(11) NOT NULL,
   `setting_key` varchar(100) NOT NULL,
-  `setting_value` varchar(255) NOT NULL,
+  `setting_value` text NOT NULL,
   `description` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -1598,14 +1723,18 @@ CREATE TABLE `settings` (
 --
 
 INSERT INTO `settings` (`id`, `setting_key`, `setting_value`, `description`) VALUES
-(1, 'company_name', 'ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጾኦ ማቀነባበሪያ ድርጅት', NULL),
+(1, 'company_name', 'ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት', NULL),
 (3, 'company_location', '', NULL),
 (4, 'default_locale', 'am', NULL),
 (5, 'default_theme', 'dark', NULL),
 (6, 'low_stock_threshold', '10', NULL),
 (7, 'payroll_tax_rate', '0', NULL),
 (8, 'fiscal_year_start', '01-01', NULL),
-(9, 'session_timeout_min', '60', NULL);
+(9, 'session_timeout_min', '60', NULL),
+(10, 'analytics_shop_dispatch_treatment', 'internal', 'Super Admin analytics: internal = dispatches to company shops are transfers, not income; external = shops are outside customers'),
+(12, 'payroll_tax_brackets', '[{\"min\":0,\"max\":2000,\"rate\":0,\"deduction\":0,\"label\":\"ከስራ ግብር ነፃ (Exempt)\"},{\"min\":2001,\"max\":4000,\"rate\":15,\"deduction\":300,\"label\":\"እርከን 1 (15%)\"},{\"min\":4001,\"max\":7000,\"rate\":20,\"deduction\":500,\"label\":\"እርከን 2 (20%)\"},{\"min\":7001,\"max\":10000,\"rate\":25,\"deduction\":850,\"label\":\"እርከን 3 (25%)\"},{\"min\":10001,\"max\":14000,\"rate\":30,\"deduction\":1350,\"label\":\"እርከን 4 (30%)\"},{\"min\":14001,\"max\":null,\"rate\":35,\"deduction\":2050,\"label\":\"እርከን 5 (35% እና ከዚያ በላይ)\"}]', NULL),
+(14, 'tax_exempt_threshold', '2000', NULL),
+(17, 'milk_price_per_liter', '75.00', 'Selling price of raw milk per liter');
 
 -- --------------------------------------------------------
 
@@ -1654,17 +1783,17 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `name`, `email`, `password`, `api_token`, `role_id`, `department_id`, `locale`, `theme`, `two_factor_secret`, `two_factor_enabled`, `is_active`, `last_login_at`, `created_at`) VALUES
-(1, 'admin', 'admin@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 1, NULL, 'am', 'dark', NULL, 0, 1, '2026-10-11 20:14:15', '2026-08-08 12:58:26'),
+(1, 'admin', 'admin@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 1, NULL, 'am', 'light', NULL, 0, 1, '2026-10-24 02:44:04', '2026-08-08 12:58:26'),
 (2, 'manager', 'manager@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 2, NULL, 'en', 'dark', NULL, 0, 1, '2026-08-09 15:48:55', '2026-08-08 12:58:27'),
-(3, 'dairy', 'dairy@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 3, 1, 'am', 'light', NULL, 0, 1, '2026-09-27 23:39:33', '2026-08-08 12:58:27'),
+(3, 'dairy', 'dairy@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 3, 1, 'am', 'light', NULL, 0, 1, '2026-10-24 02:09:18', '2026-08-08 12:58:27'),
 (4, 'poultry', 'poultry@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 4, 2, 'am', 'dark', NULL, 0, 1, '2026-09-27 22:47:16', '2026-08-08 12:58:27'),
 (5, 'fish', 'fish@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 5, 3, 'am', 'dark', NULL, 0, 1, '2026-09-27 22:59:59', '2026-08-08 12:58:27'),
 (6, 'feed', 'feed@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 6, 4, 'am', 'dark', NULL, 0, 1, '2026-09-27 23:12:12', '2026-08-08 12:58:27'),
 (7, 'vet', 'vet@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 7, 5, 'am', 'dark', NULL, 0, 1, '2026-09-27 23:19:19', '2026-08-08 12:58:28'),
-(8, 'warehouse', 'warehouse@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 8, 6, 'am', 'dark', NULL, 0, 1, '2026-09-25 17:42:00', '2026-08-08 12:58:28'),
+(8, 'warehouse', 'warehouse@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 8, 6, 'am', 'light', NULL, 0, 1, '2026-10-24 01:38:08', '2026-08-08 12:58:28'),
 (9, 'distribution', 'distribution@aleltufarm.com', '$2y$10$9UAh9OniZ8Z6bg24y7QpD.WcRxb7NZf5ZSuf83YvjWVUlm/GXLqN6', NULL, 9, 5, 'en', 'light', NULL, 0, 1, '2026-08-19 19:43:50', '2026-08-08 12:58:28'),
-(10, 'finance', 'finance@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 10, 7, 'am', 'light', NULL, 0, 1, '2026-09-27 23:42:52', '2026-08-08 12:58:28'),
-(11, 'hr', 'hr@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 11, 8, 'am', 'dark', NULL, 0, 1, '2026-09-28 01:37:59', '2026-08-08 12:58:28'),
+(10, 'finance', 'finance@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 10, 7, 'am', 'light', NULL, 0, 1, '2026-10-24 03:01:19', '2026-08-08 12:58:28'),
+(11, 'hr', 'hr@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 11, 8, 'am', 'light', NULL, 0, 1, '2026-10-24 01:48:13', '2026-08-08 12:58:28'),
 (12, 'milker', 'milker@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 12, 1, 'en', 'light', NULL, 0, 1, '2026-08-19 19:44:42', '2026-08-08 12:58:28'),
 (13, 'tesfa', 'tesfa@gmail.com', '$2y$10$sHgx3RbKPwHSP9SlrGUz3.hZulJKMmf1g.UqpNWIlTY2JiADYBn.O', NULL, 8, 7, 'am', 'light', NULL, 0, 1, '2026-09-27 20:59:53', '2026-09-27 20:59:36');
 
@@ -1715,6 +1844,7 @@ CREATE TABLE `vet_health_records` (
   `record_date` date NOT NULL,
   `condition_name` varchar(150) DEFAULT NULL,
   `treatment` text DEFAULT NULL,
+  `cost` decimal(10,2) NOT NULL DEFAULT 0.00,
   `photo_path` varchar(255) DEFAULT NULL,
   `vet_id` int(11) NOT NULL,
   `created_at` datetime DEFAULT current_timestamp()
@@ -1740,6 +1870,7 @@ CREATE TABLE `vet_vaccination_records` (
   `reminder_1hr_sent` tinyint(1) NOT NULL DEFAULT 0,
   `batch_number` varchar(100) DEFAULT NULL,
   `dosage` varchar(80) DEFAULT NULL,
+  `cost` decimal(10,2) NOT NULL DEFAULT 0.00,
   `photo_path` varchar(255) DEFAULT NULL,
   `notes` text DEFAULT NULL,
   `vet_id` int(11) DEFAULT NULL,
@@ -1874,17 +2005,17 @@ CREATE TABLE `wh_stock_items` (
 --
 
 INSERT INTO `wh_stock_items` (`id`, `sku`, `name`, `product_class`, `department_scope`, `partition_code`, `unit`, `is_perishable`) VALUES
-(1, 'MILK-RAW-01', 'ጥሬ ወተት', 'milk', NULL, 'finished_products', 'L', 1),
-(2, 'EGG-TABLE-01', 'የዶሮ ዕንቁላል', 'general', NULL, 'finished_products', 'pcs', 1),
-(3, 'FEED-LAYER-01', 'የዶሮ መኖ', 'feed', NULL, 'feed_nutrition', 'kg', 0),
-(4, 'FEED-DAIRY-01', 'የላም መኖ', 'feed', NULL, 'feed_nutrition', 'kg', 0),
-(5, 'FEED-CALF-01', 'የጥጃ መኖ', 'feed', NULL, 'feed_nutrition', 'kg', 0),
-(6, 'FEED-FISH-01', 'የዓሳ መኖ', 'feed', NULL, 'feed_nutrition', 'kg', 0),
-(7, 'FEED-ALFALFA-01', 'አልፋልፋ ድርቆሽ', 'feed', NULL, 'feed_nutrition', 'bales', 0),
-(8, 'MED-ANTIBIOTIC', 'የእንስሳት መድኃኒት (ኦክሲ)', 'medicine', NULL, 'materials_supplies', 'vials', 0),
-(9, 'MED-VACCINE-01', 'የአፍ እና የእግር በሽታ ክትባት', 'medicine', NULL, 'materials_supplies', 'doses', 1),
-(10, 'EQUIP-MILK-CAN', 'የወተት ማጠራቀሚያ ጣሳ', 'equipment', NULL, 'materials_supplies', 'pcs', 0),
-(11, 'FISH-FRESH-01', 'ትኩስ ዓሳ (Fresh Fish)', '', NULL, 'finished_products', 'KG', 1);
+(1, 'MILK-RAW-01', 'ጥሬ ወተት', 'milk', 'dairy', 'finished_products', 'L', 1),
+(2, 'EGG-TABLE-01', 'የዶሮ ዕንቁላል', 'general', 'poultry', 'finished_products', 'pcs', 1),
+(3, 'FEED-LAYER-01', 'የዶሮ መኖ', 'feed', 'feed_production', 'feed_nutrition', 'kg', 0),
+(4, 'FEED-DAIRY-01', 'የላም መኖ', 'feed', 'feed_production', 'feed_nutrition', 'kg', 0),
+(5, 'FEED-CALF-01', 'የጥጃ መኖ', 'feed', 'feed_production', 'feed_nutrition', 'kg', 0),
+(6, 'FEED-FISH-01', 'የዓሳ መኖ', 'feed', 'feed_production', 'feed_nutrition', 'kg', 0),
+(7, 'FEED-ALFALFA-01', 'አልፋልፋ ድርቆሽ', 'feed', 'feed_production', 'feed_nutrition', 'bales', 0),
+(8, 'MED-ANTIBIOTIC', 'የእንስሳት መድኃኒት (ኦክሲ)', 'medicine', 'veterinary', 'materials_supplies', 'vials', 0),
+(9, 'MED-VACCINE-01', 'የአፍ እና የእግር በሽታ ክትባት', 'medicine', 'veterinary', 'materials_supplies', 'doses', 1),
+(10, 'EQUIP-MILK-CAN', 'የወተት ማጠራቀሚያ ጣሳ', 'equipment', 'warehouse', 'materials_supplies', 'pcs', 0),
+(11, 'FISH-FRESH-01', 'ትኩስ ዓሳ (Fresh Fish)', '', 'fish', 'finished_products', 'KG', 1);
 
 -- --------------------------------------------------------
 
@@ -1936,7 +2067,8 @@ INSERT INTO `wh_store_receiving` (`id`, `dispatch_code`, `source_type`, `source_
 (1, 'DISP-DRY-001', 'dairy', 'Morning Milk Milking Session #1', NULL, 1, 1, 205.00, 205.00, NULL, 'received_full', 3, '2026-09-24 21:35:38', 8, '2026-09-24 21:35:38'),
 (2, 'DISP-PLT-001', 'poultry', 'Daily Egg Harvest #1', NULL, 1, 2, 1760.00, 1760.00, NULL, 'received_full', 4, '2026-09-24 21:35:38', 8, '2026-09-24 21:35:38'),
 (3, 'MILK-10-20261001-6285', 'dairy', 'Daily Milking (evening session, 2026-10-01)', NULL, 1, 1, 20.00, NULL, NULL, 'pending_receipt', 1, '2026-10-01 22:18:28', NULL, NULL),
-(4, 'MILK-9-20261001-8201', 'dairy', 'Daily Milking (morning session, 2026-10-01)', NULL, 1, 1, 20.00, NULL, NULL, 'pending_receipt', 1, '2026-10-01 22:18:43', NULL, NULL);
+(4, 'MILK-9-20261001-8201', 'dairy', 'Daily Milking (morning session, 2026-10-01)', NULL, 1, 1, 20.00, NULL, NULL, 'pending_receipt', 1, '2026-10-01 22:18:43', NULL, NULL),
+(5, 'MILK-17-20261024-9251', 'dairy', 'Daily Milking (morning session, 2026-10-24): Gross 20L, Calf Consumed 5L, Net to Store 15L', NULL, 1, 1, 15.00, NULL, NULL, 'pending_receipt', 3, '2026-10-24 02:10:47', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -1957,7 +2089,7 @@ CREATE TABLE `wh_warehouses` (
 --
 
 INSERT INTO `wh_warehouses` (`id`, `name`, `product_class`, `location`, `requires_cold_storage`) VALUES
-(1, 'ዋና ማዕከላዊ የእርሻ መጋዘን', 'general', 'Aleltu Farm Compound - Sector A', 1);
+(1, 'ዋና ማዕከላዊ የእርሻ መጋዘን', 'general', 'Teklu Getachew Dairy Farm Compound - Sector A', 1);
 
 --
 -- Indexes for dumped tables
@@ -2010,7 +2142,8 @@ ALTER TABLE `dairy_cows`
 ALTER TABLE `dairy_cow_exit_records`
   ADD PRIMARY KEY (`id`),
   ADD KEY `cow_id` (`cow_id`),
-  ADD KEY `recorded_by` (`recorded_by`);
+  ADD KEY `recorded_by` (`recorded_by`),
+  ADD KEY `idx_an_exit_date` (`exit_date`,`exit_type`);
 
 --
 -- Indexes for table `dairy_cow_groups`
@@ -2023,8 +2156,8 @@ ALTER TABLE `dairy_cow_groups`
 --
 ALTER TABLE `dairy_health_records`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `cow_id` (`cow_id`),
-  ADD KEY `vet_id` (`vet_id`);
+  ADD KEY `vet_id` (`vet_id`),
+  ADD KEY `idx_an_dhr_cow_date` (`cow_id`,`record_date`);
 
 --
 -- Indexes for table `dairy_milking_sessions`
@@ -2048,7 +2181,7 @@ ALTER TABLE `dairy_milk_yield_entries`
 --
 ALTER TABLE `dairy_vaccination_records`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `cow_id` (`cow_id`);
+  ADD KEY `idx_an_dvr_cow` (`cow_id`,`administered_date`);
 
 --
 -- Indexes for table `departments`
@@ -2077,7 +2210,9 @@ ALTER TABLE `dist_dispatches`
   ADD KEY `driver_id` (`driver_id`),
   ADD KEY `warehouse_id` (`warehouse_id`),
   ADD KEY `stock_item_id` (`stock_item_id`),
-  ADD KEY `created_by` (`created_by`);
+  ADD KEY `created_by` (`created_by`),
+  ADD KEY `idx_an_disp_status_date` (`status`,`dispatched_at`,`stock_item_id`),
+  ADD KEY `idx_an_disp_channel` (`sale_channel`);
 
 --
 -- Indexes for table `dist_dispatch_payments`
@@ -2085,7 +2220,8 @@ ALTER TABLE `dist_dispatches`
 ALTER TABLE `dist_dispatch_payments`
   ADD PRIMARY KEY (`id`),
   ADD KEY `dispatch_id` (`dispatch_id`),
-  ADD KEY `received_by` (`received_by`);
+  ADD KEY `received_by` (`received_by`),
+  ADD KEY `idx_an_dpay_created` (`created_at`,`dispatch_id`);
 
 --
 -- Indexes for table `dist_shops`
@@ -2131,7 +2267,8 @@ ALTER TABLE `feed_distribution_requests`
 ALTER TABLE `feed_harvest_records`
   ADD PRIMARY KEY (`id`),
   ADD KEY `planting_record_id` (`planting_record_id`),
-  ADD KEY `recorded_by` (`recorded_by`);
+  ADD KEY `recorded_by` (`recorded_by`),
+  ADD KEY `idx_an_fpharv_date` (`harvest_date`);
 
 --
 -- Indexes for table `feed_planting_records`
@@ -2154,12 +2291,31 @@ ALTER TABLE `fin_bank_accounts`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `fin_budgets`
+--
+ALTER TABLE `fin_budgets`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `proposed_by` (`proposed_by`),
+  ADD KEY `approved_by` (`approved_by`);
+
+--
+-- Indexes for table `fin_cheques`
+--
+ALTER TABLE `fin_cheques`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_type` (`cheque_type`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_due_date` (`due_date`),
+  ADD KEY `idx_cheque_num` (`cheque_number`);
+
+--
 -- Indexes for table `fin_expenses`
 --
 ALTER TABLE `fin_expenses`
   ADD PRIMARY KEY (`id`),
   ADD KEY `requested_by` (`requested_by`),
-  ADD KEY `approved_by` (`approved_by`);
+  ADD KEY `approved_by` (`approved_by`),
+  ADD KEY `idx_an_exp_date_unit` (`expense_date`,`unit_tag`,`status`);
 
 --
 -- Indexes for table `fin_payroll_payments`
@@ -2174,7 +2330,8 @@ ALTER TABLE `fin_payroll_payments`
 --
 ALTER TABLE `fin_payroll_runs`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `processed_by` (`processed_by`);
+  ADD KEY `processed_by` (`processed_by`),
+  ADD KEY `idx_an_pr_status_end` (`status`,`period_end`);
 
 --
 -- Indexes for table `fin_payslips`
@@ -2209,14 +2366,17 @@ ALTER TABLE `fin_transactions`
   ADD PRIMARY KEY (`id`),
   ADD KEY `bank_account_id` (`bank_account_id`),
   ADD KEY `recorded_by` (`recorded_by`),
-  ADD KEY `idx_date_unit` (`transaction_date`,`unit_tag`);
+  ADD KEY `idx_date_unit` (`transaction_date`,`unit_tag`),
+  ADD KEY `idx_an_tx_dir_date` (`direction`,`transaction_date`),
+  ADD KEY `idx_an_tx_source` (`source_table`,`source_id`);
 
 --
 -- Indexes for table `fish_feeding_logs`
 --
 ALTER TABLE `fish_feeding_logs`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `fish_stock_id` (`fish_stock_id`);
+  ADD KEY `fish_stock_id` (`fish_stock_id`),
+  ADD KEY `idx_an_ffeed_done_stock` (`completed_at`,`fish_stock_id`);
 
 --
 -- Indexes for table `fish_growth_samples`
@@ -2231,7 +2391,8 @@ ALTER TABLE `fish_growth_samples`
 ALTER TABLE `fish_harvest_records`
   ADD PRIMARY KEY (`id`),
   ADD KEY `fish_stock_id` (`fish_stock_id`),
-  ADD KEY `recorded_by` (`recorded_by`);
+  ADD KEY `recorded_by` (`recorded_by`),
+  ADD KEY `idx_an_fharv_date_stock` (`harvest_date`,`fish_stock_id`);
 
 --
 -- Indexes for table `fish_mortality_logs`
@@ -2239,7 +2400,8 @@ ALTER TABLE `fish_harvest_records`
 ALTER TABLE `fish_mortality_logs`
   ADD PRIMARY KEY (`id`),
   ADD KEY `fish_stock_id` (`fish_stock_id`),
-  ADD KEY `recorded_by` (`recorded_by`);
+  ADD KEY `recorded_by` (`recorded_by`),
+  ADD KEY `idx_an_fmort_date_stock` (`log_date`,`fish_stock_id`);
 
 --
 -- Indexes for table `fish_ponds`
@@ -2252,7 +2414,8 @@ ALTER TABLE `fish_ponds`
 --
 ALTER TABLE `fish_stocks`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `pond_id` (`pond_id`);
+  ADD KEY `pond_id` (`pond_id`),
+  ADD KEY `idx_an_fstock_date` (`stocking_date`);
 
 --
 -- Indexes for table `fish_water_quality_readings`
@@ -2303,7 +2466,8 @@ ALTER TABLE `permissions`
 ALTER TABLE `poultry_egg_collections`
   ADD PRIMARY KEY (`id`),
   ADD KEY `flock_id` (`flock_id`),
-  ADD KEY `recorded_by` (`recorded_by`);
+  ADD KEY `recorded_by` (`recorded_by`),
+  ADD KEY `idx_an_egg_date_flock` (`collection_date`,`flock_id`);
 
 --
 -- Indexes for table `poultry_flocks`
@@ -2324,7 +2488,8 @@ ALTER TABLE `poultry_houses`
 ALTER TABLE `poultry_mortality_logs`
   ADD PRIMARY KEY (`id`),
   ADD KEY `flock_id` (`flock_id`),
-  ADD KEY `recorded_by` (`recorded_by`);
+  ADD KEY `recorded_by` (`recorded_by`),
+  ADD KEY `idx_an_pmort_date_flock` (`log_date`,`flock_id`);
 
 --
 -- Indexes for table `roles`
@@ -2339,6 +2504,13 @@ ALTER TABLE `roles`
 ALTER TABLE `role_permissions`
   ADD PRIMARY KEY (`role_id`,`permission_id`),
   ADD KEY `permission_id` (`permission_id`);
+
+--
+-- Indexes for table `rpt_item_unit_map`
+--
+ALTER TABLE `rpt_item_unit_map`
+  ADD PRIMARY KEY (`stock_item_id`),
+  ADD KEY `idx_an_map_unit` (`business_unit`);
 
 --
 -- Indexes for table `settings`
@@ -2380,7 +2552,8 @@ ALTER TABLE `user_2fa_recovery_codes`
 ALTER TABLE `vet_disease_incidents`
   ADD PRIMARY KEY (`id`),
   ADD KEY `vet_id` (`vet_id`),
-  ADD KEY `idx_subject` (`subject_type`,`subject_id`);
+  ADD KEY `idx_subject` (`subject_type`,`subject_id`),
+  ADD KEY `idx_an_vdi_date` (`detected_date`);
 
 --
 -- Indexes for table `vet_health_records`
@@ -2388,7 +2561,8 @@ ALTER TABLE `vet_disease_incidents`
 ALTER TABLE `vet_health_records`
   ADD PRIMARY KEY (`id`),
   ADD KEY `vet_id` (`vet_id`),
-  ADD KEY `idx_subject` (`subject_type`,`subject_id`);
+  ADD KEY `idx_subject` (`subject_type`,`subject_id`),
+  ADD KEY `idx_an_vhr_date` (`record_date`);
 
 --
 -- Indexes for table `vet_vaccination_records`
@@ -2397,7 +2571,8 @@ ALTER TABLE `vet_vaccination_records`
   ADD PRIMARY KEY (`id`),
   ADD KEY `vet_id` (`vet_id`),
   ADD KEY `idx_subject` (`subject_type`,`subject_id`),
-  ADD KEY `idx_due` (`status`,`scheduled_date`);
+  ADD KEY `idx_due` (`status`,`scheduled_date`),
+  ADD KEY `idx_an_vvr_admin` (`administered_date`);
 
 --
 -- Indexes for table `wh_minimum_stock_rules`
@@ -2414,7 +2589,8 @@ ALTER TABLE `wh_stock_adjustments`
   ADD PRIMARY KEY (`id`),
   ADD KEY `warehouse_id` (`warehouse_id`),
   ADD KEY `stock_item_id` (`stock_item_id`),
-  ADD KEY `adjusted_by` (`adjusted_by`);
+  ADD KEY `adjusted_by` (`adjusted_by`),
+  ADD KEY `idx_an_adj_date_type` (`created_at`,`adjustment_type`);
 
 --
 -- Indexes for table `wh_stock_batches`
@@ -2432,7 +2608,8 @@ ALTER TABLE `wh_stock_issues`
   ADD KEY `warehouse_id` (`warehouse_id`),
   ADD KEY `stock_item_id` (`stock_item_id`),
   ADD KEY `stock_batch_id` (`stock_batch_id`),
-  ADD KEY `issued_by` (`issued_by`);
+  ADD KEY `issued_by` (`issued_by`),
+  ADD KEY `idx_an_issue_date_dest` (`issued_at`,`destination_type`);
 
 --
 -- Indexes for table `wh_stock_items`
@@ -2460,7 +2637,8 @@ ALTER TABLE `wh_store_receiving`
   ADD KEY `warehouse_id` (`warehouse_id`),
   ADD KEY `stock_item_id` (`stock_item_id`),
   ADD KEY `sent_by` (`sent_by`),
-  ADD KEY `received_by` (`received_by`);
+  ADD KEY `received_by` (`received_by`),
+  ADD KEY `idx_an_recv_src_sent` (`source_type`,`sent_at`);
 
 --
 -- Indexes for table `wh_warehouses`
@@ -2476,13 +2654,13 @@ ALTER TABLE `wh_warehouses`
 -- AUTO_INCREMENT for table `attendance`
 --
 ALTER TABLE `attendance`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=117;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=142;
 
 --
 -- AUTO_INCREMENT for table `audit_log`
 --
 ALTER TABLE `audit_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `dairy_breeding_records`
@@ -2524,13 +2702,13 @@ ALTER TABLE `dairy_health_records`
 -- AUTO_INCREMENT for table `dairy_milking_sessions`
 --
 ALTER TABLE `dairy_milking_sessions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `dairy_milk_yield_entries`
 --
 ALTER TABLE `dairy_milk_yield_entries`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
 -- AUTO_INCREMENT for table `dairy_vaccination_records`
@@ -2614,13 +2792,25 @@ ALTER TABLE `feed_plots`
 -- AUTO_INCREMENT for table `fin_bank_accounts`
 --
 ALTER TABLE `fin_bank_accounts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT for table `fin_budgets`
+--
+ALTER TABLE `fin_budgets`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `fin_cheques`
+--
+ALTER TABLE `fin_cheques`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `fin_expenses`
 --
 ALTER TABLE `fin_expenses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `fin_payroll_payments`
@@ -2632,7 +2822,7 @@ ALTER TABLE `fin_payroll_payments`
 -- AUTO_INCREMENT for table `fin_payroll_runs`
 --
 ALTER TABLE `fin_payroll_runs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `fin_payslips`
@@ -2650,13 +2840,13 @@ ALTER TABLE `fin_purchase_orders`
 -- AUTO_INCREMENT for table `fin_purchase_requests`
 --
 ALTER TABLE `fin_purchase_requests`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `fin_transactions`
 --
 ALTER TABLE `fin_transactions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `fish_feeding_logs`
@@ -2710,7 +2900,7 @@ ALTER TABLE `leave_requests`
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `performance_reviews`
@@ -2758,7 +2948,7 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `settings`
 --
 ALTER TABLE `settings`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `tasks`
@@ -2776,7 +2966,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `user_2fa_recovery_codes`
 --
 ALTER TABLE `user_2fa_recovery_codes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `vet_disease_incidents`
@@ -2836,7 +3026,7 @@ ALTER TABLE `wh_stock_receipts`
 -- AUTO_INCREMENT for table `wh_store_receiving`
 --
 ALTER TABLE `wh_store_receiving`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `wh_warehouses`
@@ -2968,6 +3158,13 @@ ALTER TABLE `feed_harvest_records`
 ALTER TABLE `feed_planting_records`
   ADD CONSTRAINT `feed_planting_records_ibfk_1` FOREIGN KEY (`plot_id`) REFERENCES `feed_plots` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `feed_planting_records_ibfk_2` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`);
+
+--
+-- Constraints for table `fin_budgets`
+--
+ALTER TABLE `fin_budgets`
+  ADD CONSTRAINT `fin_budgets_ibfk_1` FOREIGN KEY (`proposed_by`) REFERENCES `users` (`id`),
+  ADD CONSTRAINT `fin_budgets_ibfk_2` FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`);
 
 --
 -- Constraints for table `fin_expenses`

@@ -14,7 +14,7 @@ function current_user(): ?array
 function require_login(): void
 {
     if (!current_user()) {
-        header('Location: /aleltu-eifms/modules/auth/login.php');
+        header('Location: ' . url('/modules/auth/login.php'));
         exit;
     }
 }
@@ -36,12 +36,15 @@ function has_role($allowedRoles): bool
 
 // Simple role-based access check (mirrors SAD section 13's role list).
 // Usage: require_role(['super_admin', 'dairy_manager'])
-function require_role(array $allowedRoles): void
+function require_role(array|string $allowedRoles): void
 {
     require_login();
+    if (is_string($allowedRoles)) {
+        $allowedRoles = [$allowedRoles];
+    }
     if (!has_role($allowedRoles)) {
         http_response_code(403);
-        die('<h2>403 - You do not have permission to view this page.</h2><p><a href="/aleltu-eifms/index.php">Back to dashboard</a></p>');
+        die('<h2>403 - You do not have permission to view this page.</h2><p><a href="' . url('/index.php') . '">Back to dashboard</a></p>');
     }
 }
 

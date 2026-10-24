@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         pond_register($_POST['name'], $_POST['area_sq_m'] !== '' ? (float) $_POST['area_sq_m'] : null);
         flash(current_locale() === 'am' ? '✓ አዲስ ኩሬ በተሳካ ሁኔታ ተመዝግቧል።' : 'Pond registered.');
-        header('Location: /aleltu-eifms/modules/fish/ponds.php');
+        header('Location: ' . BASE_URL . '/modules/fish/ponds.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -46,7 +46,7 @@ $ponds = db()->query(
                 <td><?= h($p['name']) ?></td>
                 <td><?= $p['area_sq_m'] ? number_format($p['area_sq_m'], 1) : '—' ?></td>
                 <td><span class="badge <?= $p['status']==='stocked'?'active':($p['status']==='empty'?'dry':'pregnant') ?>"><?= h($p['status']) ?></span></td>
-                <td><a href="/aleltu-eifms/modules/fish/pond_view.php?id=<?= (int) $p['id'] ?>"><?= h(t('common.view_all', 'View')) ?></a></td>
+                <td><a href="<?= BASE_URL ?>/modules/fish/pond_view.php?id=<?= (int) $p['id'] ?>"><?= h(t('common.view_all', 'View')) ?></a></td>
             </tr>
         <?php endforeach; ?>
         <?php if (empty($ponds)): ?><tr><td colspan="4" class="text-muted"><?= h(t('common.no_records', 'No ponds yet.')) ?></td></tr><?php endif; ?>

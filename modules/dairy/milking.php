@@ -18,8 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['close_session'])) {
             $sessType = $_POST['close_session_type'] ?? $type;
             $sessionId = milking_open_session($date, $sessType);
-            milking_close_and_transfer($sessionId, 1, 1);
-            flash(current_locale() === 'am' ? '✓ የወተት ምርቱ በተሳካ ሁኔታ ወደ መጋዘን ተልኳል!' : 'Session closed and transferred to Warehouse.');
+            $calfLiters = (float) ($_POST['calf_liters'] ?? 0.0);
+            $otherLiters = 0.0;
+            $notes = trim($_POST['close_notes'] ?? '');
+            milking_close_and_transfer($sessionId, 1, 1, $calfLiters, $otherLiters, $notes);
+            flash(current_locale() === 'am' ? '✓ የወተት ምርቱ (ጥጃ የጠጣው ተቀንሶ) በተሳካ ሁኔታ ወደ መጋዘን ተልኳል!' : 'Session closed and net milk transferred to Warehouse.');
         } else {
             // Guard against future dates
             if ($date > date('Y-m-d')) {
@@ -34,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             flash(t('dairy.yield_saved', 'Yield recorded.'));
         }
-        header("Location: /aleltu-eifms/modules/dairy/milking.php?date={$date}&type={$type}");
+        header("Location: " . BASE_URL . "/modules/dairy/milking.php?date={$date}&type={$type}");
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -190,16 +193,36 @@ $nextMonth = $calMonth + 1; $nextYear = $calYear; if ($nextMonth > 12) { $nextMo
                 </tbody>
             </table>
 
-            <?php if (!$activeClosed && !empty($entries)): ?>
-                <form method="post" style="margin-top:14px"><?= csrf_field() ?>
-                    <input type="hidden" name="close_session" value="1">
-                    <input type="hidden" name="close_session_type" value="<?= h($type) ?>">
-                    <button class="btn secondary" type="submit" onclick="return confirm('<?= current_locale() === 'am' ? 'ይህንን ክፍለ ጊዜ ወደ መጋዘን መላክ ይፈልጋሉ?' : 'Send total to Warehouse?' ?>');" style="background:#2e7d32;color:#fff;border-color:#2e7d32">
-                        📦 <?= current_locale() === 'am' ? 'ወደመጋዘን ላክ' : 'Send to Warehouse' ?>
-                    </button>
-                </form>
+            <?php if (!$activeClosed && !empty($entries)): 
+                $sessionGrossTotal = milking_session_total($activeSessionId);
+            ?>
+                <div style="margin-top:16px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px">
+                    <h4 style="margin:0 0 8px 0;color:var(--primary)">📦 <?= current_locale() === 'am' ? 'የወተት ርክክብ ወደ መጋዘን (Transfer to Warehouse)' : 'Transfer Net Milk to Warehouse' ?></h4>
+                    <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px 0">
+                        <?= current_locale() === 'am' 
+                            ? 'ጠቅላላ የተጠለበ፦ <strong>' . number_format($sessionGrossTotal, 1) . ' ሊትር</strong>። ጥጃ የጠጣው ወተት ተቀንሶ የተጣራው ብቻ ወደ መጋዘን ክምችት ይገባል።'
+                            : 'Gross Yield: <strong>' . number_format($sessionGrossTotal, 1) . ' L</strong>. Net milk after calf consumption will be transferred to warehouse.' ?>
+                    </p>
+                    <form method="post"><?= csrf_field() ?>
+                        <input type="hidden" name="close_session" value="1">
+                        <input type="hidden" name="close_session_type" value="<?= h($type) ?>">
+                        <div class="form-row" style="display:flex;gap:12px;flex-wrap:wrap">
+                            <div class="form-group" style="flex:1;min-width:160px">
+                                <label style="font-size:12.5px;font-weight:700">🐮 <?= current_locale() === 'am' ? 'ጥጃ የጠጣው (ሊትር)' : 'Calf Consumed (L)' ?></label>
+                                <input type="number" step="0.1" name="calf_liters" value="0.0" min="0" max="<?= $sessionGrossTotal ?>" style="font-weight:700;padding:8px">
+                            </div>
+                            <div class="form-group" style="flex:2;min-width:200px">
+                                <label style="font-size:12.5px">📝 <?= current_locale() === 'am' ? 'ማስታወሻ (አማራጭ)' : 'Notes' ?></label>
+                                <input type="text" name="close_notes" placeholder="<?= current_locale() === 'am' ? 'ለምሳሌ፡ 2 ጥጃዎች ጠጥተዋል' : 'e.g. 2 calves fed' ?>" style="padding:8px">
+                            </div>
+                        </div>
+                        <button class="btn" type="submit" onclick="return confirm('<?= current_locale() === 'am' ? 'የተጣራውን ወተት ወደ መጋዘን መላክ ይፈልጋሉ?' : 'Send net milk to Warehouse?' ?>');" style="background:#2e7d32;color:#fff;border-color:#2e7d32">
+                            📦 <?= current_locale() === 'am' ? 'ጥጃ የጠጣውን ቀንሰህ ወደ መጋዘን ላክ' : 'Deduct & Send to Warehouse' ?>
+                        </button>
+                    </form>
+                </div>
             <?php elseif ($activeClosed): ?>
-                <p class="text-muted" style="margin-top:14px;color:#2e7d32;font-weight:600">✓ <?= current_locale() === 'am' ? 'ክፍለጊዜው ተዘግቷል — ጠቅላላ ምርቱ ወደ ወተት መጋዘን ተላልፏል።' : 'Session closed — transferred to Milk Warehouse.' ?></p>
+                <p class="text-muted" style="margin-top:14px;color:#2e7d32;font-weight:600">✓ <?= current_locale() === 'am' ? 'ክፍለጊዜው ተዘግቷል — የተጣራው ምርት ወደ ወተት መጋዘን ተላልፏል።' : 'Session closed — net milk transferred to Milk Warehouse.' ?></p>
             <?php endif; ?>
         </div>
 

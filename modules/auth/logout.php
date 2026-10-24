@@ -1,5 +1,5 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
 logout();
-header('Location: /aleltu-eifms/modules/auth/login.php');
+header('Location: ' . BASE_URL . '/modules/auth/login.php');
 exit;

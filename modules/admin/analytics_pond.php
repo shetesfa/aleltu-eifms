@@ -11,14 +11,14 @@ $d = $id > 0 ? an_pond_detail(db(), $id, $f['from'], $f['to']) : null;
 if (!$d) {
     an_audit('detail_not_found', 'fish_ponds', $id, 'analytics_pond');
     http_response_code(404);
-    die('<h2>404 - ' . h(an_t('not_found')) . '</h2><p><a href="/aleltu-eifms/modules/admin/analytics.php">' . h(an_t('back')) . '</a></p>');
+    die('<h2>404 - ' . h(an_t('not_found')) . '</h2><p><a href="<?= BASE_URL ?>/modules/admin/analytics.php">' . h(an_t('back')) . '</a></p>');
 }
 an_audit('view_pond', 'fish_ponds', $id, "from={$f['from']} to={$f['to']}");
 $p = $d['pond'];
 $loc = current_locale() === 'am';
 
 require_once __DIR__ . '/../../includes/header.php';
-an_detail_head('🐟 #' . $id . ' — ' . $p['name'], $f, '/aleltu-eifms/modules/admin/analytics_pond.php', ['id' => $id]);
+an_detail_head('🐟 #' . $id . ' — ' . $p['name'], $f, BASE_URL . '/modules/admin/analytics_pond.php', ['id' => $id]);
 an_kv([
     [$loc ? 'ስፋት (ካሬ ሜትር)' : 'Area (m²)', an_num($p['area_sq_m'], 1)],
     [$loc ? 'ሁኔታ' : 'Status', h($p['status'])],

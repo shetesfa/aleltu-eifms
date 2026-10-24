@@ -29,7 +29,7 @@ if (!$cow) {
     echo '<div class="card">
         <h2>📋 Cow Full History</h2>
         <p class="text-muted">No registered cows found in the database.</p>
-        <a href="/aleltu-eifms/modules/dairy/cow_add.php" class="btn">+ Register New Cow</a>
+        <a href="<?= BASE_URL ?>/modules/dairy/cow_add.php" class="btn">+ Register New Cow</a>
     </div>';
     require_once __DIR__ . '/../../includes/footer.php';
     exit;
@@ -128,6 +128,16 @@ switch ($tab) {
             'Overdue'            => (int) db()->query("SELECT COUNT(*) FROM vet_vaccination_records WHERE subject_type = 'dairy_cow' AND subject_id = {$cowId} AND status = 'scheduled' AND scheduled_date < CURDATE()")->fetchColumn(),
         ];
         break;
+
+    case 'finances':
+        $cowFin = cow_financial_summary($cowId);
+        $summaries = [
+            'Total Milk Revenue' => number_format($cowFin['total_milk_revenue'], 2) . ' ETB',
+            'Total Expenses'     => number_format($cowFin['total_expenses'], 2) . ' ETB',
+            'Net Profit'         => number_format($cowFin['net_profit'], 2) . ' ETB',
+            'ROI / Margin'       => $cowFin['roi_percent'] . '%',
+        ];
+        break;
 }
 
 $totalPages = max(1, (int) ceil($totalRows / $perPage));
@@ -137,6 +147,7 @@ $tabs = [
     'calving'     => current_locale() === 'am' ? '🐣 የመውለድ ታሪክ' : '🐣 Calving History',
     'health'      => current_locale() === 'am' ? '🩺 የጤና ምርመራዎች' : '🩺 Health Records',
     'vaccination' => current_locale() === 'am' ? '💉 የክትባት መዝገብ' : '💉 Vaccinations',
+    'finances'    => current_locale() === 'am' ? '💰 የፋይናንስና ትርፋማነት' : '💰 Financial P&L',
 ];
 ?>
 
@@ -159,7 +170,7 @@ $tabs = [
             </select>
         </form>
         <a href="?id=<?= $cowId ?>&tab=<?= h($tab) ?>&export=excel" class="btn secondary" style="padding:5px 12px">📊 <?= current_locale() === 'am' ? 'በዘመናዊ ኤክሴል አውርድ' : 'Export Excel' ?></a>
-        <a href="/aleltu-eifms/modules/dairy/cow_view.php?id=<?= $cowId ?>" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'የላሟ ሙሉ ገጽ' : 'Cow Profile' ?></a>
+        <a href="<?= BASE_URL ?>/modules/dairy/cow_view.php?id=<?= $cowId ?>" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'የላሟ ሙሉ ገጽ' : 'Cow Profile' ?></a>
     </div>
 </div>
 
@@ -218,7 +229,7 @@ $tabs = [
                 <td><?= eth_date($r['calving_date']) ?></td>
                 <td><span class="badge <?= in_array($r['outcome'], ['single_live','twins_live','live_birth']) ? 'milking' : 'sold' ?>"><?= h(str_replace('_', ' ', $r['outcome'])) ?></span></td>
                 <td><?php if ($r['calf_id'] && !empty($r['calf_tag'])): ?>
-                    <a href="/aleltu-eifms/modules/dairy/cow_view.php?id=<?= $r['calf_id'] ?>"><strong><?= h($r['calf_tag']) ?></strong></a>
+                    <a href="<?= BASE_URL ?>/modules/dairy/cow_view.php?id=<?= $r['calf_id'] ?>"><strong><?= h($r['calf_tag']) ?></strong></a>
                 <?php else: ?>—<?php endif; ?></td>
                 <td class="text-muted"><?= h($r['notes'] ?: '—') ?></td>
             </tr>
@@ -267,6 +278,97 @@ $tabs = [
         <?php if (empty($rows)): ?><tr><td colspan="5" class="text-muted"><?= current_locale() === 'am' ? 'ምንም የክትባት መዝገብ የለም።' : 'No vaccination records for this cow.' ?></td></tr><?php endif; ?>
         </tbody>
     </table>
+
+    <?php elseif ($tab === 'finances'): ?>
+        <?php $fin = $cowFin ?? cow_financial_summary($cowId); ?>
+        
+        <!-- Profitability KPI Tiles -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:14px;margin-bottom:20px">
+            <div class="card" style="padding:14px;border-left:4px solid #1565c0;box-shadow:none;background:var(--hover)">
+                <div style="font-size:12px;color:var(--text-muted);font-weight:700">🥛 <?= current_locale() === 'am' ? 'ጠቅላላ የወተት ገቢ' : 'Total Milk Revenue' ?></div>
+                <div style="font-size:20px;font-weight:800;color:#1565c0;margin-top:6px">
+                    <?= number_format($fin['total_milk_revenue'], 2) ?> <small style="font-size:12px">ETB</small>
+                </div>
+                <small class="text-muted"><?= number_format($fin['total_milk_liters'], 1) ?> ሊትር (በ <?= $fin['milk_price'] ?> ETB/L)</small>
+            </div>
+
+            <div class="card" style="padding:14px;border-left:4px solid #c62828;box-shadow:none;background:var(--hover)">
+                <div style="font-size:12px;color:var(--text-muted);font-weight:700">💸 <?= current_locale() === 'am' ? 'ጠቅላላ የወጣ ወጪ' : 'Total Expenses' ?></div>
+                <div style="font-size:20px;font-weight:800;color:#c62828;margin-top:6px">
+                    <?= number_format($fin['total_expenses'], 2) ?> <small style="font-size:12px">ETB</small>
+                </div>
+                <small class="text-muted"><?= current_locale() === 'am' ? 'መኖ፣ ህክምና፣ ክትባትና ግዢ' : 'Feed, vet, vaccines & purchase' ?></small>
+            </div>
+
+            <div class="card" style="padding:14px;border-left:4px solid <?= $fin['net_profit'] >= 0 ? '#2e7d32' : '#c62828' ?>;box-shadow:none;background:var(--hover)">
+                <div style="font-size:12px;color:var(--text-muted);font-weight:700">📈 <?= current_locale() === 'am' ? 'የተጣራ ትርፍ / ኪሳራ' : 'Net Profit / Loss' ?></div>
+                <div style="font-size:20px;font-weight:800;color:<?= $fin['net_profit'] >= 0 ? '#2e7d32' : '#c62828' ?>;margin-top:6px">
+                    <?= number_format($fin['net_profit'], 2) ?> <small style="font-size:12px">ETB</small>
+                </div>
+                <small style="color:<?= $fin['net_profit'] >= 0 ? '#2e7d32' : '#c62828' ?>;font-weight:700">
+                    <?= $fin['net_profit'] >= 0 ? '✓ አትራፊ ላም (ROI: '.$fin['roi_percent'].'%)' : '⚠️ ኪሳራ ላይ ያለች ላም (ROI: '.$fin['roi_percent'].'%)' ?>
+                </small>
+            </div>
+        </div>
+
+        <!-- Detailed Breakdown -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:16px;margin-bottom:20px">
+            <!-- Expenses Breakdown Card -->
+            <div style="background:var(--hover);border-radius:8px;padding:14px;border:1px solid var(--border)">
+                <h4 style="margin:0 0 10px 0;color:#c62828">💸 <?= current_locale() === 'am' ? 'ለላሟ የወጣ ወጪ ዝርዝር (Cost Breakdown)' : 'Cost Breakdown' ?></h4>
+                <table style="width:100%;font-size:13px;border-collapse:collapse">
+                    <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:6px 0">🌾 <?= current_locale() === 'am' ? 'የመኖ ወጪ' : 'Feed Cost' ?> (<?= $fin['days_on_farm'] ?> ቀናት × <?= $fin['daily_feed_rate'] ?> ETB)</td>
+                        <td style="padding:6px 0;text-align:right;font-weight:700"><?= number_format($fin['feed_cost'], 2) ?> ETB</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:6px 0">🩺 <?= current_locale() === 'am' ? 'የህክምናና መድሃኒት ወጪ' : 'Veterinary Treatments' ?></td>
+                        <td style="padding:6px 0;text-align:right;font-weight:700"><?= number_format($fin['health_cost'], 2) ?> ETB</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:6px 0">💉 <?= current_locale() === 'am' ? 'የክትባት ወጪዎች' : 'Vaccinations' ?></td>
+                        <td style="padding:6px 0;text-align:right;font-weight:700"><?= number_format($fin['vaccination_cost'], 2) ?> ETB</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:6px 0">🏷️ <?= current_locale() === 'am' ? 'የመጀመሪያ የግዢ ዋጋዋ' : 'Initial Purchase Cost' ?></td>
+                        <td style="padding:6px 0;text-align:right;font-weight:700"><?= number_format($fin['purchase_cost'], 2) ?> ETB</td>
+                    </tr>
+                    <tr style="font-weight:800;color:#c62828">
+                        <td style="padding:8px 0"><?= current_locale() === 'am' ? 'ጠቅላላ የወጣ ወጪ ድምር' : 'Total Expense' ?></td>
+                        <td style="padding:8px 0;text-align:right"><?= number_format($fin['total_expenses'], 2) ?> ETB</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Monthly Milk Revenue Breakdown -->
+            <div style="background:var(--hover);border-radius:8px;padding:14px;border:1px solid var(--border)">
+                <h4 style="margin:0 0 10px 0;color:#1565c0">🥛 <?= current_locale() === 'am' ? 'የወተት ምርት በወራት (የቅርብ ጊዜ)' : 'Recent Monthly Milk Revenue' ?></h4>
+                <?php if (empty($fin['monthly_milk'])): ?>
+                    <p class="text-muted" style="font-size:12px"><?= current_locale() === 'am' ? 'ምንም የወተት መዝገብ የለም።' : 'No milk yield recorded.' ?></p>
+                <?php else: ?>
+                    <table style="width:100%;font-size:13px;border-collapse:collapse">
+                        <thead>
+                            <tr style="border-bottom:1px solid var(--border);color:var(--text-muted)">
+                                <th style="text-align:left;padding:4px 0"><?= current_locale() === 'am' ? 'ወር' : 'Month' ?></th>
+                                <th style="text-align:center;padding:4px 0"><?= current_locale() === 'am' ? 'ሊትር' : 'Liters' ?></th>
+                                <th style="text-align:right;padding:4px 0"><?= current_locale() === 'am' ? 'የገንዘብ ተመን (ETB)' : 'Revenue (ETB)' ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($fin['monthly_milk'] as $mm): 
+                                $monthRev = (float)$mm['monthly_liters'] * $fin['milk_price'];
+                            ?>
+                                <tr style="border-bottom:1px solid rgba(0,0,0,0.05)">
+                                    <td style="padding:5px 0"><strong><?= h($mm['ym']) ?></strong> (<?= (int)$mm['session_count'] ?> ክፍለጊዜ)</td>
+                                    <td style="padding:5px 0;text-align:center"><?= number_format((float)$mm['monthly_liters'], 1) ?> L</td>
+                                    <td style="padding:5px 0;text-align:right;font-weight:700;color:#1565c0"><?= number_format($monthRev, 2) ?> ETB</td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
+        </div>
     <?php endif; ?>
 
     <!-- Pagination -->

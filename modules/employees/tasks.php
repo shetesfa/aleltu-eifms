@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             task_assign((int) $_POST['employee_id'], $_POST['title'], $_POST['description'] ?? '', $_POST['module'] ?? '', $_POST['due_date'] ?? '', current_user()['id']);
             flash('Task assigned.');
         }
-        header('Location: /aleltu-eifms/modules/employees/tasks.php');
+        header('Location: ' . BASE_URL . '/modules/employees/tasks.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');

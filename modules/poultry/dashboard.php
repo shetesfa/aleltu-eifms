@@ -44,14 +44,14 @@ $mortality = db()->query(
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <h2 class="mt-0" style="margin-bottom:0">🐓 <?= h(t('nav.poultry_dashboard', 'Poultry Manager Dashboard')) ?></h2>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="/aleltu-eifms/modules/poultry/egg_entry.php" class="btn" style="background:#2e7d32;border-color:#2e7d32;font-size:14px;padding:8px 14px">
+        <a href="<?= BASE_URL ?>/modules/poultry/egg_entry.php" class="btn" style="background:#2e7d32;border-color:#2e7d32;font-size:14px;padding:8px 14px">
             🥚 <?= current_locale() === 'am' ? 'የዛሬ እንቁላል አስገባ (Egg Entry)' : 'Enter Today\'s Eggs' ?>
         </a>
-        <a href="/aleltu-eifms/modules/poultry/flocks.php" class="btn secondary">
+        <a href="<?= BASE_URL ?>/modules/poultry/flocks.php" class="btn secondary">
             🐓 <?= current_locale() === 'am' ? 'መንጋዎች / ሞት (Flocks)' : 'Flocks & Mortality' ?>
         </a>
-        <a href="/aleltu-eifms/modules/poultry/material_request.php" class="btn secondary">📦 <?= h(t('reqs.title_poultry', 'Material Request')) ?></a>
-        <a href="/aleltu-eifms/modules/module_reports.php?module=poultry" class="btn secondary">📋 <?= h(t('nav.module_reports', 'Reports')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/poultry/material_request.php" class="btn secondary">📦 <?= h(t('reqs.title_poultry', 'Material Request')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/module_reports.php?module=poultry" class="btn secondary">📋 <?= h(t('nav.module_reports', 'Reports')) ?></a>
     </div>
 </div>
 
@@ -66,7 +66,7 @@ $mortality = db()->query(
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <h3 style="margin:0"><?= h(t('poultry.active_flocks', 'Active Flocks')) ?></h3>
-        <a href="/aleltu-eifms/modules/poultry/flocks.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= h(t('common.view_all', 'View All')) ?> →</a>
+        <a href="<?= BASE_URL ?>/modules/poultry/flocks.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= h(t('common.view_all', 'View All')) ?> →</a>
     </div>
     <table>
         <thead><tr><th><?= h(t('poultry.house', 'House')) ?></th><th><?= h(t('poultry.flock_code', 'Flock Code')) ?></th><th><?= h(t('dairy.breed', 'Breed')) ?></th><th><?= h(t('poultry.opening_pop', 'Opening')) ?></th><th><?= h(t('poultry.live_population', 'Live Population')) ?></th><th><?= current_locale() === 'am' ? 'የቆይታ ቀናት' : 'Days Active' ?></th><th><?= h(t('common.actions', 'Action')) ?></th></tr></thead>
@@ -87,7 +87,7 @@ $mortality = db()->query(
                     <?php endif; ?>
                 </td>
                 <td><?= $daysActive ?> <?= current_locale() === 'am' ? 'ቀናት' : 'days' ?></td>
-                <td><a href="/aleltu-eifms/modules/poultry/flock_view.php?id=<?= (int)$f['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view', 'View')) ?> →</a></td>
+                <td><a href="<?= BASE_URL ?>/modules/poultry/flock_view.php?id=<?= (int)$f['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view', 'View')) ?> →</a></td>
             </tr>
         <?php endforeach; ?>
         <?php if (empty($flocks)): ?><tr><td colspan="7" class="text-muted"><?= h(t('common.no_records', 'No active flocks.')) ?></td></tr><?php endif; ?>
@@ -103,7 +103,7 @@ $mortality = db()->query(
             <tbody>
             <?php foreach ($eggTrend as $e): ?>
                 <tr>
-                    <td><?= h($e['collection_date']) ?></td>
+                    <td><?= eth_date($e['collection_date']) ?></td>
                     <td><strong style="color:#2e7d32"><?= number_format($e['whole']) ?></strong></td>
                     <td><?= number_format($e['cracked']) ?></td>
                     <td><?= number_format($e['broken']) ?></td>
@@ -121,7 +121,7 @@ $mortality = db()->query(
             <tbody>
             <?php foreach ($mortality as $m): ?>
                 <tr>
-                    <td><?= h($m['log_date']) ?></td>
+                    <td><?= eth_date($m['log_date']) ?></td>
                     <td><?= h($m['house']) ?></td>
                     <td><?= h($m['flock_code']) ?></td>
                     <td><span class="badge sold"><?= (int)$m['count'] ?></span></td>

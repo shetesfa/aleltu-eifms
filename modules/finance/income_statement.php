@@ -4,8 +4,31 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_role(['general_manager', 'finance_officer', 'super_admin']);
 require_once __DIR__ . '/../../includes/header.php';
 
-$dateFrom = $_GET['from'] ?? date('Y-01-01');
-$dateTo   = $_GET['to']   ?? date('Y-m-d');
+$curEthYearNum  = eth_current_year();
+$curEthMonthNum = eth_current_month();
+
+$selEthYear  = isset($_GET['eth_year']) ? (int)$_GET['eth_year'] : $curEthYearNum;
+$selEthMonth = isset($_GET['eth_month']) ? (int)$_GET['eth_month'] : $curEthMonthNum;
+
+if ($selEthMonth > 0) {
+    $mRange   = eth_month_range($selEthYear, $selEthMonth);
+    $dateFrom = $mRange['from'];
+    $dateTo   = $mRange['to'];
+} elseif (isset($_GET['eth_year'])) {
+    $yRange   = eth_year_range($selEthYear);
+    $dateFrom = $yRange['from'];
+    $dateTo   = $yRange['to'];
+} else {
+    $curEthYear = eth_year_range();
+    $dateFrom   = $_GET['from'] ?? $curEthYear['from'];
+    $dateTo     = $_GET['to']   ?? date('Y-m-d');
+}
+
+$ethMonths = [
+    1 => 'መስከረም', 2 => 'ጥቅምት', 3 => 'ኅዳር', 4 => 'ታኅሣሥ',
+    5 => 'ጥር', 6 => 'የካቲት', 7 => 'መጋቢት', 8 => 'ሚያዝያ',
+    9 => 'ግንቦት', 10 => 'ሰኔ', 11 => 'ሐምሌ', 12 => 'ነሐሴ', 13 => 'ጳጉሜን'
+];
 
 // 1. REVENUE (From delivered/dispatched goods: milk, eggs, fish, feed, etc.)
 $revStmt = db()->prepare(
@@ -133,50 +156,81 @@ $netMargin = $totalRevenue > 0 ? ($netProfit / $totalRevenue) * 100 : 0.0;
     </div>
     <div style="display:flex;gap:8px" class="no-print">
         <button class="btn secondary" onclick="window.print()">🖨️ <?= current_locale() === 'am' ? 'አትም / PDF' : 'Print / Save PDF' ?></button>
-        <a href="/aleltu-eifms/modules/finance/dashboard.php" class="btn secondary">← <?= current_locale() === 'am' ? 'ወደ ዳሽቦርድ' : 'Finance Dashboard' ?></a>
+        <a href="<?= BASE_URL ?>/modules/finance/dashboard.php" class="btn secondary">← <?= current_locale() === 'am' ? 'ወደ ዳሽቦርድ' : 'Finance Dashboard' ?></a>
     </div>
 </div>
 
-<!-- Filter Bar -->
-<div class="card no-print" style="margin-bottom:20px;padding:14px 18px">
-    <form method="get" style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
+<!-- Filter Bar with Ethiopian Calendar -->
+<div class="card no-print" style="margin-bottom:20px;padding:16px 20px">
+    <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
         <div>
-            <label style="display:block;font-size:12px;font-weight:bold;margin-bottom:4px"><?= current_locale() === 'am' ? 'ከ ቀን (From Date)' : 'From Date' ?></label>
-            <input type="date" name="from" value="<?= h($dateFrom) ?>" style="padding:6px 10px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">
+            <label style="display:block;font-size:12px;font-weight:bold;margin-bottom:4px">📅 የኢትዮጵያ በጀት ዓመት</label>
+            <select name="eth_year" style="padding:7px 12px;border-radius:6px;border:1px solid var(--border);font-size:13px;font-weight:600">
+                <?php for ($y = $curEthYearNum + 1; $y >= $curEthYearNum - 2; $y--): ?>
+                    <option value="<?= $y ?>" <?= $selEthYear === $y ? 'selected' : '' ?>><?= $y ?> ዓ.ም</option>
+                <?php endfor; ?>
+            </select>
         </div>
         <div>
-            <label style="display:block;font-size:12px;font-weight:bold;margin-bottom:4px"><?= current_locale() === 'am' ? 'እስከ ቀን (To Date)' : 'To Date' ?></label>
-            <input type="date" name="to" value="<?= h($dateTo) ?>" style="padding:6px 10px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">
+            <label style="display:block;font-size:12px;font-weight:bold;margin-bottom:4px">🗓️ ወር ይምረጡ</label>
+            <select name="eth_month" style="padding:7px 12px;border-radius:6px;border:1px solid var(--border);font-size:13px;font-weight:600">
+                <option value="0" <?= $selEthMonth === 0 ? 'selected' : '' ?>>— ሙሉ በጀት ዓመት (All Year) —</option>
+                <?php foreach ($ethMonths as $mNum => $mName): ?>
+                    <option value="<?= $mNum ?>" <?= $selEthMonth === $mNum ? 'selected' : '' ?>><?= $mName ?> ወር</option>
+                <?php endforeach; ?>
+            </select>
         </div>
         <div>
-            <button type="submit" class="btn" style="padding:7px 16px">🔍 <?= current_locale() === 'am' ? 'አጣራ (Filter)' : 'Filter' ?></button>
+            <button type="submit" class="btn" style="padding:7px 18px;background:#1e5631;border-color:#1e5631">🔍 ሪፖርቱን አሳይ</button>
         </div>
-        <div style="margin-left:auto;display:flex;gap:6px">
-            <a href="?from=<?= date('Y-m-01') ?>&to=<?= date('Y-m-d') ?>" class="btn secondary" style="font-size:12px;padding:6px 10px"><?= current_locale() === 'am' ? 'የዚህ ወር' : 'This Month' ?></a>
-            <a href="?from=<?= date('Y-01-01') ?>&to=<?= date('Y-m-d') ?>" class="btn secondary" style="font-size:12px;padding:6px 10px"><?= current_locale() === 'am' ? 'የዚህ ዓመት' : 'This Year' ?></a>
+        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+            <a href="?eth_year=<?= $curEthYearNum ?>&eth_month=<?= $curEthMonthNum ?>" class="btn secondary" style="font-size:12px;padding:6px 12px">📅 የዚህ ወር (<?= $ethMonths[$curEthMonthNum] ?>)</a>
+            <a href="?eth_year=<?= $curEthYearNum ?>&eth_month=0" class="btn secondary" style="font-size:12px;padding:6px 12px">🗓️ የዚህ ሙሉ ዓመት (<?= $curEthYearNum ?> ዓ.ም)</a>
         </div>
     </form>
 </div>
 
-<!-- Key Highlights KPI Row (Version 1: 4 Core Pillars) -->
-<div class="kpi-row" style="margin-bottom:20px">
-    <div class="kpi" style="border-left:4px solid #2e7d32">
-        <div class="label">🟢 <?= current_locale() === 'am' ? 'ጠቅላላ የሽያጭ ገቢ (Revenue)' : 'Total Revenue' ?></div>
-        <div class="value" style="color:#2e7d32"><?= number_format($totalRevenue, 2) ?> ETB</div>
+<!-- Easy to Understand Grand Summary Box -->
+<div class="card" style="margin-bottom:20px;padding:18px 20px;border-radius:10px;background:var(--card);box-shadow:0 2px 10px rgba(0,0,0,0.06)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px">
+        <h3 style="margin:0;font-size:17px">
+            <?= $selEthMonth > 0 ? "📅 የ{$ethMonths[$selEthMonth]} ወር {$selEthYear} ዓ.ም" : "🗓️ የ{$selEthYear} ሙሉ በጀት ዓመት" ?> የትርፍና ኪሳራ ቀላል ስሌት
+        </h3>
+        <span class="badge active" style="font-size:12.5px;padding:4px 10px">
+            <?= eth_date($dateFrom) ?> — <?= eth_date($dateTo) ?>
+        </span>
     </div>
-    <div class="kpi" style="border-left:4px solid #e65100">
-        <div class="label">📦 <?= current_locale() === 'am' ? 'የምርትና መኖ ወጪ (COGS)' : 'Cost of Goods Sold' ?></div>
-        <div class="value" style="color:#e65100"><?= number_format($totalCogs, 2) ?> ETB</div>
-    </div>
-    <div class="kpi" style="border-left:4px solid #1565c0">
-        <div class="label">🏢 <?= current_locale() === 'am' ? 'የሥራ ማስኬጃና ደሞዝ (OpEx)' : 'Operating Expenses & Payroll' ?></div>
-        <div class="value" style="color:#1565c0"><?= number_format($totalOpEx, 2) ?> ETB</div>
-    </div>
-    <div class="kpi" style="border:2px solid <?= $netProfit >= 0 ? '#2e7d32' : '#b3261e' ?>;background:<?= $netProfit >= 0 ? 'rgba(46,125,50,0.06)' : 'rgba(179,38,30,0.06)' ?>">
-        <div class="label">💰 <?= current_locale() === 'am' ? 'የተጣራ ትርፍ/ኪሳራ (Net Profit)' : 'Net Profit / (Loss)' ?></div>
-        <div class="value" style="color:<?= $netProfit >= 0 ? '#2e7d32' : '#b3261e' ?>">
-            <?= number_format($netProfit, 2) ?> ETB
-            <span style="font-size:13px;font-weight:normal;display:block">(<?= number_format($netMargin, 1) ?>% Margin)</span>
+
+    <?php 
+    $totalAllOutflows = $totalExpenses + $totalPayroll;
+    $cleanNetProfit = $totalRevenue - $totalAllOutflows;
+    ?>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:14px;align-items:center">
+        <!-- 1. REVENUE -->
+        <div style="background:rgba(46,125,50,0.07);border:2px solid #2e7d32;border-radius:8px;padding:14px;text-align:center">
+            <div style="font-size:12px;font-weight:700;color:#2e7d32;text-transform:uppercase">🟢 1. ጠቅላላ የተገኘ ገቢ</div>
+            <div style="font-size:20px;font-weight:800;color:#2e7d32;margin-top:4px">+<?= number_format($totalRevenue, 2) ?> ETB</div>
+            <small class="text-muted" style="font-size:11px">ከምርት ሽያጭ የተገኘ</small>
+        </div>
+
+        <!-- 2. EXPENSES -->
+        <div style="background:rgba(198,40,40,0.07);border:2px solid #c62828;border-radius:8px;padding:14px;text-align:center">
+            <div style="font-size:12px;font-weight:700;color:#c62828;text-transform:uppercase">🔴 2. ጠቅላላ የወጣ ወጪና ደሞዝ</div>
+            <div style="font-size:20px;font-weight:800;color:#c62828;margin-top:4px">-<?= number_format($totalAllOutflows, 2) ?> ETB</div>
+            <small class="text-muted" style="font-size:11px">የስራ ማስኬጃ (<?= number_format($totalExpenses,0) ?>) + ደሞዝ (<?= number_format($totalPayroll,0) ?>)</small>
+        </div>
+
+        <!-- 3. NET PROFIT / LOSS -->
+        <div style="background:<?= $cleanNetProfit >= 0 ? 'rgba(46,125,50,0.12)' : 'rgba(179,38,30,0.12)' ?>;border:3px solid <?= $cleanNetProfit >= 0 ? '#2e7d32' : '#b3261e' ?>;border-radius:8px;padding:14px;text-align:center">
+            <div style="font-size:12px;font-weight:700;color:<?= $cleanNetProfit >= 0 ? '#2e7d32' : '#b3261e' ?>;text-transform:uppercase">
+                <?= $cleanNetProfit >= 0 ? '🏆 3. የተጣራ ትርፍ (Net Profit)' : '⚠️ 3. የተጣራ ኪሳራ (Net Loss)' ?>
+            </div>
+            <div style="font-size:22px;font-weight:800;color:<?= $cleanNetProfit >= 0 ? '#2e7d32' : '#b3261e' ?>;margin-top:4px">
+                <?= $cleanNetProfit >= 0 ? '+' : '' ?><?= number_format($cleanNetProfit, 2) ?> ETB
+            </div>
+            <small style="font-size:11.5px;font-weight:600;color:<?= $cleanNetProfit >= 0 ? '#2e7d32' : '#b3261e' ?>">
+                <?= $cleanNetProfit >= 0 ? '✓ ድርጅቱ ትርፍ ላይ ይገኛል' : '⚠️ ወጪ ከገቢ በልጧል' ?>
+            </small>
         </div>
     </div>
 </div>
@@ -184,12 +238,12 @@ $netMargin = $totalRevenue > 0 ? ($netProfit / $totalRevenue) * 100 : 0.0;
 <!-- Formal Financial Statement Table -->
 <div class="card" style="margin-bottom:24px">
     <div style="text-align:center;border-bottom:2px solid var(--border);padding-bottom:14px;margin-bottom:16px">
-        <h3 style="margin:0 0 4px 0;font-size:20px">ALELTU AGRICULTURAL & FARMING ENTERPRISE</h3>
+        <h3 style="margin:0 0 4px 0;font-size:19px"><?= current_locale() === 'am' ? 'ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት' : 'TEKLU GETACHEW CATTLE BREEDING & DAIRY PROCESSING ENTERPRISE' ?></h3>
         <div style="font-size:15px;font-weight:bold;color:var(--primary)">
             <?= current_locale() === 'am' ? 'የትርፍና ኪሳራ መግለጫ (STATEMENT OF PROFIT OR LOSS)' : 'STATEMENT OF PROFIT OR LOSS' ?>
         </div>
         <div style="font-size:13px;color:var(--text-muted)">
-            <?= current_locale() === 'am' ? 'የተዘጋጀበት ጊዜ: ከ ' . h($dateFrom) . ' እስከ ' . h($dateTo) : 'For the period from ' . h($dateFrom) . ' to ' . h($dateTo) ?>
+            <?= current_locale() === 'am' ? 'የተዘጋጀበት ጊዜ (በኢትዮጵያ ካላንደር)፦ ከ ' . h(eth_date($dateFrom, 'long')) . ' እስከ ' . h(eth_date($dateTo, 'long')) : 'For the period from ' . h($dateFrom) . ' to ' . h($dateTo) ?>
         </div>
     </div>
 

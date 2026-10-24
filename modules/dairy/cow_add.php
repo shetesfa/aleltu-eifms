@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         cow_register($data);
         flash(current_locale() === 'am' ? '✓ ላሟ በተሳካ ሁኔታ ተመዝግባለች።' : 'Cow registered successfully.');
-        header('Location: /aleltu-eifms/modules/dairy/cows.php');
+        header('Location: ' . BASE_URL . '/modules/dairy/cows.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -76,7 +76,7 @@ $groups = db()->query("SELECT id, name FROM dairy_cow_groups ORDER BY name")->fe
 
         <div style="display:flex;gap:10px;align-items:center;margin-top:16px">
             <button class="btn" type="submit">✓ <?= h(t('dairy.register_new', 'Register Cow')) ?></button>
-            <a href="/aleltu-eifms/modules/dairy/cows.php" class="btn secondary"><?= h(t('common.cancel', 'Cancel')) ?></a>
+            <a href="<?= BASE_URL ?>/modules/dairy/cows.php" class="btn secondary"><?= h(t('common.cancel', 'Cancel')) ?></a>
         </div>
     </form>
 </div>

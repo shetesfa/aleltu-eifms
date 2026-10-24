@@ -22,7 +22,7 @@ function analytics_guard(): array
         an_audit('access_denied', 'analytics', 0, 'url=' . substr((string)($_SERVER['REQUEST_URI'] ?? ''), 0, 200));
         http_response_code(403);
         die('<h2>403 - Only the Super Admin can open farm performance analytics.</h2>'
-          . '<p><a href="/aleltu-eifms/index.php">Back to dashboard</a></p>');
+          . '<p><a href="<?= BASE_URL ?>/index.php">Back to dashboard</a></p>');
     }
     return $user;
 }
@@ -170,7 +170,7 @@ function an_status_badge(string $status): string
 function an_link(string $page, array $extra, array $f): string
 {
     $q = an_filter_query($f, $extra);
-    return '/aleltu-eifms/modules/admin/' . $page . '?' . h($q);
+    return BASE_URL . '/modules/admin/' . $page . '?' . h($q);
 }
 
 /** Protects CSV cells from spreadsheet formula injection (=, +, -, @ at the start of text). */
@@ -432,8 +432,8 @@ function an_missing_box(array $missing): void
 /** Common top of a detail page (title + back link + filters). Returns nothing. */
 function an_detail_head(string $title, array $f, string $action, array $hidden): void
 {
-    echo '<link rel="stylesheet" href="/aleltu-eifms/assets/css/analytics.css"><div class="an-wrap">';
+    echo '<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/analytics.css"><div class="an-wrap">';
     echo '<div class="an-head"><h1>' . h($title) . '</h1><div class="an-head-actions"><a class="btn secondary" href="'
-        . h('/aleltu-eifms/modules/admin/analytics.php?' . an_filter_query($f)) . '">' . h(an_t('back')) . '</a></div></div>';
+        . h(BASE_URL . '/modules/admin/analytics.php?' . an_filter_query($f)) . '">' . h(an_t('back')) . '</a></div></div>';
     an_render_filters($f, $action, $hidden, false, false);
 }

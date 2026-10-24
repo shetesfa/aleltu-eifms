@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_active'])) {
         log_activity('admin', 'update', 'users', $uid, "User account {$action} by admin");
         flash("User account " . ($newActive ? 'unblocked and active.' : 'blocked and cannot login.'));
     }
-    header('Location: /aleltu-eifms/modules/admin/users.php');
+    header('Location: ' . BASE_URL . '/modules/admin/users.php');
     exit;
 }
 
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_2fa'])) {
     db()->prepare("DELETE FROM user_2fa_recovery_codes WHERE user_id = ?")->execute([$uid]);
     log_activity('admin', 'update', 'users', $uid, "2FA reset by admin");
     flash(current_locale() === 'am' ? 'የተጠቃሚው 2FA በተሳካ ሁኔታ ተሰርዟል።' : 'Two-factor authentication has been reset for this user.');
-    header('Location: /aleltu-eifms/modules/admin/users.php');
+    header('Location: ' . BASE_URL . '/modules/admin/users.php');
     exit;
 }
 
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_user'])) {
         $newId = (int) db()->lastInsertId();
         log_activity('admin', 'create', 'users', $newId, "New user registered: {$name}");
         flash(current_locale() === 'am' ? "ተጠቃሚ '{$name}' በተሳካ ሁኔታ ተፈጥሯል። አሁን መግባት ይችላሉ።" : "User '{$name}' created successfully. They can now log in.");
-        header('Location: /aleltu-eifms/modules/admin/users.php');
+        header('Location: ' . BASE_URL . '/modules/admin/users.php');
         exit;
     }
 }
@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
     } else {
         flash('Name and Role are required.', 'error');
     }
-    header('Location: /aleltu-eifms/modules/admin/users.php');
+    header('Location: ' . BASE_URL . '/modules/admin/users.php');
     exit;
 }
 

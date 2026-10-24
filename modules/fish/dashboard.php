@@ -42,11 +42,11 @@ $feedings = db()->query(
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <h2 class="mt-0" style="margin-bottom:0">🐟 <?= h(t('nav.fish_dashboard', 'Fish Manager Dashboard')) ?></h2>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="/aleltu-eifms/modules/fish/ponds.php" class="btn" style="background:#0277bd;border-color:#0277bd">
+        <a href="<?= BASE_URL ?>/modules/fish/ponds.php" class="btn" style="background:#0277bd;border-color:#0277bd">
             🌊 <?= current_locale() === 'am' ? 'ኩሬዎች / አዲስ ኩሬ (Ponds)' : 'Manage Ponds' ?>
         </a>
-        <a href="/aleltu-eifms/modules/fish/material_request.php" class="btn secondary">📦 <?= h(t('reqs.title_fish', 'Feed & Supplies Request')) ?></a>
-        <a href="/aleltu-eifms/modules/module_reports.php?module=fish" class="btn secondary">📋 <?= h(t('nav.module_reports', 'Reports')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/fish/material_request.php" class="btn secondary">📦 <?= h(t('reqs.title_fish', 'Feed & Supplies Request')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/module_reports.php?module=fish" class="btn secondary">📋 <?= h(t('nav.module_reports', 'Reports')) ?></a>
     </div>
 </div>
 
@@ -60,7 +60,7 @@ $feedings = db()->query(
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <h3 style="margin:0">🌊 <?= current_locale() === 'am' ? 'የሁሉም ኩሬዎች አጠቃላይ እይታ እና ቀጥታ እርምጃዎች' : 'Ponds & Quick Actions' ?></h3>
-        <a href="/aleltu-eifms/modules/fish/ponds.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= h(t('common.view_all', 'Manage Ponds')) ?> →</a>
+        <a href="<?= BASE_URL ?>/modules/fish/ponds.php" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= h(t('common.view_all', 'Manage Ponds')) ?> →</a>
     </div>
     <table>
         <thead><tr><th><?= h(t('fish.pond', 'Pond Name')) ?></th><th><?= h(t('fish.area', 'Area (m²)')) ?></th><th><?= h(t('common.status', 'Status')) ?></th><th><?= current_locale() === 'am' ? 'ንቁ ዝርያዎች' : 'Active Stocks' ?></th><th><?= h(t('fish.total_live_fish', 'Total Fish')) ?></th><th><?= h(t('common.actions', 'Action')) ?></th></tr></thead>
@@ -73,7 +73,7 @@ $feedings = db()->query(
                 <td><?= (int)$p['stock_count'] ?></td>
                 <td><strong style="color:#0277bd"><?= number_format($p['total_fish']) ?></strong></td>
                 <td>
-                    <a href="/aleltu-eifms/modules/fish/pond_view.php?id=<?= (int)$p['id'] ?>" class="btn secondary" style="padding:4px 10px;font-size:12px">
+                    <a href="<?= BASE_URL ?>/modules/fish/pond_view.php?id=<?= (int)$p['id'] ?>" class="btn secondary" style="padding:4px 10px;font-size:12px">
                         🐟 <?= current_locale() === 'am' ? 'መመገብ / ሞት / ማጨድ' : 'Feed / Mortality / Harvest' ?> →
                     </a>
                 </td>
@@ -92,7 +92,7 @@ $feedings = db()->query(
             <tbody>
             <?php foreach ($harvests as $h): ?>
                 <tr>
-                    <td><?= h($h['harvest_date']) ?></td>
+                    <td><?= eth_date($h['harvest_date']) ?></td>
                     <td><?= h($h['pond']) ?></td>
                     <td><?= h($h['species']) ?></td>
                     <td><?= h($h['grade'] ?: '—') ?></td>
@@ -111,7 +111,7 @@ $feedings = db()->query(
             <tbody>
             <?php foreach ($feedings as $f): ?>
                 <tr>
-                    <td><?= h($f['feed_date'] ?: '—') ?></td>
+                    <td><?= $f['feed_date'] ? eth_datetime($f['feed_date']) : '—' ?></td>
                     <td><?= h($f['pond']) ?></td>
                     <td><?= h($f['species']) ?></td>
                     <td><?= h($f['feed_type'] ?: '—') ?></td>

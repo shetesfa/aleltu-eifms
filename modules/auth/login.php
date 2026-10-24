@@ -3,7 +3,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
 
 if (current_user()) {
-    header('Location: /aleltu-eifms/index.php');
+    header('Location: ' . BASE_URL . '/index.php');
     exit;
 }
 
@@ -21,10 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     $result = attempt_login($username, $password);
     if ($result === 'ok') {
-        header('Location: /aleltu-eifms/index.php');
+        header('Location: ' . BASE_URL . '/index.php');
         exit;
     } elseif ($result === 'needs_2fa') {
-        header('Location: /aleltu-eifms/modules/auth/two_factor_challenge.php');
+        header('Location: ' . BASE_URL . '/modules/auth/two_factor_challenge.php');
         exit;
     } elseif ($result === 'inactive') {
         $error = 'Your employee account is currently inactive. Please contact management.';
@@ -39,12 +39,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#2b5c33">
-    <link rel="manifest" href="/aleltu-eifms/manifest.json">
-    <link rel="apple-touch-icon" href="/aleltu-eifms/assets/icons/apple-touch-icon.png">
+    <link rel="manifest" href="<?= BASE_URL ?>/manifest.json">
+    <link rel="apple-touch-icon" href="<?= BASE_URL ?>/assets/icons/apple-touch-icon.png">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Login - Aleltu Farm EIFMS</title>
-    <link rel="stylesheet" href="/aleltu-eifms/assets/css/app.css">
+    <title><?= h(t('company.name')) ?></title>
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/app.css">
 </head>
 <body class="login-body">
 <div class="login-wrap">
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         
         <div class="brand-header">
-            <div class="brand-icon">🌾</div>
+            <div class="brand-icon">🐄</div>
             <h1><?= h(t('login.title')) ?></h1>
             <p class="sub"><?= h(t('login.subtitle')) ?></p>
         </div>

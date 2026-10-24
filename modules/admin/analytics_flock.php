@@ -11,7 +11,7 @@ $d = $id > 0 ? an_flock_detail(db(), $id, $f['from'], $f['to']) : null;
 if (!$d) {
     an_audit('detail_not_found', 'poultry_flocks', $id, 'analytics_flock');
     http_response_code(404);
-    die('<h2>404 - ' . h(an_t('not_found')) . '</h2><p><a href="/aleltu-eifms/modules/admin/analytics.php">' . h(an_t('back')) . '</a></p>');
+    die('<h2>404 - ' . h(an_t('not_found')) . '</h2><p><a href="<?= BASE_URL ?>/modules/admin/analytics.php">' . h(an_t('back')) . '</a></p>');
 }
 an_audit('view_flock', 'poultry_flocks', $id, "from={$f['from']} to={$f['to']}");
 $fl = $d['flock'];
@@ -19,7 +19,7 @@ $e = $d['eggs'];
 $loc = current_locale() === 'am';
 
 require_once __DIR__ . '/../../includes/header.php';
-an_detail_head('🐓 #' . $id . ' — ' . $fl['breed'], $f, '/aleltu-eifms/modules/admin/analytics_flock.php', ['id' => $id]);
+an_detail_head('🐓 #' . $id . ' — ' . $fl['breed'], $f, BASE_URL . '/modules/admin/analytics_flock.php', ['id' => $id]);
 an_kv([
     [$loc ? 'ቤት' : 'House', h((string)$fl['house_name'])],
     [$loc ? 'የተጀመረበት' : 'Stocked', h(an_eth_label($fl['stocking_date']))],

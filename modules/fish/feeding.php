@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             log_activity('fish', 'feeding', 'fish_ponds', $pondId, "Fed {$quantityKg}kg of {$feedType} on {$feedDate}");
             flash(current_locale() === 'am' ? '✓ የዓሳ መመገቢያ ተመዝግቧል።' : 'Fish feeding recorded successfully.');
         }
-        header("Location: /aleltu-eifms/modules/fish/feeding.php");
+        header("Location: " . BASE_URL . "/modules/fish/feeding.php");
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -117,6 +117,6 @@ $recentFeedings = db()->query(
     </table>
 </div>
 
-<a href="/aleltu-eifms/modules/fish/dashboard.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ ዓሳ ዳሽቦርድ ተመለስ' : 'Back to Fish Dashboard' ?></a>
+<a href="<?= BASE_URL ?>/modules/fish/dashboard.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ ዓሳ ዳሽቦርድ ተመለስ' : 'Back to Fish Dashboard' ?></a>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

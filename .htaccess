@@ -1,5 +1,12 @@
 RewriteEngine On
 
+# -------------------------------------------------------------
+# Host Compatibility: Strip /aleltu-eifms/ prefix when hosted at domain root
+# -------------------------------------------------------------
+RewriteCond %{THE_REQUEST} \s/+aleltu-eifms/([^\s?]*) [NC]
+RewriteRule ^aleltu-eifms/(.*)$ /$1 [R=301,L,NE]
+RewriteRule ^aleltu-eifms/(.*)$ $1 [L,QSA]
+
 # Remove .php extension (pretty URLs)
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME}.php -f
@@ -10,12 +17,19 @@ RewriteRule ^api/v1/([a-z_]+)/([a-z_]+)/?$ api/v1/$1/$2.php [L,QSA]
 RewriteRule ^api/v1/([a-z_]+)/?$ api/v1/$1/index.php [L,QSA]
 
 # Security headers
-Header always set X-Content-Type-Options nosniff
-Header always set X-Frame-Options SAMEORIGIN
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "SAMEORIGIN"
 Header always set X-XSS-Protection "1; mode=block"
 Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none';"
 
 # Block direct access to sensitive dirs
 RewriteRule ^includes/ - [F,L]
 RewriteRule ^config/ - [F,L]
 RewriteRule ^sql/ - [F,L]
+RewriteRule ^scratch/ - [F,L]
+
+# Block migration/utility scripts from public access after deployment
+RewriteRule ^run_final_migration\.php$ - [F,L]
+RewriteRule ^system_check\.php$ - [F,L]

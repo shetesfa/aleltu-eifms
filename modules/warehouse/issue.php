@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         stock_issue(1, $itemId, $qty, $dest);
         flash("✓ {$qty} መጠን ወጪ ሆኖ ተመዝግቧል (Stock successfully issued).");
-        header('Location: /aleltu-eifms/modules/warehouse/issue.php');
+        header('Location: ' . BASE_URL . '/modules/warehouse/issue.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -55,7 +55,7 @@ $recentIssues = db()->query(
         <p class="text-muted" style="margin:0">ዋና ማዕከላዊ መጋዘን — ለክፍሎች ወይም ለስርጭት የሚወጡ ዕቃዎችን ወጪ መመዝገቢያ።</p>
     </div>
     <div style="display:flex;gap:8px">
-        <a href="/aleltu-eifms/modules/warehouse/stock.php" class="btn secondary">&larr; ወደ ክምችት ዝርዝር (Stock Inventory)</a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/stock.php" class="btn secondary">&larr; ወደ ክምችት ዝርዝር (Stock Inventory)</a>
     </div>
 </div>
 
@@ -106,7 +106,7 @@ $recentIssues = db()->query(
         </div>
 
         <button class="btn" type="submit" id="submitIssueBtn">✓ ወጪ አድርግ (Confirm Issue)</button>
-        <a href="/aleltu-eifms/modules/warehouse/stock.php" class="btn secondary">ተመለስ (Cancel)</a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/stock.php" class="btn secondary">ተመለስ (Cancel)</a>
     </form>
 </div>
 

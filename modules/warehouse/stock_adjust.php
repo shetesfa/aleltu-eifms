@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         stock_adjust($warehouseId, $itemId, $type, $quantity, $reason, current_user()['id']);
         flash('✓ የክምችት ማስተካከያው ተመዝግቦ የዕቃው መጠን ተስተካክሏል (Stock adjustment successfully applied).');
-        header('Location: /aleltu-eifms/modules/warehouse/stock_adjust.php');
+        header('Location: ' . BASE_URL . '/modules/warehouse/stock_adjust.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -54,7 +54,7 @@ $adjustments = db()->query(
         <p class="text-muted" style="margin:0">በመጋዘን ቆጠራ ወቅት የተገኘን ትርፍ ወይም የተበላሸ/የጎደለን ዕቃ ከበቂ ማብራሪያ ጋር ማስተካከያ መመዝገቢያ።</p>
     </div>
     <div style="display:flex;gap:8px">
-        <a href="/aleltu-eifms/modules/warehouse/stock.php" class="btn secondary">&larr; ወደ ክምችት ዝርዝር (Stock Inventory)</a>
+        <a href="<?= BASE_URL ?>/modules/warehouse/stock.php" class="btn secondary">&larr; ወደ ክምችት ዝርዝር (Stock Inventory)</a>
     </div>
 </div>
 

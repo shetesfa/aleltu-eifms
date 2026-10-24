@@ -8,7 +8,7 @@ $search = trim($_GET['search'] ?? '');
 $deptFilter = (int) ($_GET['department_id'] ?? 0);
 $statusFilter = trim($_GET['status'] ?? '');
 
-$sql = "SELECT e.*, d.name AS department_name, u.email AS user_email, u.is_active AS user_active
+$sql = "SELECT e.*, d.name AS department_name, u.name AS user_username, u.email AS user_email, u.is_active AS user_active
         FROM employees e 
         LEFT JOIN departments d ON d.id = e.department_id 
         LEFT JOIN users u ON u.id = e.user_id
@@ -47,10 +47,10 @@ $departments = db()->query("SELECT id, name FROM departments ORDER BY name")->fe
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'የሰራተኞች መዝገብ መፈለጊያ፣ የስራ ሁኔታ፣ መገኘት እና የግል አገልግሎት መለያ አስተዳደር' : 'Search staff records, manage employment status, attendance, and self-service account linkage.' ?></p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="/aleltu-eifms/modules/employees/add.php" class="btn">+ <?= h(t('emp.add_new', 'Register Employee')) ?></a>
-        <a href="/aleltu-eifms/modules/employees/attendance.php" class="btn secondary">📅 <?= h(t('nav.attendance', 'Attendance')) ?></a>
-        <a href="/aleltu-eifms/modules/employees/leave.php" class="btn secondary">🏖️ <?= h(t('nav.leave_requests', 'Leave Requests')) ?></a>
-        <a href="/aleltu-eifms/modules/employees/tasks.php" class="btn secondary">📋 <?= h(t('nav.tasks', 'Tasks')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/employees/add.php" class="btn">+ <?= h(t('emp.add_new', 'Register Employee')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/employees/attendance.php" class="btn secondary">📅 <?= h(t('nav.attendance', 'Attendance')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/employees/leave.php" class="btn secondary">🏖️ <?= h(t('nav.leave_requests', 'Leave Requests')) ?></a>
+        <a href="<?= BASE_URL ?>/modules/employees/tasks.php" class="btn secondary">📋 <?= h(t('nav.tasks', 'Tasks')) ?></a>
     </div>
 </div>
 
@@ -81,7 +81,7 @@ $departments = db()->query("SELECT id, name FROM departments ORDER BY name")->fe
         </div>
         <button class="btn" type="submit" style="padding:7px 16px">🔍 <?= h(t('common.search', 'Search')) ?></button>
         <?php if ($search !== '' || $deptFilter > 0 || $statusFilter !== ''): ?>
-            <a href="/aleltu-eifms/modules/employees/list.php" class="btn secondary" style="padding:7px 12px"><?= current_locale() === 'am' ? 'አጽዳ' : 'Clear' ?></a>
+            <a href="<?= BASE_URL ?>/modules/employees/list.php" class="btn secondary" style="padding:7px 12px"><?= current_locale() === 'am' ? 'አጽዳ' : 'Clear' ?></a>
         <?php endif; ?>
     </form>
 </div>
@@ -121,16 +121,16 @@ $departments = db()->query("SELECT id, name FROM departments ORDER BY name")->fe
                     <td><?= h($e['job_title'] ?: '—') ?></td>
                     <td><span class="<?= $statusBadge ?>"><?= h($stText) ?></span></td>
                     <td>
-                        <?php if ($e['user_email']): ?>
-                            <span style="font-size:12px">🔑 <?= h($e['user_email']) ?></span>
+                        <?php if (!empty($e['user_username'])): ?>
+                            <span style="font-size:13px;font-weight:700;color:var(--primary)">👤 <?= h($e['user_username']) ?></span>
                             <?php if ($e['user_active'] == 0): ?><br><span class="badge sold" style="font-size:9px"><?= current_locale() === 'am' ? 'አካውንቱ ቦዝኗል' : 'Account Inactive' ?></span><?php endif; ?>
                         <?php else: ?>
                             <span class="text-muted" style="font-size:12px">⚠️ <?= current_locale() === 'am' ? 'አልተያያዘም' : 'Not linked' ?></span>
                         <?php endif; ?>
                     </td>
                     <td>
-                        <a href="/aleltu-eifms/modules/employees/view.php?id=<?= (int) $e['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px;white-space:nowrap"><?= h(t('common.view', 'View Profile')) ?> &rarr;</a>
-                        <a href="/aleltu-eifms/modules/employees/id_card.php?id=<?= (int) $e['id'] ?>" target="_blank" class="btn secondary" style="padding:3px 8px;font-size:12px;white-space:nowrap">🆔 <?= h(t('emp.id_card', 'ID Card')) ?></a>
+                        <a href="<?= BASE_URL ?>/modules/employees/view.php?id=<?= (int) $e['id'] ?>" class="btn secondary" style="padding:3px 8px;font-size:12px;white-space:nowrap"><?= h(t('common.view', 'View Profile')) ?> &rarr;</a>
+                        <a href="<?= BASE_URL ?>/modules/employees/id_card.php?id=<?= (int) $e['id'] ?>" target="_blank" class="btn secondary" style="padding:3px 8px;font-size:12px;white-space:nowrap">🆔 <?= h(t('emp.id_card', 'ID Card')) ?></a>
                     </td>
                 </tr>
             <?php endforeach; ?>

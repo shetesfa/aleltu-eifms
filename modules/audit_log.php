@@ -6,7 +6,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 $module = $_GET['module'] ?? '';
 $user_q = trim($_GET['user'] ?? '');
-$from   = $_GET['from'] ?? date('Y-m-01');
+$curEthMonth = eth_month_range();
+$from   = $_GET['from'] ?? $curEthMonth['from'];
 $to     = $_GET['to']   ?? date('Y-m-d');
 $page   = max(1, (int)($_GET['page'] ?? 1));
 $limit  = 50;
@@ -60,7 +61,7 @@ $modules = db()->query("SELECT DISTINCT module FROM audit_log ORDER BY module")-
         <div class="form-group" style="margin:0"><label><?= h(t('common.to', 'To')) ?></label><input type="date" name="to" value="<?= h($to) ?>"></div>
         <div class="form-group" style="margin:0"><label><?= current_locale() === 'am' ? 'ተጠቃሚ' : 'User' ?></label><input type="text" name="user" value="<?= h($user_q) ?>" placeholder="<?= current_locale() === 'am' ? 'ስም ወይም ኢሜይል' : 'name or email' ?>"></div>
         <button class="btn secondary" type="submit"><?= h(t('common.filter', 'Filter')) ?></button>
-        <a href="/aleltu-eifms/modules/audit_log.php" class="btn secondary"><?= current_locale() === 'am' ? 'አጽዳ' : 'Reset' ?></a>
+        <a href="<?= BASE_URL ?>/modules/audit_log.php" class="btn secondary"><?= current_locale() === 'am' ? 'አጽዳ' : 'Reset' ?></a>
     </form>
 </div>
 
@@ -96,7 +97,10 @@ $modules = db()->query("SELECT DISTINCT module FROM audit_log ORDER BY module")-
             };
         ?>
             <tr>
-                <td style="white-space:nowrap;font-size:12px"><?= h($l['created_at']) ?></td>
+                <td style="white-space:nowrap;font-size:12px">
+                    <div><?= eth_datetime($l['created_at']) ?></div>
+                    <small class="text-muted" style="font-size:10px"><?= h($l['created_at']) ?></small>
+                </td>
                 <td><?= h($l['user_name'] ?: (current_locale() === 'am' ? 'ሲስተም' : 'System')) ?></td>
                 <td><span class="badge"><?= h($l['module']) ?></span></td>
                 <td><span class="badge <?= $actionClass ?>"><?= h($l['action']) ?></span></td>

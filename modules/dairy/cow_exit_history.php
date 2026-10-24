@@ -54,6 +54,6 @@ $exits = db()->query(
     </table>
 </div>
 
-<a href="/aleltu-eifms/modules/dairy/cows.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ ላሞች ዝርዝር ተመለስ' : 'Back to Cow List' ?></a>
+<a href="<?= BASE_URL ?>/modules/dairy/cows.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ ላሞች ዝርዝር ተመለስ' : 'Back to Cow List' ?></a>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

@@ -48,10 +48,10 @@ $items = $missing ? [] : $pdo->query(
 
 require_once __DIR__ . '/../../includes/header.php';
 ?>
-<link rel="stylesheet" href="/aleltu-eifms/assets/css/analytics.css">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/analytics.css">
 <div class="an-wrap">
     <div class="an-head"><h1>⚙ <?= h(an_t('title')) ?> — <?= $loc ? 'መቼቶች' : 'Settings' ?></h1>
-        <a class="btn secondary" href="/aleltu-eifms/modules/admin/analytics.php"><?= h(an_t('back')) ?></a></div>
+        <a class="btn secondary" href="<?= BASE_URL ?>/modules/admin/analytics.php"><?= h(an_t('back')) ?></a></div>
     <?php an_render_schema_notice($missing); ?>
     <?php if ($msg): ?><div class="an-note an-n-info"><?= h($msg) ?></div><?php endif; ?>
     <?php if (!$missing): ?>

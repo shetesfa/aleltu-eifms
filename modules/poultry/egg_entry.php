@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $total = max(0, $whole - $broken);
         log_activity('poultry', 'create', 'poultry_egg_collections', (int)db()->lastInsertId(), "Flock #{$flockId}: {$total} eggs (whole:{$whole}, cracked:{$cracked}, broken:{$broken})");
         flash('✓ ' . (current_locale() === 'am' ? "የዛሬ እንቁላል ({$total}) ተመዝግቧል!" : "Egg collection recorded! Total: {$total} eggs."));
-        header('Location: /aleltu-eifms/modules/poultry/egg_entry.php');
+        header('Location: ' . BASE_URL . '/modules/poultry/egg_entry.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -91,7 +91,7 @@ $todayBroken = array_sum(array_map(fn($e) => (int)$e['broken_count'], $todayEntr
         <h2 class="mt-0" style="margin-bottom:4px">🥚 <?= current_locale()==='am'?'የዕለቱ እንቁላል ምዝገባ':'Today\'s Egg Collection Entry' ?></h2>
         <p class="text-muted" style="margin:0"><?= current_locale()==='am'?'የእያንዳንዱ መንጋ ሙሉ (ጥሩ) እንቁላል እና የተሰበረ (ኪሳራ) መመዝገቢያ':'Record whole eggs and broken eggs per flock per session.' ?></p>
     </div>
-    <a href="/aleltu-eifms/modules/poultry/dashboard.php" class="btn secondary">← <?= current_locale()==='am'?'ወደ ዶሮ እርባታ ዳሽቦርድ':'Poultry Dashboard' ?></a>
+    <a href="<?= BASE_URL ?>/modules/poultry/dashboard.php" class="btn secondary">← <?= current_locale()==='am'?'ወደ ዶሮ እርባታ ዳሽቦርድ':'Poultry Dashboard' ?></a>
 </div>
 
 <?php if ($todayTotal > 0 || $todayBroken > 0): ?>

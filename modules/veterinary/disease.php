@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             flash(current_locale() === 'am' ? '✓ የበሽታ ክስተት መዝገብ በተሳካ ሁኔታ ተመዝግቧል።' : 'Disease incident recorded.');
         }
-        header('Location: /aleltu-eifms/modules/veterinary/disease.php');
+        header('Location: ' . BASE_URL . '/modules/veterinary/disease.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -34,7 +34,7 @@ $incidents = db()->query("SELECT * FROM vet_disease_incidents ORDER BY id DESC L
         <h2 class="mt-0" style="margin-bottom:4px">🦠 <?= current_locale() === 'am' ? 'የእንስሳት በሽታ ክስተቶች እና ማቆያ (Quarantine)' : 'Disease Incidents & Quarantine' ?></h2>
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'የተከሰቱ የበሽታ ምልክቶች መዝገብ፣ የማቆያ ክልከላ እና የክሊኒካል ፎቶ ማያያዣ' : "Quarantining a poultry flock's incident also quarantines its house, blocking bird transfers out." ?></p>
     </div>
-    <a href="/aleltu-eifms/modules/veterinary/dashboard.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ ጤና ዳሽቦርድ ተመለስ' : 'Back to Dashboard' ?></a>
+    <a href="<?= BASE_URL ?>/modules/veterinary/dashboard.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ ጤና ዳሽቦርድ ተመለስ' : 'Back to Dashboard' ?></a>
 </div>
 
 <div class="card" style="max-width:620px;margin-bottom:24px">

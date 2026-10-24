@@ -1,6 +1,6 @@
 {
-  "name": "Aleltu EIFMS",
-  "short_name": "Aleltu",
+  "name": "ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት",
+  "short_name": "ተክሉ ጌታቸው",
   "start_url": "/aleltu-eifms/index.php",
   "scope": "/aleltu-eifms/",
   "display": "standalone",

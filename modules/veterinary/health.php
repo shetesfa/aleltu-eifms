@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $photoPath = save_uploaded_photo('clinical_photo', 'vet');
         vet_record_health($_POST['subject_type'], (int) $_POST['subject_id'], $_POST['record_date'], $_POST['condition_name'] ?? '', $_POST['treatment'] ?? '', $photoPath);
         flash(current_locale() === 'am' ? '✓ የጤና እና የህክምና መዝገብ በተሳካ ሁኔታ ተመዝግቧል።' : 'Health record saved successfully.');
-        header('Location: /aleltu-eifms/modules/veterinary/health.php');
+        header('Location: ' . BASE_URL . '/modules/veterinary/health.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -26,7 +26,7 @@ $records = db()->query("SELECT * FROM vet_health_records ORDER BY id DESC LIMIT 
         <h2 class="mt-0" style="margin-bottom:4px">🩺 <?= current_locale() === 'am' ? 'የእንስሳት ጤና እና ክሊኒካል ምርመራ መዝገብ' : 'Health & Clinical Records' ?></h2>
         <p class="text-muted" style="margin:0"><?= current_locale() === 'am' ? 'የሕመም ሁኔታ፣ የተሰጠ መድኃኒትና መጠን እንዲሁም የክሊኒካል ፎቶ ማያያዣ' : 'Record diagnosis, treatment dosage, and attach clinical observation photos' ?></p>
     </div>
-    <a href="/aleltu-eifms/modules/veterinary/dashboard.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ ጤና ዳሽቦርድ ተመለስ' : 'Back to Dashboard' ?></a>
+    <a href="<?= BASE_URL ?>/modules/veterinary/dashboard.php" class="btn secondary">&larr; <?= current_locale() === 'am' ? 'ወደ ጤና ዳሽቦርድ ተመለስ' : 'Back to Dashboard' ?></a>
 </div>
 
 <div class="card" style="max-width:620px;margin-bottom:24px">

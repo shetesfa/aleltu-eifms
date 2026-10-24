@@ -12,7 +12,7 @@ if (!$plot) {
         $plot = db()->query("SELECT * FROM feed_plots WHERE id = {$plotId}")->fetch();
     } else {
         flash('No plot records found.', 'error');
-        header('Location: /aleltu-eifms/modules/feed_production/plots.php');
+        header('Location: ' . BASE_URL . '/modules/feed_production/plots.php');
         exit;
     }
 }
@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             feed_harvest((int) $_POST['harvest_planting_id'], $_POST['harvest_date'], (float) $_POST['yield_kg']);
             flash(current_locale() === 'am' ? '✓ ምርት ተመዝግቧል፤ ወደ መጋዘን ለመላክ ወደ ስርጭት ገጽ ይሂዱ።' : 'Harvest recorded. Go to Distribution to send it to Store.');
         }
-        header("Location: /aleltu-eifms/modules/feed_production/plot_view.php?id={$plotId}");
+        header("Location: " . BASE_URL . "/modules/feed_production/plot_view.php?id={$plotId}");
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -91,5 +91,5 @@ $history = $history->fetchAll();
         <?php if (empty($history)): ?><tr><td colspan="4" class="text-muted"><?= h(t('common.no_records', 'No harvest records yet.')) ?></td></tr><?php endif; ?>
     </table>
 </div>
-<a href="/aleltu-eifms/modules/feed_production/plots.php">&larr; <?= current_locale() === 'am' ? 'ወደ ማሳዎች ዝርዝር ተመለስ' : 'Back to Plots' ?></a>
+<a href="<?= BASE_URL ?>/modules/feed_production/plots.php">&larr; <?= current_locale() === 'am' ? 'ወደ ማሳዎች ዝርዝር ተመለስ' : 'Back to Plots' ?></a>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

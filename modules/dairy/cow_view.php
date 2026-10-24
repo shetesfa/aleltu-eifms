@@ -4,15 +4,18 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_role(['general_manager', 'dairy_manager']);
 
 $id = (int) ($_GET['id'] ?? 0);
-$cow = $id > 0 ? db()->query("SELECT * FROM dairy_cows WHERE id = {$id}")->fetch() : null;
+$stmtCow = db()->prepare("SELECT * FROM dairy_cows WHERE id = ?");
+$stmtCow->execute([$id]);
+$cow = $id > 0 ? $stmtCow->fetch() : null;
 if (!$cow) {
     $firstId = db()->query("SELECT id FROM dairy_cows ORDER BY id ASC LIMIT 1")->fetchColumn();
     if ($firstId) {
         $id = (int)$firstId;
-        $cow = db()->query("SELECT * FROM dairy_cows WHERE id = {$id}")->fetch();
+        $stmtCow->execute([$id]);
+        $cow = $stmtCow->fetch();
     } else {
         flash('No cow records found.', 'error');
-        header('Location: /aleltu-eifms/modules/dairy/cows.php');
+        header('Location: ' . BASE_URL . '/modules/dairy/cows.php');
         exit;
     }
 }
@@ -26,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare("UPDATE dairy_cows SET photo_path = ? WHERE id = ?")->execute([$photo, $id]);
                 flash(current_locale() === 'am' ? '✓ የላሟ ፎቶ በተሳካ ሁኔታ ተጭኗል!' : 'Cow photo uploaded successfully!');
             }
-            header("Location: /aleltu-eifms/modules/dairy/cow_view.php?id={$id}");
+            header("Location: " . BASE_URL . "/modules/dairy/cow_view.php?id={$id}");
             exit;
         } catch (Throwable $e) {
             flash('Error: ' . $e->getMessage(), 'error');
@@ -38,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             cow_record_exit($id, $_POST);
             flash('Exit recorded — cow lifecycle closed.');
-            header("Location: /aleltu-eifms/modules/dairy/cow_view.php?id={$id}");
+            header("Location: " . BASE_URL . "/modules/dairy/cow_view.php?id={$id}");
             exit;
         } catch (Throwable $e) {
             flash('Error: ' . $e->getMessage(), 'error');
@@ -51,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $expected = $_POST['expected_calving_date'] ?: null;
             cow_record_breeding($id, $_POST['method'], $_POST['sire_reference'] ?: null, $_POST['breeding_date'], $expected);
             flash('Breeding attempt registered successfully.');
-            header("Location: /aleltu-eifms/modules/dairy/cow_view.php?id={$id}");
+            header("Location: " . BASE_URL . "/modules/dairy/cow_view.php?id={$id}");
             exit;
         } catch (Throwable $e) {
             flash('Error: ' . $e->getMessage(), 'error');
@@ -75,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             cow_record_calving((int)$_POST['breeding_record_id'], $id, $_POST['calving_date'], $_POST['outcome'], $_POST['notes'] ?: null, $calfData);
             flash('Calving recorded successfully.');
-            header("Location: /aleltu-eifms/modules/dairy/cow_view.php?id={$id}");
+            header("Location: " . BASE_URL . "/modules/dairy/cow_view.php?id={$id}");
             exit;
         } catch (Throwable $e) {
             flash('Error: ' . $e->getMessage(), 'error');
@@ -93,21 +96,25 @@ $yields = db()->prepare(
 $yields->execute([$id]);
 $yields = $yields->fetchAll();
 
-$breedingHistory = db()->query(
+$stmtBreeding = db()->prepare(
     "SELECT b.*, u.name AS worker_name 
      FROM dairy_breeding_records b 
      JOIN users u ON u.id = b.recorded_by 
-     WHERE b.cow_id = {$id} 
+     WHERE b.cow_id = ? 
      ORDER BY b.breeding_date DESC"
-)->fetchAll();
+);
+$stmtBreeding->execute([$id]);
+$breedingHistory = $stmtBreeding->fetchAll();
 
-$calvingHistory = db()->query(
+$stmtCalving = db()->prepare(
     "SELECT c.*, calf.tag_number AS calf_tag 
      FROM dairy_calving_records c 
      LEFT JOIN dairy_cows calf ON calf.id = c.calf_id 
-     WHERE c.dam_id = {$id} 
+     WHERE c.dam_id = ? 
      ORDER BY c.calving_date DESC"
-)->fetchAll();
+);
+$stmtCalving->execute([$id]);
+$calvingHistory = $stmtCalving->fetchAll();
 
 $active = cow_is_active($cow);
 $ourBulls = db()->query("SELECT id, tag_number, name, breed FROM dairy_cows WHERE sex = 'male' AND lifecycle_status NOT IN ('sold','deceased') ORDER BY tag_number")->fetchAll();
@@ -115,7 +122,7 @@ $ourBulls = db()->query("SELECT id, tag_number, name, breed FROM dairy_cows WHER
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <h2 class="mt-0" style="margin:0"><?= h(t('dairy.cow_profile', 'Cow Profile')) ?>: <?= h($cow['tag_number']) ?> <?= $cow['name'] ? '— ' . h($cow['name']) : '' ?> <span class="badge <?= h($cow['lifecycle_status']) ?>"><?= h(t('dairy.lifecycle_' . $cow['lifecycle_status'], $cow['lifecycle_status'])) ?></span></h2>
-    <a href="/aleltu-eifms/modules/dairy/cows.php" class="btn secondary">&larr; <?= h(t('common.back', 'Back to Cow List')) ?></a>
+    <a href="<?= BASE_URL ?>/modules/dairy/cows.php" class="btn secondary">&larr; <?= h(t('common.back', 'Back to Cow List')) ?></a>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
@@ -149,19 +156,38 @@ $ourBulls = db()->query("SELECT id, tag_number, name, breed FROM dairy_cows WHER
                 <tr><td><?= h(t('dairy.source', 'Source')) ?></td><td><?= h($cow['source'] === 'born_on_farm' ? t('dairy.born_on_farm', 'Born on Farm') : ($cow['source'] === 'purchased' ? t('dairy.purchased', 'Purchased') : '—')) ?></td></tr>
             </table>
             <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
-                <a href="/aleltu-eifms/modules/dairy/cow_history.php?id=<?= $id ?>&tab=health"      class="btn secondary" style="padding:4px 10px;font-size:12px">🩺 <?= h(t('nav.health_records', 'Health Records')) ?></a>
-                <a href="/aleltu-eifms/modules/dairy/cow_history.php?id=<?= $id ?>&tab=vaccination" class="btn secondary" style="padding:4px 10px;font-size:12px">💉 <?= h(t('nav.vaccinations', 'Vaccinations')) ?></a>
+                <a href="<?= BASE_URL ?>/modules/dairy/cow_history.php?id=<?= $id ?>&tab=finances"    class="btn" style="padding:4px 10px;font-size:12px;background:#1565c0;border-color:#1565c0">💰 <?= current_locale() === 'am' ? 'የፋይናንስና ትርፍ ታሪክ (P&L)' : 'Financial P&L' ?></a>
+                <a href="<?= BASE_URL ?>/modules/dairy/cow_history.php?id=<?= $id ?>&tab=health"      class="btn secondary" style="padding:4px 10px;font-size:12px">🩺 <?= h(t('nav.health_records', 'Health Records')) ?></a>
+                <a href="<?= BASE_URL ?>/modules/dairy/cow_history.php?id=<?= $id ?>&tab=vaccination" class="btn secondary" style="padding:4px 10px;font-size:12px">💉 <?= h(t('nav.vaccinations', 'Vaccinations')) ?></a>
                 <?php if ($cow['sex'] === 'female'): ?>
-                <a href="/aleltu-eifms/modules/dairy/cow_history.php?id=<?= $id ?>&tab=breeding"    class="btn secondary" style="padding:4px 10px;font-size:12px">🐄 <?= current_locale() === 'am' ? 'የማዳቀል ታሪክ' : 'Breeding' ?></a>
-                <a href="/aleltu-eifms/modules/dairy/cow_history.php?id=<?= $id ?>&tab=calving"     class="btn secondary" style="padding:4px 10px;font-size:12px">🐣 <?= current_locale() === 'am' ? 'የመውለድ ታሪክ' : 'Calving' ?></a>
+                <a href="<?= BASE_URL ?>/modules/dairy/cow_history.php?id=<?= $id ?>&tab=breeding"    class="btn secondary" style="padding:4px 10px;font-size:12px">🐄 <?= current_locale() === 'am' ? 'የማዳቀል ታሪክ' : 'Breeding' ?></a>
+                <a href="<?= BASE_URL ?>/modules/dairy/cow_history.php?id=<?= $id ?>&tab=calving"     class="btn secondary" style="padding:4px 10px;font-size:12px">🐣 <?= current_locale() === 'am' ? 'የመውለድ ታሪክ' : 'Calving' ?></a>
                 <?php endif; ?>
             </div>
+        </div>
+
+        <?php $cowFinQuick = cow_financial_summary($id); ?>
+        <div class="card" style="border-left:4px solid <?= $cowFinQuick['net_profit'] >= 0 ? '#2e7d32' : '#c62828' ?>;padding:12px 16px;margin-bottom:20px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <strong style="font-size:13px">💰 <?= current_locale() === 'am' ? 'የዚህች ላም የትርፋማነት ማጠቃለያ' : 'Cow Profitability Summary' ?></strong>
+                <span class="badge" style="background:<?= $cowFinQuick['net_profit'] >= 0 ? '#e8f5e9;color:#2e7d32' : '#ffebee;color:#c62828' ?>">
+                    <?= $cowFinQuick['net_profit'] >= 0 ? '✓ አትራፊ' : '⚠️ ኪሳራ' ?> (ROI: <?= $cowFinQuick['roi_percent'] ?>%)
+                </span>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-bottom:6px;flex-wrap:wrap">
+                <span>🥛 የወተት ገቢ፦ <strong><?= number_format($cowFinQuick['total_milk_revenue'], 0) ?> ETB</strong></span>
+                <span>💸 የወጣ ወጪ፦ <strong><?= number_format($cowFinQuick['total_expenses'], 0) ?> ETB</strong></span>
+                <span>📈 የተጣራ፦ <strong style="color:<?= $cowFinQuick['net_profit'] >= 0 ? '#2e7d32' : '#c62828' ?>"><?= number_format($cowFinQuick['net_profit'], 0) ?> ETB</strong></span>
+            </div>
+            <a href="<?= BASE_URL ?>/modules/dairy/cow_history.php?id=<?= $id ?>&tab=finances" style="font-size:11.5px;color:var(--primary);text-decoration:underline">
+                → <?= current_locale() === 'am' ? 'ሙሉ የገቢ፣ የመኖና የህክምና ወጪ ዝርዝር ተመልከት' : 'View full financial trend & cost breakdown' ?>
+            </a>
         </div>
 
         <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
                 <h3 style="margin:0"><?= h(t('dairy.milking_entry', 'Recent Milk Yield')) ?></h3>
-                <a href="/aleltu-eifms/modules/dairy/cow_milk_history.php?id=<?= $id ?>" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= h(t('common.view_all', 'View All')) ?> &rarr;</a>
+                <a href="<?= BASE_URL ?>/modules/dairy/cow_milk_history.php?id=<?= $id ?>" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= h(t('common.view_all', 'View All')) ?> &rarr;</a>
             </div>
             <table>
                 <tr>
@@ -191,7 +217,7 @@ $ourBulls = db()->query("SELECT id, tag_number, name, breed FROM dairy_cows WHER
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
                     <h3 style="margin:0"><?= current_locale() === 'am' ? 'የማዳቀል ታሪክ' : 'Breeding History' ?></h3>
-                    <a href="/aleltu-eifms/modules/dairy/cow_history.php?id=<?= $id ?>&tab=breeding" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= h(t('common.view_all', 'View All')) ?> &rarr;</a>
+                    <a href="<?= BASE_URL ?>/modules/dairy/cow_history.php?id=<?= $id ?>&tab=breeding" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= h(t('common.view_all', 'View All')) ?> &rarr;</a>
                 </div>
                 <table>
                     <thead>
@@ -224,7 +250,7 @@ $ourBulls = db()->query("SELECT id, tag_number, name, breed FROM dairy_cows WHER
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
                     <h3 style="margin:0"><?= current_locale() === 'am' ? 'የመውለድ ታሪክ' : 'Calving History' ?></h3>
-                    <a href="/aleltu-eifms/modules/dairy/cow_history.php?id=<?= $id ?>&tab=calving" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= h(t('common.view_all', 'View All')) ?> &rarr;</a>
+                    <a href="<?= BASE_URL ?>/modules/dairy/cow_history.php?id=<?= $id ?>&tab=calving" class="btn secondary" style="padding:4px 10px;font-size:12px"><?= h(t('common.view_all', 'View All')) ?> &rarr;</a>
                 </div>
                 <table>
                     <thead>
@@ -248,7 +274,7 @@ $ourBulls = db()->query("SELECT id, tag_number, name, breed FROM dairy_cows WHER
                                 <td><span class="badge <?= $c['outcome'] === 'live_birth' ? 'milking' : 'sold' ?>"><?= h($outText) ?></span></td>
                                 <td>
                                     <?php if ($c['calf_id'] && $c['calf_tag']): ?>
-                                        <a href="/aleltu-eifms/modules/dairy/cow_view.php?id=<?= $c['calf_id'] ?>"><code><?= h($c['calf_tag']) ?></code></a>
+                                        <a href="<?= BASE_URL ?>/modules/dairy/cow_view.php?id=<?= $c['calf_id'] ?>"><code><?= h($c['calf_tag']) ?></code></a>
                                     <?php else: ?>
                                         —
                                     <?php endif; ?>

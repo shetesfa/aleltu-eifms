@@ -5,7 +5,15 @@
  *        notifications link_url column, RBAC seed, and any missing indexes.
  * URL: http://localhost/aleltu-eifms/run_final_migration.php
  * DELETE THIS FILE AFTER RUNNING.
+ *
+ * SECURITY: This file is blocked in .htaccess for production.
+ * To run it locally, access it only from localhost.
  */
+$allowedHosts = ['localhost', '127.0.0.1', '::1'];
+if (!in_array($_SERVER['SERVER_NAME'] ?? ($_SERVER['HTTP_HOST'] ?? ''), $allowedHosts, true)) {
+    http_response_code(403);
+    die('<h2>403 Forbidden</h2><p>This migration script can only be run from localhost.</p>');
+}
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/auth.php';
 require_role(['super_admin']);
@@ -169,7 +177,7 @@ h2{color:#2e7d32;margin-top:0}
 <?php else: ?>
 <p style="color:#b3261e">⚠️ Some steps failed. Review the errors above.</p>
 <?php endif; ?>
-<a href="/aleltu-eifms/index.php" class="btn">← Go to Dashboard</a>
+<a href="<?= BASE_URL ?>/index.php" class="btn">← Go to Dashboard</a>
 <p style="color:#999;font-size:12px;margin-top:16px">⚠️ <strong>Delete this file immediately after running.</strong></p>
 </div>
 </body></html>

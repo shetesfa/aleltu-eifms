@@ -18,7 +18,11 @@ foreach ($milkRows as $r) { $milkByDate[$r['d']] = (float) $r['total']; }
 $milkLabels = $milkValues = [];
 for ($i = 6; $i >= 0; $i--) {
     $d = date('Y-m-d', strtotime("-{$i} days"));
-    $milkLabels[] = date('D', strtotime($d));
+    $w = (int)date('w', strtotime($d));
+    $dayName = current_locale() === 'am' ? mb_substr(EthiopianDate::$weekdays[$w], 0, 3) : date('D', strtotime($d));
+    $ethShort = eth_date($d, 'short');
+    $dayNum = explode('/', $ethShort)[0] ?? '';
+    $milkLabels[] = current_locale() === 'am' ? "{$dayName} {$dayNum}" : date('D', strtotime($d));
     $milkValues[] = round($milkByDate[$d] ?? 0, 1);
 }
 
@@ -34,25 +38,37 @@ foreach ($eggRows as $r) { $eggByDate[$r['d']] = (int) $r['total']; }
 $eggLabels = $eggValues = [];
 for ($i = 6; $i >= 0; $i--) {
     $d = date('Y-m-d', strtotime("-{$i} days"));
-    $eggLabels[] = date('D', strtotime($d));
+    $w = (int)date('w', strtotime($d));
+    $dayName = current_locale() === 'am' ? mb_substr(EthiopianDate::$weekdays[$w], 0, 3) : date('D', strtotime($d));
+    $ethShort = eth_date($d, 'short');
+    $dayNum = explode('/', $ethShort)[0] ?? '';
+    $eggLabels[] = current_locale() === 'am' ? "{$dayName} {$dayNum}" : date('D', strtotime($d));
     $eggValues[] = $eggByDate[$d] ?? 0;
 }
 
-// ---- Cash flow: inflow vs outflow, last 6 months ----
-$cashRows = db()->query(
-    "SELECT DATE_FORMAT(transaction_date, '%Y-%m') AS ym, direction, SUM(amount) AS total
-     FROM fin_transactions
-     WHERE transaction_date >= DATE_SUB(CURDATE(), INTERVAL 5 MONTH)
-     GROUP BY ym, direction ORDER BY ym"
-)->fetchAll();
-$cashByMonth = [];
-foreach ($cashRows as $r) { $cashByMonth[$r['ym']][$r['direction']] = (float) $r['total']; }
+// ---- Cash flow: inflow vs outflow, last 6 Ethiopian months ----
+[$curY, $curM] = EthiopianDate::today();
 $cashLabels = $cashIn = $cashOut = [];
 for ($i = 5; $i >= 0; $i--) {
-    $ym = date('Y-m', strtotime("-{$i} months"));
-    $cashLabels[] = date('M', strtotime($ym . '-01'));
-    $cashIn[] = round($cashByMonth[$ym]['inflow'] ?? 0);
-    $cashOut[] = round($cashByMonth[$ym]['outflow'] ?? 0);
+    $m = $curM - $i;
+    $y = $curY;
+    while ($m <= 0) {
+        $m += 13;
+        $y -= 1;
+    }
+    $monthRange = EthiopianDate::ethMonthRange($y, $m);
+    $monthName = EthiopianDate::$months[$m] ?? "ወር {$m}";
+    $cashLabels[] = current_locale() === 'am' ? ($y !== $curY ? "{$monthName} '{$y}" : $monthName) : "M{$m}";
+    
+    $stmt = db()->prepare("SELECT direction, COALESCE(SUM(amount), 0) AS total 
+                           FROM fin_transactions 
+                           WHERE transaction_date BETWEEN ? AND ? 
+                           GROUP BY direction");
+    $stmt->execute([$monthRange['from'], $monthRange['to']]);
+    $totals = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    
+    $cashIn[]  = round((float)($totals['inflow'] ?? 0));
+    $cashOut[] = round((float)($totals['outflow'] ?? 0));
 }
 
 // ---- Warehouse stock levels by item ----

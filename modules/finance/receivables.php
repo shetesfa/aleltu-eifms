@@ -41,7 +41,7 @@ $dispatches = db()->query(
             <?= current_locale()==='am' ? 'ዕቃ ተልኳል ገና ያልተከፈለ የደንበኞች ዱቤ — ገቢ በሽያጭ እንጂ በካዝና ገና ያልገባ' : 'Goods dispatched but payment not yet fully collected from customers.' ?>
         </p>
     </div>
-    <a href="/aleltu-eifms/modules/finance/dashboard.php" class="btn secondary">← <?= current_locale()==='am'?'ወደ ፋይናንስ ማዕከል':'Finance Dashboard' ?></a>
+    <a href="<?= BASE_URL ?>/modules/finance/dashboard.php" class="btn secondary">← <?= current_locale()==='am'?'ወደ ፋይናንስ ማዕከል':'Finance Dashboard' ?></a>
 </div>
 
 <!-- Summary KPIs -->
@@ -139,7 +139,7 @@ $dispatches = db()->query(
                     <td style="color:#c62828;font-weight:700"><?= number_format($owed, 2) ?> ETB</td>
                     <td><span class="badge <?= $stBadge ?>"><?= h($stLabel) ?></span></td>
                     <td>
-                        <a href="/aleltu-eifms/modules/distribution/dispatches.php" class="btn secondary" style="padding:4px 10px;font-size:12px;white-space:nowrap">
+                        <a href="<?= BASE_URL ?>/modules/distribution/dispatches.php" class="btn secondary" style="padding:4px 10px;font-size:12px;white-space:nowrap">
                             💰 <?= current_locale()==='am'?'ክፍያ ተቀበል':'Receive Payment' ?>
                         </a>
                     </td>

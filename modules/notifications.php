@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             notifications_mark_all_read_for_user($userId, $roleId);
             flash(current_locale() === 'am' ? 'ሁሉም ማሳወቂያዎች ተነቧል።' : 'All notifications marked as read.');
         }
-        header('Location: /aleltu-eifms/modules/notifications.php');
+        header('Location: ' . BASE_URL . '/modules/notifications.php');
         exit;
     } catch (Throwable $e) {
         flash('Error: ' . $e->getMessage(), 'error');
@@ -120,8 +120,10 @@ $unreadCount = (int) $cntStmt->fetchColumn();
                     </span>
                 </td>
                 <td><strong><?= h(ucwords(str_replace('_', ' ', $n['module']))) ?></strong></td>
-                <td><?= h($n['message']) ?></td>
-                <td style="font-size:12px;white-space:nowrap"><?= h($n['created_at']) ?></td>
+                <td style="font-size:12px;white-space:nowrap">
+                    <div><?= eth_datetime($n['created_at']) ?></div>
+                    <small class="text-muted" style="font-size:10px"><?= h($n['created_at']) ?></small>
+                </td>
                 <td>
                     <?php if (!empty($n['link_url'])): ?>
                         <a href="<?= h($n['link_url']) ?>" class="btn secondary" style="padding:3px 8px;font-size:12px"><?= h(t('common.view', 'View Record')) ?> &rarr;</a>

@@ -4,8 +4,33 @@ require_once __DIR__ . '/../includes/auth.php';
 require_role(['super_admin', 'general_manager', 'dairy_manager', 'finance_officer', 'hr_officer', 'warehouse_keeper', 'poultry_manager', 'fish_manager', 'feed_production_manager', 'veterinary_officer']);
 
 $mod  = $_GET['module'] ?? 'dairy';
-$from = $_GET['from'] ?? date('Y-m-01');
-$to   = $_GET['to']   ?? date('Y-m-d');
+
+$curEthYearNum  = eth_current_year();
+$curEthMonthNum = eth_current_month();
+
+$selEthYear  = isset($_GET['eth_year']) ? (int)$_GET['eth_year'] : $curEthYearNum;
+$selEthMonth = isset($_GET['eth_month']) ? (int)$_GET['eth_month'] : 0;
+
+if ($selEthMonth > 0) {
+    $mRange = eth_month_range($selEthYear, $selEthMonth);
+    $from = $mRange['from'];
+    $to   = $mRange['to'];
+} elseif (isset($_GET['eth_year']) && !isset($_GET['from'])) {
+    $yRange = eth_year_range($selEthYear);
+    $from = $yRange['from'];
+    $to   = $yRange['to'];
+} else {
+    $curEthMonth = eth_month_range();
+    $from = $_GET['from'] ?? $curEthMonth['from'];
+    $to   = $_GET['to']   ?? date('Y-m-d');
+}
+
+$ethMonths = [
+    1 => 'መስከረም', 2 => 'ጥቅምት', 3 => 'ኅዳር', 4 => 'ታኅሣሥ',
+    5 => 'ጥር', 6 => 'የካቲት', 7 => 'መጋቢት', 8 => 'ሚያዝያ',
+    9 => 'ግንቦት', 10 => 'ሰኔ', 11 => 'ሐምሌ', 12 => 'ነሐሴ', 13 => 'ጳጉሜን'
+];
+
 
 $allPossibleModules = [
     'dairy'          => '🐄 ' . (current_locale() === 'am' ? 'የወተት ምርት' : 'Dairy Production'),
@@ -192,22 +217,42 @@ require_once __DIR__ . '/../includes/header.php';
     <?php endforeach; ?>
 </div>
 
-<!-- Date Filter -->
-<div class="card" style="padding:12px 16px;margin-bottom:16px">
+<!-- Date Filter with Ethiopian Calendar -->
+<div class="card" style="padding:14px 18px;margin-bottom:18px">
     <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
         <input type="hidden" name="module" value="<?= h($mod) ?>">
-        <div class="form-group" style="margin:0"><label style="font-size:12px"><?= h(t('common.from', 'From')) ?></label>
-            <input type="date" name="from" value="<?= h($from) ?>" style="padding:5px">
+        
+        <div>
+            <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">📅 ዓመተ ምህረት</label>
+            <select name="eth_year" style="padding:6px 10px;border-radius:4px;border:1px solid var(--border);font-size:13px;font-weight:600">
+                <?php for ($y = $curEthYearNum + 1; $y >= $curEthYearNum - 2; $y--): ?>
+                    <option value="<?= $y ?>" <?= $selEthYear === $y ? 'selected' : '' ?>><?= $y ?> ዓ.ም</option>
+                <?php endfor; ?>
+            </select>
         </div>
-        <div class="form-group" style="margin:0"><label style="font-size:12px"><?= h(t('common.to', 'To')) ?></label>
-            <input type="date" name="to" value="<?= h($to) ?>" style="padding:5px">
+
+        <div>
+            <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">🗓️ ወር</label>
+            <select name="eth_month" style="padding:6px 10px;border-radius:4px;border:1px solid var(--border);font-size:13px;font-weight:600">
+                <option value="0" <?= $selEthMonth === 0 ? 'selected' : '' ?>>— ሙሉ ዓመት —</option>
+                <?php foreach ($ethMonths as $mNum => $mName): ?>
+                    <option value="<?= $mNum ?>" <?= $selEthMonth === $mNum ? 'selected' : '' ?>><?= $mName ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
-        <button class="btn secondary" type="submit" style="padding:6px 14px">🔍 <?= h(t('common.filter', 'Filter')) ?></button>
-        <a href="?module=<?= h($mod) ?>&from=<?= $from ?>&to=<?= $to ?>&export=csv" class="btn secondary" style="padding:6px 14px">⬇ <?= h(t('common.export_csv', 'Export CSV')) ?></a>
-        <a href="?module=<?= h($mod) ?>&from=<?= date('Y-m-01') ?>&to=<?= date('Y-m-d') ?>" class="btn secondary" style="padding:6px 14px"><?= h(t('report.this_month', 'This Month')) ?></a>
-        <a href="?module=<?= h($mod) ?>&from=<?= date('Y-01-01') ?>&to=<?= date('Y-12-31') ?>" class="btn secondary" style="padding:6px 14px"><?= h(t('report.this_year', 'This Year')) ?></a>
-        <button class="btn secondary no-print" onclick="window.print();return false" style="padding:6px 14px">🖨 <?= h(t('common.print', 'Print')) ?></button>
+
+        <button class="btn" type="submit" style="padding:7px 16px;background:#1e5631;border-color:#1e5631">🔍 ሪፖርት አውጣ</button>
+        <a href="?module=<?= h($mod) ?>&from=<?= $from ?>&to=<?= $to ?>&export=csv" class="btn secondary" style="padding:7px 14px">⬇ <?= h(t('common.export_csv', 'Export CSV')) ?></a>
+        <button class="btn secondary no-print" onclick="window.print();return false" style="padding:7px 14px">🖨 <?= h(t('common.print', 'Print')) ?></button>
+
+        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+            <a href="?module=<?= h($mod) ?>&eth_year=<?= $curEthYearNum ?>&eth_month=<?= $curEthMonthNum ?>" class="btn secondary" style="padding:6px 12px;font-size:12px">📅 የዚህ ወር (<?= $ethMonths[$curEthMonthNum] ?>)</a>
+            <a href="?module=<?= h($mod) ?>&eth_year=<?= $curEthYearNum ?>&eth_month=0" class="btn secondary" style="padding:6px 12px;font-size:12px">🗓️ የዚህ ሙሉ ዓመት</a>
+        </div>
     </form>
+    <div style="margin-top:10px;font-size:12.5px;color:var(--text-muted);display:flex;gap:8px;align-items:center">
+        <span>የሪፖርት ክፍለ-ጊዜ፦ <strong style="color:var(--text)"><?= eth_date($from) ?> — <?= eth_date($to) ?></strong></span>
+    </div>
 </div>
 
 <?php
@@ -225,20 +270,20 @@ if ($mod === 'dairy'):
     $topCows = $topCows->fetchAll();
 ?>
 <div class="kpi-row" style="margin-bottom:16px">
-    <div class="kpi"><div class="label">Total Milk Produced</div><div class="value"><?= number_format($totalLiters, 1) ?> L</div></div>
-    <div class="kpi"><div class="label">Milking Days</div><div class="value"><?= $days ?> days</div></div>
-    <div class="kpi"><div class="label">Average Per Day</div><div class="value"><?= number_format($avgPerDay, 1) ?> L</div></div>
+    <div class="kpi" style="border-left:4px solid var(--primary)"><div class="label">🥛 <?= current_locale()==='am'?'ጠቅላላ የተመረተ ወተት':'Total Milk Produced' ?></div><div class="value" style="color:var(--primary)"><?= number_format($totalLiters, 1) ?> L</div></div>
+    <div class="kpi" style="border-left:4px solid #1565c0"><div class="label">📅 <?= current_locale()==='am'?'የታለበባቸው ቀናት':'Milking Days' ?></div><div class="value" style="color:#1565c0"><?= $days ?> <?= current_locale()==='am'?'ቀን':'days' ?></div></div>
+    <div class="kpi" style="border-left:4px solid #2e7d32"><div class="label">📊 <?= current_locale()==='am'?'አማካይ የወተት ምርት በቀን':'Average Per Day' ?></div><div class="value" style="color:#2e7d32"><?= number_format($avgPerDay, 1) ?> L</div></div>
 </div>
 
 <div class="card" style="margin-bottom:16px">
-    <h3>Top Milk Producing Cows — <?= h($from) ?> to <?= h($to) ?></h3>
+    <h3>🐄 <?= current_locale()==='am'?'ከፍተኛ ወተት ያመነጩ ላሞች':'Top Milk Producing Cows' ?> — <?= eth_date($from) ?> <?= current_locale()==='am'?'እስከ':'to' ?> <?= eth_date($to) ?></h3>
     <table>
         <thead><tr><th>Rank</th><th>Tag</th><th>Name</th><th>Breed</th><th>Sessions</th><th>Total (L)</th><th>Avg/Session</th></tr></thead>
         <tbody>
         <?php foreach ($topCows as $i => $c): ?>
             <tr>
                 <td><strong>#<?= $i + 1 ?></strong></td>
-                <td><a href="/aleltu-eifms/modules/dairy/cow_view.php?id=<?= $c['cow_id'] ?>"><strong><?= h($c['tag_number']) ?></strong></a></td>
+                <td><a href="<?= BASE_URL ?>/modules/dairy/cow_view.php?id=<?= $c['cow_id'] ?>"><strong><?= h($c['tag_number']) ?></strong></a></td>
                 <td><?= h($c['name'] ?: '—') ?></td>
                 <td><?= h($c['breed'] ?: '—') ?></td>
                 <td><?= (int)$c['sessions'] ?></td>
@@ -252,14 +297,14 @@ if ($mod === 'dairy'):
 </div>
 
 <div class="card">
-    <h3>Daily Milk Production Log</h3>
+    <h3><?= current_locale() === 'am' ? 'የዕለት የወተት ምርት መዝገብ' : 'Daily Milk Production Log' ?></h3>
     <table>
-        <thead><tr><th>Milking Date</th><th>Total Daily Output</th></tr></thead>
+        <thead><tr><th><?= current_locale() === 'am' ? 'ቀን (በኢትዮጵያ)' : 'Milking Date' ?></th><th><?= current_locale() === 'am' ? 'የዕለቱ ጠቅላላ ምርት' : 'Total Daily Output' ?></th></tr></thead>
         <tbody>
         <?php foreach ($dailyYields as $d): ?>
-            <tr><td><?= h($d['session_date']) ?></td><td><strong><?= number_format($d['total'], 1) ?> L</strong></td></tr>
+            <tr><td><?= h(eth_date($d['session_date'])) ?></td><td><strong><?= number_format($d['total'], 1) ?> L</strong></td></tr>
         <?php endforeach; ?>
-        <?php if (empty($dailyYields)): ?><tr><td colspan="2" class="text-muted">No records.</td></tr><?php endif; ?>
+        <?php if (empty($dailyYields)): ?><tr><td colspan="2" class="text-muted"><?= h(t('common.no_records', 'No records.')) ?></td></tr><?php endif; ?>
         </tbody>
     </table>
 </div>
@@ -285,29 +330,28 @@ elseif ($mod === 'distribution'):
     $totalUnpaid     = $totalSalesVal - $totalCollected;
 ?>
 <div class="kpi-row" style="margin-bottom:16px">
-    <div class="kpi"><div class="label">Total Dispatches</div><div class="value"><?= $totalDispatches ?> shipments</div></div>
-    <div class="kpi"><div class="label">Total Sales Value</div><div class="value"><?= number_format($totalSalesVal, 2) ?> ETB</div></div>
-    <div class="kpi"><div class="label">Total Money Collected</div><div class="value" style="color:#2e7d32"><?= number_format($totalCollected, 2) ?> ETB</div></div>
-    <div class="kpi"><div class="label">Unpaid Balance</div><div class="value" style="color:<?= $totalUnpaid > 0 ? '#b3261e' : '#2e7d32' ?>"><?= number_format($totalUnpaid, 2) ?> ETB</div></div>
+    <div class="kpi" style="border-left:4px solid var(--primary)"><div class="label">🚛 <?= current_locale()==='am'?'ጠቅላላ የተላኩ ስርጭቶች':'Total Dispatches' ?></div><div class="value"><?= $totalDispatches ?> <?= current_locale()==='am'?'ጭነቶች':'shipments' ?></div></div>
+    <div class="kpi" style="border-left:4px solid #1565c0"><div class="label">💰 <?= current_locale()==='am'?'ጠቅላላ የሽያጭ ዋጋ':'Total Sales Value' ?></div><div class="value"><?= number_format($totalSalesVal, 2) ?> ETB</div></div>
+    <div class="kpi" style="border-left:4px solid #2e7d32"><div class="label">💵 <?= current_locale()==='am'?'የተሰበሰበ ገንዘብ':'Money Collected' ?></div><div class="value" style="color:#2e7d32"><?= number_format($totalCollected, 2) ?> ETB</div></div>
+    <div class="kpi" style="border-left:4px solid <?= $totalUnpaid > 0 ? '#b3261e' : '#2e7d32' ?>"><div class="label">⏳ <?= current_locale()==='am'?'ያልተሰበሰበ ቀሪ ዱቤ':'Unpaid Balance' ?></div><div class="value" style="color:<?= $totalUnpaid > 0 ? '#b3261e' : '#2e7d32' ?>"><?= number_format($totalUnpaid, 2) ?> ETB</div></div>
 </div>
 
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h3 style="margin:0">🚛 Product Sales &amp; Installment Payment Summary</h3>
-        <a href="/aleltu-eifms/modules/distribution/dispatches.php" class="btn secondary" style="padding:4px 10px;font-size:12px">Open Dispatch Management →</a>
+        <h3 style="margin:0">🚛 <?= current_locale() === 'am' ? 'የምርት ሽያጭ እና የክፍያ አሰባሰብ ዝርዝር መዝገብ' : 'Product Sales & Installment Payment Summary' ?></h3>
     </div>
     <table>
         <thead>
             <tr>
-                <th>Date</th>
-                <th>Vehicle &amp; Driver</th>
-                <th>Product</th>
-                <th>Qty</th>
-                <th>Unit Price</th>
-                <th>Total Value</th>
-                <th>Amount Paid</th>
-                <th>Unpaid Balance</th>
-                <th>Status</th>
+                <th><?= current_locale()==='am'?'ቀን (ኢትዮጵያ)':'Date' ?></th>
+                <th><?= current_locale()==='am'?'ተሽከርካሪና ሹፌር':'Vehicle & Driver' ?></th>
+                <th><?= current_locale()==='am'?'የምርት አይነት':'Product' ?></th>
+                <th><?= current_locale()==='am'?'መጠን':'Qty' ?></th>
+                <th><?= current_locale()==='am'?'የአንዱ ዋጋ':'Unit Price' ?></th>
+                <th><?= current_locale()==='am'?'ጠቅላላ ዋጋ':'Total Value' ?></th>
+                <th><?= current_locale()==='am'?'የተከፈለ':'Amount Paid' ?></th>
+                <th><?= current_locale()==='am'?'ቀሪ ዱቤ':'Unpaid Balance' ?></th>
+                <th><?= current_locale()==='am'?'ሁኔታ':'Status' ?></th>
             </tr>
         </thead>
         <tbody>
@@ -320,7 +364,7 @@ elseif ($mod === 'distribution'):
             };
         ?>
             <tr>
-                <td style="font-size:12px"><?= h($r['ddate']) ?></td>
+                <td style="font-size:12px"><?= h(eth_date($r['ddate'])) ?></td>
                 <td><strong><?= h($r['plate_number']) ?></strong><br><small class="text-muted"><?= h($r['active_driver']) ?></small></td>
                 <td><?= h($r['item_name']) ?></td>
                 <td><strong><?= number_format($r['quantity_dispatched'], 2) ?> <?= h($r['unit']) ?></strong></td>
@@ -354,18 +398,18 @@ elseif ($mod === 'warehouse'):
     $totalStockUnits = array_sum(array_column($stockRows, 'cur_stock'));
 ?>
 <div class="kpi-row" style="margin-bottom:16px">
-    <div class="kpi"><div class="label">Total Stock Catalog</div><div class="value"><?= $totalItems ?> items</div></div>
-    <div class="kpi"><div class="label">Total Units On Hand</div><div class="value"><?= number_format($totalStockUnits, 1) ?></div></div>
-    <div class="kpi"><div class="label">Low Stock Alerts</div><div class="value" style="color:<?= $lowStockCount > 0 ? '#b3261e' : '#2e7d32' ?>"><?= $lowStockCount ?></div></div>
-    <div class="kpi"><div class="label">Physical Warehouse</div><div class="value">1 Central Hub</div></div>
+    <div class="kpi" style="border-left:4px solid var(--primary)"><div class="label">📦 <?= current_locale()==='am'?'ጠቅላላ የዕቃዎች ካታሎግ':'Total Stock Catalog' ?></div><div class="value"><?= $totalItems ?> <?= current_locale()==='am'?'ዕቃዎች':'items' ?></div></div>
+    <div class="kpi" style="border-left:4px solid #1565c0"><div class="label">📊 <?= current_locale()==='am'?'በመጋዘን ያለ ጠቅላላ ክምችት':'Total Units On Hand' ?></div><div class="value"><?= number_format($totalStockUnits, 1) ?></div></div>
+    <div class="kpi" style="border-left:4px solid <?= $lowStockCount > 0 ? '#b3261e' : '#2e7d32' ?>"><div class="label">⚠️ <?= current_locale()==='am'?'የእጥረት ማስጠንቀቂያዎች':'Low Stock Alerts' ?></div><div class="value" style="color:<?= $lowStockCount > 0 ? '#b3261e' : '#2e7d32' ?>"><?= $lowStockCount ?></div></div>
+    <div class="kpi" style="border-left:4px solid #2e7d32"><div class="label">🏪 <?= current_locale()==='am'?'ዋና መጋዘን':'Central Warehouse' ?></div><div class="value"><?= current_locale()==='am'?'አለልቱ ማዕከል':'Aleltu Hub' ?></div></div>
 </div>
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h3 style="margin:0">🏪 Current Warehouse Stock Levels (Main Central Warehouse)</h3>
-        <a href="/aleltu-eifms/modules/warehouse/stock.php" class="btn secondary" style="padding:4px 10px;font-size:12px">Open Stock Inventory →</a>
+        <h3 style="margin:0">🏪 <?= current_locale() === 'am' ? 'የመጋዘን ዕቃዎች ወቅታዊ ክምችት ዝርዝር' : 'Current Warehouse Stock Levels' ?></h3>
+        <a href="<?= BASE_URL ?>/modules/warehouse/stock.php" class="btn secondary" style="padding:4px 10px;font-size:12px">📦 <?= current_locale() === 'am' ? 'ወደ መጋዘን ክምችት ሂድ' : 'Open Stock Inventory' ?> →</a>
     </div>
     <table>
-        <thead><tr><th>SKU</th><th>Item Name</th><th>Class</th><th>Unit</th><th>Available Stock</th><th>Threshold</th><th>Status</th></tr></thead>
+        <thead><tr><th>SKU</th><th><?= current_locale()==='am'?'የዕቃ ስም':'Item Name' ?></th><th><?= current_locale()==='am'?'ምድብ':'Class' ?></th><th><?= current_locale()==='am'?'መለኪያ':'Unit' ?></th><th><?= current_locale()==='am'?'የሚገኝ ክምችት':'Available Stock' ?></th><th><?= current_locale()==='am'?'ዝቅተኛ ወሰን':'Threshold' ?></th><th><?= current_locale()==='am'?'ሁኔታ':'Status' ?></th></tr></thead>
         <tbody>
         <?php foreach ($stockRows as $r): 
             $isLow = (float)$r['cur_stock'] < (float)$r['min_lim'];
@@ -403,20 +447,20 @@ elseif ($mod === 'payroll'):
     $totalRemain  = array_sum(array_map(fn($r) => $r['net_pay'] - $r['total_paid'], $payRows));
 ?>
 <div class="kpi-row" style="margin-bottom:16px">
-    <div class="kpi"><div class="label">Total Net Salaries</div><div class="value"><?= number_format($totalNet, 2) ?> ETB</div></div>
-    <div class="kpi"><div class="label">Total Disbursed</div><div class="value" style="color:#2e7d32"><?= number_format($totalPaid, 2) ?> ETB</div></div>
-    <div class="kpi"><div class="label">Unpaid Salaries</div><div class="value" style="color:<?= $totalRemain > 0 ? '#b3261e' : '#2e7d32' ?>"><?= number_format($totalRemain, 2) ?> ETB</div></div>
-    <div class="kpi"><div class="label">Staff Count</div><div class="value"><?= count($payRows) ?></div></div>
+    <div class="kpi" style="border-left:4px solid var(--primary)"><div class="label">💳 <?= current_locale()==='am'?'ጠቅላላ የተጣራ ደመወዝ':'Total Net Salaries' ?></div><div class="value"><?= number_format($totalNet, 2) ?> ETB</div></div>
+    <div class="kpi" style="border-left:4px solid #2e7d32"><div class="label">💵 <?= current_locale()==='am'?'የተከፈለ ደመወዝ':'Total Disbursed' ?></div><div class="value" style="color:#2e7d32"><?= number_format($totalPaid, 2) ?> ETB</div></div>
+    <div class="kpi" style="border-left:4px solid <?= $totalRemain > 0 ? '#b3261e' : '#2e7d32' ?>"><div class="label">⏳ <?= current_locale()==='am'?'ያልተከፈለ ቀሪ ደመወዝ':'Unpaid Salaries' ?></div><div class="value" style="color:<?= $totalRemain > 0 ? '#b3261e' : '#2e7d32' ?>"><?= number_format($totalRemain, 2) ?> ETB</div></div>
+    <div class="kpi" style="border-left:4px solid #1565c0"><div class="label">👥 <?= current_locale()==='am'?'የሰራተኞች ብዛት':'Staff Count' ?></div><div class="value"><?= count($payRows) ?></div></div>
 </div>
 <div class="card">
-    <h3>Payroll Ledger Summary</h3>
+    <h3>💼 <?= current_locale() === 'am' ? 'የደመወዝ ክፍያ ዙሮች ዝርዝር ሪፖርት' : 'Payroll Ledger Summary' ?></h3>
     <table>
-        <thead><tr><th>Period</th><th>Employee</th><th>Emp No</th><th>Dept</th><th>Daily Rate</th><th>Days</th><th>Net Pay</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+        <thead><tr><th><?= current_locale()==='am'?'ክፍለ-ጊዜ (ኢትዮጵያ)':'Period' ?></th><th><?= current_locale()==='am'?'ሰራተኛ':'Employee' ?></th><th><?= current_locale()==='am'?'መለያ':'Emp No' ?></th><th><?= current_locale()==='am'?'ክፍል':'Dept' ?></th><th><?= current_locale()==='am'?'ተመን':'Daily Rate' ?></th><th><?= current_locale()==='am'?'ቀን':'Days' ?></th><th><?= current_locale()==='am'?'የተጣራ':'Net Pay' ?></th><th><?= current_locale()==='am'?'የተከፈለ':'Paid' ?></th><th><?= current_locale()==='am'?'ቀሪ':'Balance' ?></th><th><?= current_locale()==='am'?'ሁኔታ':'Status' ?></th></tr></thead>
         <tbody>
         <?php foreach ($payRows as $r): ?>
             <?php $rem = (float)$r['net_pay'] - (float)$r['total_paid']; ?>
             <tr>
-                <td style="font-size:11px"><?= h("{$r['period_start']} → {$r['period_end']}") ?></td>
+                <td style="font-size:12px;white-space:nowrap"><?= h(eth_date($r['period_start']) . ' — ' . eth_date($r['period_end'])) ?></td>
                 <td><strong><?= h($r['full_name']) ?></strong></td>
                 <td><code><?= h($r['employee_number']) ?></code></td>
                 <td><?= h($r['department'] ?: '—') ?></td>
@@ -450,9 +494,9 @@ elseif ($mod === 'employees'):
     $empRows = $stmt->fetchAll();
 ?>
 <div class="card">
-    <h3>Staff Attendance Performance — <?= h($from) ?> to <?= h($to) ?></h3>
+    <h3>👥 <?= current_locale() === 'am' ? 'የሰራተኞች የስራ መገኘት አፈጻጸም' : 'Staff Attendance Performance' ?> — <?= eth_date($from) ?> <?= current_locale() === 'am' ? 'እስከ' : 'to' ?> <?= eth_date($to) ?></h3>
     <table>
-        <thead><tr><th>Emp No</th><th>Full Name</th><th>Department</th><th>Job Title</th><th>Present Days</th><th>Absent Days</th><th>Attendance Rate</th></tr></thead>
+        <thead><tr><th><?= current_locale()==='am'?'መለያ ቁጥር':'Emp No' ?></th><th><?= current_locale()==='am'?'ሙሉ ስም':'Full Name' ?></th><th><?= current_locale()==='am'?'የስራ ክፍል':'Department' ?></th><th><?= current_locale()==='am'?'የስራ መደብ':'Job Title' ?></th><th><?= current_locale()==='am'?'የተገኙበት ቀን':'Present Days' ?></th><th><?= current_locale()==='am'?'የቀሩበት ቀን':'Absent Days' ?></th><th><?= current_locale()==='am'?'የመገኘት ምጣኔ':'Attendance Rate' ?></th></tr></thead>
         <tbody>
         <?php foreach ($empRows as $r): ?>
             <?php $pct = $r['total_days'] > 0 ? round($r['present_days'] / $r['total_days'] * 100, 1) : 100; ?>
@@ -497,18 +541,18 @@ elseif ($mod === 'poultry'):
     $totalMortality = (int) $mortalityStmt->fetchColumn();
 ?>
 <div class="kpi-row" style="margin-bottom:16px">
-    <div class="kpi"><div class="label">Whole Eggs Collected</div><div class="value"><?= number_format($totalEggs) ?> eggs</div></div>
-    <div class="kpi"><div class="label">Collection Days</div><div class="value"><?= count($eggRows) ?> days</div></div>
-    <div class="kpi"><div class="label">Total Bird Mortality</div><div class="value" style="color:<?= $totalMortality > 0 ? '#b3261e' : 'inherit' ?>"><?= number_format($totalMortality) ?> birds</div></div>
+    <div class="kpi" style="border-left:4px solid var(--primary)"><div class="label">🥚 <?= current_locale()==='am'?'ጤነኛ እንቁላል ምርት':'Whole Eggs Collected' ?></div><div class="value"><?= number_format($totalEggs) ?> <?= current_locale()==='am'?'እንቁላል':'eggs' ?></div></div>
+    <div class="kpi" style="border-left:4px solid #1565c0"><div class="label">📅 <?= current_locale()==='am'?'የምርት መሰብሰቢያ ቀናት':'Collection Days' ?></div><div class="value"><?= count($eggRows) ?> <?= current_locale()==='am'?'ቀን':'days' ?></div></div>
+    <div class="kpi" style="border-left:4px solid <?= $totalMortality > 0 ? '#b3261e' : '#2e7d32' ?>"><div class="label">⚠️ <?= current_locale()==='am'?'የሞቱ ዶሮዎች':'Bird Mortality' ?></div><div class="value" style="color:<?= $totalMortality > 0 ? '#b3261e' : 'inherit' ?>"><?= number_format($totalMortality) ?> <?= current_locale()==='am'?'ዶሮዎች':'birds' ?></div></div>
 </div>
 <div class="card">
-    <h3>Egg Production by Day &amp; Poultry House</h3>
+    <h3><?= current_locale() === 'am' ? 'የዕለት የእንቁላል ምርት መዝገብ' : 'Egg Production by Day & Poultry House' ?></h3>
     <table>
-        <thead><tr><th>Date</th><th>House</th><th>Breed</th><th>Whole Eggs</th><th>Cracked</th><th>Broken</th></tr></thead>
+        <thead><tr><th><?= current_locale() === 'am' ? 'ቀን' : 'Date' ?></th><th><?= current_locale() === 'am' ? 'የዶሮ ቤት' : 'House' ?></th><th><?= current_locale() === 'am' ? 'ዝርያ' : 'Breed' ?></th><th><?= current_locale() === 'am' ? 'ጤነኛ እንቁላል' : 'Whole Eggs' ?></th><th><?= current_locale() === 'am' ? 'የተሰነጠቀ' : 'Cracked' ?></th><th><?= current_locale() === 'am' ? 'የተሰበረ' : 'Broken' ?></th></tr></thead>
         <tbody>
         <?php foreach ($eggRows as $r): ?>
             <tr>
-                <td><?= h($r['collection_date']) ?></td>
+                <td><?= h(eth_date($r['collection_date'])) ?></td>
                 <td><strong><?= h($r['house']) ?></strong></td>
                 <td><?= h($r['breed']) ?></td>
                 <td><strong style="color:#2e7d32"><?= number_format($r['whole']) ?></strong></td>
@@ -516,7 +560,7 @@ elseif ($mod === 'poultry'):
                 <td><?= number_format($r['broken']) ?></td>
             </tr>
         <?php endforeach; ?>
-        <?php if (empty($eggRows)): ?><tr><td colspan="6" class="text-muted">No egg collection data in this range.</td></tr><?php endif; ?>
+        <?php if (empty($eggRows)): ?><tr><td colspan="6" class="text-muted"><?= h(t('common.no_records', 'No egg collection data in this range.')) ?></td></tr><?php endif; ?>
         </tbody>
     </table>
 </div>
@@ -536,24 +580,24 @@ elseif ($mod === 'fish'):
     $totalHarvest = array_sum(array_column($harvestRows, 'total_kg'));
 ?>
 <div class="kpi-row" style="margin-bottom:16px">
-    <div class="kpi"><div class="label">Total Fish Harvest</div><div class="value"><?= number_format($totalHarvest, 1) ?> kg</div></div>
-    <div class="kpi"><div class="label">Harvest Events</div><div class="value"><?= count($harvestRows) ?></div></div>
+    <div class="kpi"><div class="label"><?= current_locale() === 'am' ? 'ጠቅላላ የአሳ ምርት' : 'Total Fish Harvest' ?></div><div class="value"><?= number_format($totalHarvest, 1) ?> kg</div></div>
+    <div class="kpi"><div class="label"><?= current_locale() === 'am' ? 'የማሰባሰብ ዙሮች' : 'Harvest Events' ?></div><div class="value"><?= count($harvestRows) ?></div></div>
 </div>
 <div class="card">
-    <h3>Fish Harvest Log</h3>
+    <h3><?= current_locale() === 'am' ? 'የአሳ ምርት ስብሰባ መዝገብ' : 'Fish Harvest Log' ?></h3>
     <table>
-        <thead><tr><th>Date</th><th>Pond</th><th>Species</th><th>Grade</th><th>Harvest Yield</th></tr></thead>
+        <thead><tr><th><?= current_locale() === 'am' ? 'ቀን' : 'Date' ?></th><th><?= current_locale() === 'am' ? 'ኩሬ' : 'Pond' ?></th><th><?= current_locale() === 'am' ? 'የዓሳ ዝርያ' : 'Species' ?></th><th><?= current_locale() === 'am' ? 'ደረጃ' : 'Grade' ?></th><th><?= current_locale() === 'am' ? 'የተሰበሰበ (ኪ.ግ)' : 'Harvest Yield' ?></th></tr></thead>
         <tbody>
         <?php foreach ($harvestRows as $r): ?>
             <tr>
-                <td><?= h($r['harvest_date']) ?></td>
+                <td><?= h(eth_date($r['harvest_date'])) ?></td>
                 <td><strong><?= h($r['pond']) ?></strong></td>
                 <td><?= h($r['species']) ?></td>
                 <td><?= h($r['grade'] ?: '—') ?></td>
                 <td><strong><?= number_format($r['total_kg'], 1) ?> kg</strong></td>
             </tr>
         <?php endforeach; ?>
-        <?php if (empty($harvestRows)): ?><tr><td colspan="5" class="text-muted">No harvest records in this range.</td></tr><?php endif; ?>
+        <?php if (empty($harvestRows)): ?><tr><td colspan="5" class="text-muted"><?= h(t('common.no_records', 'No harvest records in this range.')) ?></td></tr><?php endif; ?>
         </tbody>
     </table>
 </div>
@@ -574,25 +618,25 @@ elseif ($mod === 'feed'):
     $totalFeedYield = array_sum(array_column($feedRows, 'yield_kg'));
 ?>
 <div class="kpi-row" style="margin-bottom:16px">
-    <div class="kpi"><div class="label">Total Crop Yield</div><div class="value"><?= number_format($totalFeedYield, 1) ?> kg</div></div>
-    <div class="kpi"><div class="label">Harvest Records</div><div class="value"><?= count($feedRows) ?></div></div>
+    <div class="kpi"><div class="label"><?= current_locale() === 'am' ? 'ጠቅላላ የመኖ ሰብል ምርት' : 'Total Crop Yield' ?></div><div class="value"><?= number_format($totalFeedYield, 1) ?> kg</div></div>
+    <div class="kpi"><div class="label"><?= current_locale() === 'am' ? 'የምርት ስብሰባዎች' : 'Harvest Records' ?></div><div class="value"><?= count($feedRows) ?></div></div>
 </div>
 <div class="card">
-    <h3>Feed &amp; Crop Harvest Summary</h3>
+    <h3><?= current_locale() === 'am' ? 'የመኖ እና የሰብል ምርት ስብሰባ ማጠቃለያ' : 'Feed & Crop Harvest Summary' ?></h3>
     <table>
-        <thead><tr><th>Harvest Date</th><th>Plot</th><th>Crop Type</th><th>Planting Date</th><th>Yield (kg)</th><th>Sent to Store</th></tr></thead>
+        <thead><tr><th><?= current_locale() === 'am' ? 'የምርት ቀን' : 'Harvest Date' ?></th><th><?= current_locale() === 'am' ? 'ማሳ' : 'Plot' ?></th><th><?= current_locale() === 'am' ? 'የሰብል ዓይነት' : 'Crop Type' ?></th><th><?= current_locale() === 'am' ? 'የተዘራበት ቀን' : 'Planting Date' ?></th><th><?= current_locale() === 'am' ? 'ምርት (ኪ.ግ)' : 'Yield (kg)' ?></th><th><?= current_locale() === 'am' ? 'ወደ መጋዘን' : 'Sent to Store' ?></th></tr></thead>
         <tbody>
         <?php foreach ($feedRows as $r): ?>
             <tr>
-                <td><?= h($r['harvest_date']) ?></td>
+                <td><?= h(eth_date($r['harvest_date'])) ?></td>
                 <td><strong><?= h($r['plot_name']) ?></strong></td>
                 <td><?= h($r['crop_type']) ?></td>
-                <td style="font-size:12px"><?= h($r['planting_date']) ?></td>
+                <td style="font-size:12px"><?= h(eth_date($r['planting_date'])) ?></td>
                 <td><strong><?= number_format($r['yield_kg'], 1) ?> kg</strong></td>
                 <td><?= $r['sent_to_store'] ? '<span class="badge milking">✓ Sent to Store</span>' : '<span class="badge dry">Pending</span>' ?></td>
             </tr>
         <?php endforeach; ?>
-        <?php if (empty($feedRows)): ?><tr><td colspan="6" class="text-muted">No crop harvest data in this range.</td></tr><?php endif; ?>
+        <?php if (empty($feedRows)): ?><tr><td colspan="6" class="text-muted"><?= h(t('common.no_records', 'No crop harvest data in this range.')) ?></td></tr><?php endif; ?>
         </tbody>
     </table>
 </div>
@@ -613,25 +657,25 @@ elseif ($mod === 'vet'):
     $totalIncidents = count($vetRows);
 ?>
 <div class="kpi-row" style="margin-bottom:16px">
-    <div class="kpi"><div class="label">Total Health Logs</div><div class="value"><?= $totalIncidents ?> logs</div></div>
-    <div class="kpi"><div class="label">Treated Animals</div><div class="value"><?= count(array_unique(array_column($vetRows, 'subject_id'))) ?></div></div>
+    <div class="kpi"><div class="label"><?= current_locale() === 'am' ? 'ጠቅላላ የህክምና መዝገቦች' : 'Total Health Logs' ?></div><div class="value"><?= $totalIncidents ?></div></div>
+    <div class="kpi"><div class="label"><?= current_locale() === 'am' ? 'የታከሙ እንስሳት' : 'Treated Animals' ?></div><div class="value"><?= count(array_unique(array_column($vetRows, 'subject_id'))) ?></div></div>
 </div>
 <div class="card">
-    <h3>Veterinary Treatment &amp; Health Log</h3>
+    <h3><?= current_locale() === 'am' ? 'የእንስሳት ህክምና እና ጤና መዝገብ' : 'Veterinary Treatment & Health Log' ?></h3>
     <table>
-        <thead><tr><th>Date</th><th>Cow Tag</th><th>Cow Name</th><th>Condition / Disease</th><th>Treatment Administered</th><th>Attending Officer</th></tr></thead>
+        <thead><tr><th><?= current_locale() === 'am' ? 'ቀን' : 'Date' ?></th><th><?= current_locale() === 'am' ? 'የከብት መለያ' : 'Cow Tag' ?></th><th><?= current_locale() === 'am' ? 'ስም' : 'Cow Name' ?></th><th><?= current_locale() === 'am' ? 'የበሽታ ዓይነት' : 'Condition / Disease' ?></th><th><?= current_locale() === 'am' ? 'የተሰጠ ህክምና' : 'Treatment Administered' ?></th><th><?= current_locale() === 'am' ? 'ባለሙያ' : 'Attending Officer' ?></th></tr></thead>
         <tbody>
         <?php foreach ($vetRows as $r): ?>
             <tr>
-                <td style="font-size:12px"><?= h($r['record_date']) ?></td>
-                <td><a href="/aleltu-eifms/modules/dairy/cow_view.php?id=<?= (int)$r['subject_id'] ?>"><strong><?= h($r['tag_number'] ?: 'N/A') ?></strong></a></td>
+                <td style="font-size:12px"><?= h(eth_date($r['record_date'])) ?></td>
+                <td><a href="<?= BASE_URL ?>/modules/dairy/cow_view.php?id=<?= (int)$r['subject_id'] ?>"><strong><?= h($r['tag_number'] ?: 'N/A') ?></strong></a></td>
                 <td><?= h($r['cow_name'] ?: '—') ?></td>
                 <td><strong><?= h($r['condition_name']) ?></strong></td>
                 <td><?= h($r['treatment'] ?: '—') ?></td>
                 <td><?= h($r['vet_name'] ?: '—') ?></td>
             </tr>
         <?php endforeach; ?>
-        <?php if (empty($vetRows)): ?><tr><td colspan="6" class="text-muted">No veterinary health logs in this date range.</td></tr><?php endif; ?>
+        <?php if (empty($vetRows)): ?><tr><td colspan="6" class="text-muted"><?= h(t('common.no_records', 'No veterinary health logs in this date range.')) ?></td></tr><?php endif; ?>
         </tbody>
     </table>
 </div>
