@@ -112,6 +112,8 @@ if ($userRole === 'super_admin') {
             'title' => current_locale() === 'am' ? 'የፋይናንስና ካዝና ቁጥጥር' : 'Financial Oversight & Treasury',
             'items' => [
                 ['url' => BASE_URL . '/modules/finance/dashboard.php',        'label' => (current_locale()==='am'?'የፋይናንስና ካዝና ማዕከል':'Cash & Bank Treasury'), 'roles' => ['super_admin']],
+                ['url' => BASE_URL . '/modules/finance/bank_accounts.php',    'label' => (current_locale()==='am'?'የባንክ ሂሳቦችና አገልግሎት ክፍያ':'Bank Accounts & Fees'), 'roles' => ['super_admin']],
+                ['url' => BASE_URL . '/modules/finance/sales_payments.php',   'label' => (current_locale()==='am'?'የሽያጭ ገቢ፣ ሱቆችና ደረሰኝ':'Sales Revenues & Shop Receipts'), 'roles' => ['super_admin']],
                 ['url' => BASE_URL . '/modules/finance/income_statement.php', 'label' => (current_locale()==='am'?'የትርፍና ኪሳራ መግለጫ (P&L)':'Income Statement (P&L)'), 'roles' => ['super_admin']],
                 ['url' => BASE_URL . '/modules/finance/expenses.php',         'label' => (current_locale()==='am'?'ወጪዎችና ማጽደቂያዎች':'Expenses & Approvals'), 'roles' => ['super_admin']],
                 ['url' => BASE_URL . '/modules/finance/payroll.php',          'label' => (current_locale()==='am'?'የሰራተኞች ደሞዝ ክፍያ':'Staff Payroll Oversight'), 'roles' => ['super_admin']],
@@ -234,6 +236,8 @@ if ($userRole === 'super_admin') {
             'title' => t('section.finance', 'Finance & Accounting'),
             'items' => [
                 ['url' => BASE_URL . '/modules/finance/dashboard.php',        'label' => (current_locale()==='am'?'የፋይናንስና ካዝና ማዕከል':'Cash & Bank Dashboard'), 'roles' => ['general_manager', 'finance_officer']],
+                ['url' => BASE_URL . '/modules/finance/bank_accounts.php',    'label' => (current_locale()==='am'?'የባንክ ሂሳቦችና አገልግሎት ክፍያ':'Bank Accounts & Fees'), 'roles' => ['general_manager', 'finance_officer']],
+                ['url' => BASE_URL . '/modules/finance/sales_payments.php',   'label' => (current_locale()==='am'?'የሽያጭ ገቢ፣ ሱቆችና ደረሰኝ':'Sales Revenues & Shop Receipts'), 'roles' => ['general_manager', 'finance_officer']],
                 ['url' => BASE_URL . '/modules/finance/purchasing.php',       'label' => (current_locale()==='am'?'የመጋዘን ግዢ ጥያቄዎችና ክፍያ':'Purchasing & Payments'), 'roles' => ['general_manager', 'finance_officer']],
                 ['url' => BASE_URL . '/modules/finance/inventory_value.php',  'label' => (current_locale()==='am'?'የዕቃዎች ዋጋ በገንዘብ (Valuation)':'Inventory Valuation'), 'roles' => ['general_manager', 'finance_officer']],
                 ['url' => BASE_URL . '/modules/finance/receivables.php',      'label' => (current_locale()==='am'?'ተሰብሳቢ ሂሳቦች':'Receivables'), 'roles' => ['general_manager', 'finance_officer']],

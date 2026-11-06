@@ -80,31 +80,6 @@ $threshold = setting_get('po_approval_threshold') ?? 10000;
     <strong style="color:#1b5e20">📦 <?= current_locale() === 'am' ? 'የመጋዘን ርክክብ ደንብ:' : 'Warehouse Receiving Protection Rule:' ?></strong> <?= current_locale() === 'am' ? 'ፋይናንስ ግዢ ፈጽሞ <strong>"ወደ መጋዘን ላክ"</strong> ሲል ለመጋዘን ኃላፊው የርክክብ ጥያቄ ይፈጠራል። ዕቃው ወደ ክምችት የሚደመረው የመጋዘን ኃላፊው በአካል ተረክቦ ሲያረጋግጥ ብቻ ነው።' : 'When Finance completes a purchase and clicks "Send to Warehouse", an incoming shipment record is automatically created for the Storekeeper.' ?>
 </div>
 
-<!-- Manual Request Form (Finance Initiated) -->
-<div class="card" style="max-width:560px;margin-bottom:24px">
-    <h3>➕ <?= h(t('fin.raise_request', 'Raise Internal Purchase Request')) ?></h3>
-    <form method="post"><?= csrf_field() ?>
-        <div class="form-group">
-            <label><?= h(t('fin.item', 'Item')) ?> *</label>
-            <select name="stock_item_id" required>
-                <?php foreach ($items as $i): ?>
-                    <option value="<?= (int) $i['id'] ?>"><?= h($i['name']) ?> (<?= h($i['unit']) ?> - <?= h($i['sku']) ?>)</option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label><?= h(t('fin.quantity', 'Quantity')) ?> *</label>
-                <input type="number" step="0.01" min="0.1" name="quantity" required placeholder="<?= current_locale() === 'am' ? 'ለምሳሌ፡ 100' : 'e.g. 100' ?>">
-            </div>
-            <div class="form-group">
-                <label><?= h(t('fin.justification', 'Justification / Purpose')) ?></label>
-                <input type="text" name="justification" placeholder="<?= current_locale() === 'am' ? 'ለምሳሌ፡ የክምችት ማነስ' : 'e.g. Low inventory reorder' ?>">
-            </div>
-        </div>
-        <button class="btn" type="submit"><?= h(t('fin.raise_request', 'Submit Purchase Request')) ?></button>
-    </form>
-</div>
 
 <!-- Incoming Purchase Requests Queue -->
 <div class="card" style="margin-bottom:24px">

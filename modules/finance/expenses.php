@@ -1,451 +1,325 @@
 <?php
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/auth.php';
-require_role(['super_admin', 'general_manager', 'finance_officer']);
+require_role(['general_manager', 'finance_officer', 'super_admin']);
+
+$currentUser = current_user();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
     try {
-        if (isset($_POST['decide_id'])) {
-            require_permission('finance', 'approve');
-            if ($_POST['decision'] === 'approve') {
-                expense_approve((int) $_POST['decide_id']);
-                flash(current_locale() === 'am' ? '✓ ወጪው/ማውጣቱ ጸድቆ ወደ ካዝና መዝገብ ተመዝግቧል።' : 'Expense/Withdrawal approved and booked to cash flow.');
-            } else {
-                expense_reject((int) $_POST['decide_id']);
-                flash(current_locale() === 'am' ? 'ወጪው/ማውጣቱ ውድቅ ተደርጓል።' : 'Expense/Withdrawal rejected.');
+        if (isset($_POST['record_expense'])) {
+            $cat      = trim($_POST['category'] ?? '');
+            $amount   = (float)$_POST['amount'];
+            $bankId   = !empty($_POST['bank_account_id']) ? (int)$_POST['bank_account_id'] : null;
+            $wType    = trim($_POST['withdrawal_type'] ?? 'operating_expense');
+            $unitTag  = trim($_POST['unit_tag'] ?? 'dairy');
+            $expDate  = trim($_POST['expense_date'] ?? date('Y-m-d'));
+            $desc     = trim($_POST['description'] ?? '');
+            $rcptName = trim($_POST['recipient_name'] ?? '');
+
+            if ($amount <= 0) {
+                throw new InvalidArgumentException(current_locale() === 'am' ? 'የወጪው መጠን ከ 0 በላይ መሆን አለበት።' : 'Amount must be positive.');
             }
-        } else {
-            require_permission('finance', 'create');
-            $unit   = $_POST['unit_tag'];
-            $amount = (float)$_POST['amount'];
-            $newId  = expense_create($_POST);
-            flash(current_locale() === 'am' ? '✓ ወጪው/ማውጣቱ በተሳካ ሁኔታ ተመዝግቧል፤ ለማጽደቅ ቀርቧል።' : 'Expense/Withdrawal submitted for approval.');
+            if (empty($cat)) {
+                throw new InvalidArgumentException(current_locale() === 'am' ? 'የወጪ ምድብ ማስገባት ግዴታ ነው።' : 'Category is required.');
+            }
+
+            // GM or Super Admin direct entry is auto-approved, others pending
+            $autoApprove = has_role(['super_admin', 'general_manager']);
+            $status = $autoApprove ? 'approved' : 'pending';
+            $approverId = $autoApprove ? $currentUser['id'] : null;
+
+            $stmt = db()->prepare(
+                "INSERT INTO fin_expenses (unit_tag, category, amount, bank_account_id, withdrawal_type, expense_date, description, recipient_name, requested_by, approved_by, status, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+            );
+            $stmt->execute([$unitTag, $cat, $amount, $bankId, $wType, $expDate, $desc ?: null, $rcptName ?: null, $currentUser['id'], $approverId, $status]);
+            $expId = (int) db()->lastInsertId();
+
+            if ($autoApprove) {
+                // Book transaction outflow immediately
+                finance_record_transaction(
+                    'outflow',
+                    $amount,
+                    $unitTag,
+                    $cat,
+                    $expDate,
+                    $desc ?: "የወጪ ክፍያ #{$expId}",
+                    'fin_expenses',
+                    $expId,
+                    null,
+                    'cash',
+                    $bankId
+                );
+            }
+
+            log_activity('finance', 'create', 'fin_expenses', $expId, "Recorded {$amount} ETB expense for {$unitTag} (Status: {$status})");
+            flash(current_locale() === 'am' ? '✓ የወጪ መዝገቡ በተሳካ ሁኔታ ተመዝግቧል!' : 'Expense recorded successfully.');
+        } elseif (isset($_POST['approve_expense'])) {
+            require_role(['super_admin', 'general_manager']);
+            $expId = (int)$_POST['expense_id'];
+
+            $expStmt = db()->prepare("SELECT * FROM fin_expenses WHERE id = ?");
+            $expStmt->execute([$expId]);
+            $exp = $expStmt->fetch();
+
+            if ($exp && $exp['status'] === 'pending') {
+                db()->prepare("UPDATE fin_expenses SET status = 'approved', approved_by = ? WHERE id = ?")
+                    ->execute([$currentUser['id'], $expId]);
+
+                finance_record_transaction(
+                    'outflow',
+                    (float)$exp['amount'],
+                    $exp['unit_tag'],
+                    $exp['category'],
+                    $exp['expense_date'],
+                    $exp['description'] ?: "የጸደቀ ወጪ #{$expId}",
+                    'fin_expenses',
+                    $expId,
+                    null,
+                    'cash',
+                    $exp['bank_account_id']
+                );
+
+                log_activity('finance', 'approve', 'fin_expenses', $expId, "Approved expense #{$expId} by User #{$currentUser['id']}");
+                flash(current_locale() === 'am' ? '✓ ወጪው ጸድቆ ከሂሳብ መዝገብ ላይ ተቀናሽ ተደርጓል!' : 'Expense approved and booked.');
+            }
+        } elseif (isset($_POST['reject_expense'])) {
+            require_role(['super_admin', 'general_manager']);
+            $expId = (int)$_POST['expense_id'];
+            db()->prepare("UPDATE fin_expenses SET status = 'rejected', approved_by = ? WHERE id = ?")
+                ->execute([$currentUser['id'], $expId]);
+            log_activity('finance', 'reject', 'fin_expenses', $expId, "Rejected expense #{$expId} by User #{$currentUser['id']}");
+            flash(current_locale() === 'am' ? '✓ ወጪው ውድቅ ተደርጓል።' : 'Expense rejected.');
         }
         header('Location: ' . BASE_URL . '/modules/finance/expenses.php');
         exit;
     } catch (Throwable $e) {
-        flash('Error: ' . $e->getMessage(), 'error');
+        flash(current_locale() === 'am' ? 'ስህተት፦ ' . $e->getMessage() : 'Error: ' . $e->getMessage(), 'error');
     }
-}
-
-if (($_GET['export'] ?? '') === 'csv') {
-    require_once __DIR__ . '/../../includes/export.php';
-    export_csv(
-        db()->query(
-            "SELECT e.expense_date, e.unit_tag, e.withdrawal_type, e.category, e.recipient_name, e.amount, b.bank_name, e.description, e.status 
-             FROM fin_expenses e 
-             LEFT JOIN fin_bank_accounts b ON b.id = e.bank_account_id 
-             ORDER BY e.id DESC"
-        )->fetchAll(),
-        'expenses_withdrawals_' . date('Y-m-d') . '.csv'
-    );
 }
 
 require_once __DIR__ . '/../../includes/header.php';
 
-// Fetch the 3 accounts (Oromia Bank, Telebirr, Cash)
-$bankAccounts = db()->query("SELECT id, bank_name, account_type, account_number FROM fin_bank_accounts ORDER BY id")->fetchAll();
+$bankAccounts = db()->query("SELECT id, bank_name, account_type, account_number FROM fin_bank_accounts ORDER BY id ASC")->fetchAll();
 
-// Withdrawal types definition
-$withdrawalTypes = [
-    'operating_expense' => [
-        'label' => current_locale() === 'am' ? 'መደበኛ የስራ ማስኬጃ ወጪ' : 'Operating Expense',
-        'badge' => 'badge-blue',
-        'color' => '#1565c0',
-        'icon'  => ''
-    ],
-    'holiday_gift' => [
-        'label' => current_locale() === 'am' ? 'የበዓል ስጦታ (Holiday Gift)' : 'Holiday Gift',
-        'badge' => 'badge-purple',
-        'color' => '#7b1fa2',
-        'icon'  => ''
-    ],
-    'admin_protocol' => [
-        'label' => current_locale() === 'am' ? 'የመንግስት/ቀበሌ አስተዳደር ፕሮቶኮል' : 'Govt/Kebele Protocol',
-        'badge' => 'badge-green',
-        'color' => '#2e7d32',
-        'icon'  => ''
-    ],
-    'food_withdrawal' => [
-        'label' => current_locale() === 'am' ? 'የምግብና መስተንግዶ ፍጆታ' : 'Food & Hospitality',
-        'badge' => 'badge-yellow',
-        'color' => '#e65100',
-        'icon'  => ''
-    ],
-    'owner_drawing' => [
-        'label' => current_locale() === 'am' ? 'የባለቤት የግል ማውጣት' : 'Owner Drawing',
-        'badge' => 'badge-orange',
-        'color' => '#c2185b',
-        'icon'  => ''
-    ],
-    'cash_withdrawal' => [
-        'label' => current_locale() === 'am' ? 'አጠቃላይ የጥሬ ገንዘብ ማውጣት' : 'Cash Withdrawal',
-        'badge' => 'badge-gray',
-        'color' => '#455a64',
-        'icon'  => ''
-    ]
-];
-
-// Department / Unit Labels Definition
 $unitLabels = [
-    'dairy' => [
-        'name' => current_locale() === 'am' ? 'የወተት እርሻ (Dairy)' : 'Dairy Farm',
-        'icon' => ''
-    ],
-    'poultry' => [
-        'name' => current_locale() === 'am' ? 'የዶሮና እንቁላል እርባታ (Poultry)' : 'Poultry & Eggs',
-        'icon' => ''
-    ],
-    'fish' => [
-        'name' => current_locale() === 'am' ? 'የዓሳ እርባታ (Fish)' : 'Fish Aquaculture',
-        'icon' => ''
-    ],
-    'feed_production' => [
-        'name' => current_locale() === 'am' ? 'የመኖ ምርትና እርሻ (Feed)' : 'Feed Production & Crops',
-        'icon' => ''
-    ],
-    'warehouse' => [
-        'name' => current_locale() === 'am' ? 'መጋዘንና ግዢ (Warehouse)' : 'Warehouse & Inventory',
-        'icon' => ''
-    ],
-    'distribution' => [
-        'name' => current_locale() === 'am' ? 'ስርጭትና መዳረሻ ሱቆች (Distribution)' : 'Distribution & Logistics',
-        'icon' => ''
-    ],
-    'veterinary' => [
-        'name' => current_locale() === 'am' ? 'የእንስሳት ህክምና (Veterinary)' : 'Veterinary Clinic',
-        'icon' => ''
-    ],
-    'general_overhead' => [
-        'name' => current_locale() === 'am' ? 'አጠቃላይ አስተዳደርና ደመወዝ (General Overhead)' : 'General Overhead & Admin',
-        'icon' => ''
-    ],
+    'dairy'            => ['name' => 'የላም እርባታ (Dairy)', 'color' => '#1b5e20'],
+    'poultry'          => ['name' => 'የዶሮ እርባታ (Poultry)', 'color' => '#b71c1c'],
+    'fish'             => ['name' => 'የዓሣ እርባታ (Fish Farm)', 'color' => '#0288d1'],
+    'feed_production'  => ['name' => 'የመኖና ሰብል (Feed Production)', 'color' => '#f57f17'],
+    'veterinary'       => ['name' => 'የእንስሳት ሕክምና (Veterinary)', 'color' => '#4a148c'],
+    'warehouse'        => ['name' => 'መጋዘንና ግዢ (Warehouse)', 'color' => '#546e7a'],
+    'distribution'     => ['name' => 'ስርጭትና ሱቆች (Distribution)', 'color' => '#00838f'],
+    'general_overhead' => ['name' => 'ጠቅላላ አስተዳደር (General Overhead)', 'color' => '#37474f']
 ];
 
-// Stats
-$stats = db()->query(
-    "SELECT 
-        COALESCE(SUM(amount), 0) AS total_all,
-        COALESCE(SUM(CASE WHEN withdrawal_type = 'operating_expense' THEN amount ELSE 0 END), 0) AS total_operating,
-        COALESCE(SUM(CASE WHEN withdrawal_type IN ('holiday_gift', 'admin_protocol') THEN amount ELSE 0 END), 0) AS total_gifts,
-        COALESCE(SUM(CASE WHEN withdrawal_type IN ('food_withdrawal', 'owner_drawing', 'cash_withdrawal') THEN amount ELSE 0 END), 0) AS total_special
-     FROM fin_expenses WHERE status = 'approved'"
-)->fetch();
-
-$filterType = $_GET['filter_type'] ?? '';
-$unitFilter = $_GET['unit'] ?? '';
-$where = '1=1';
-if ($filterType === 'operating') {
-    $where .= " AND e.withdrawal_type = 'operating_expense'";
-} elseif ($filterType === 'gifts') {
-    $where .= " AND e.withdrawal_type IN ('holiday_gift', 'admin_protocol')";
-} elseif ($filterType === 'special') {
-    $where .= " AND e.withdrawal_type IN ('food_withdrawal', 'owner_drawing', 'cash_withdrawal')";
-}
-if (!empty($unitFilter)) {
-    $where .= " AND e.unit_tag = " . db()->quote($unitFilter);
+$filterUnit = trim($_GET['unit'] ?? '');
+$where = "1=1";
+$params = [];
+if (!empty($filterUnit)) {
+    $where .= " AND e.unit_tag = ?";
+    $params[] = $filterUnit;
 }
 
-$expenses = db()->query(
-    "SELECT e.*, b.bank_name, b.account_type, u.name AS requester_name
-     FROM fin_expenses e
-     LEFT JOIN fin_bank_accounts b ON b.id = e.bank_account_id
-     LEFT JOIN users u ON u.id = e.requested_by
-     WHERE {$where}
-     ORDER BY e.expense_date DESC, e.id DESC LIMIT 60"
-)->fetchAll();
+$expensesStmt = db()->prepare("
+    SELECT e.*, b.bank_name, b.account_type, b.account_number,
+           u.name AS requester_name, ru.name AS requester_role,
+           app.name AS approver_name, rapp.name AS approver_role
+    FROM fin_expenses e
+    LEFT JOIN fin_bank_accounts b ON b.id = e.bank_account_id
+    LEFT JOIN users u ON u.id = e.requested_by
+    LEFT JOIN roles ru ON ru.id = u.role_id
+    LEFT JOIN users app ON app.id = e.approved_by
+    LEFT JOIN roles rapp ON rapp.id = app.role_id
+    WHERE {$where}
+    ORDER BY e.expense_date DESC, e.id DESC LIMIT 60
+");
+$expensesStmt->execute($params);
+$expenses = $expensesStmt->fetchAll();
 ?>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <div>
         <h2 class="mt-0" style="margin-bottom:4px">
-            💸 <?= current_locale() === 'am' ? 'ዕለታዊ ወጪዎችና ልዩ ጥሬ ገንዘብ ማውጫ ማዕከል' : 'Expenses & Cash Withdrawals Center' ?>
+            💸 <?= current_locale() === 'am' ? 'ዕለታዊ ወጪዎች፣ ጥሬ ገንዘብ ማውጫ እና ማጽደቂያ' : 'Expenses & Cash Disbursements' ?>
         </h2>
         <p class="text-muted" style="margin:0">
-            <?= current_locale() === 'am' 
-                ? 'መደበኛ የስራ ማስኬጃ ወጪዎች፣ የበዓል ስጦታዎች፣ የአስተዳደር ፕሮቶኮሎች፣ የምግብ ወጪዎችና የባለቤት ማውጫዎች መዝገብ።' 
-                : 'Manage operating costs, holiday gifts, admin protocol, food hospitality, and personal drawings.' ?>
+            <?= current_locale() === 'am' ? 'የስራ ማስኬጃ ወጪዎች መመዝገቢያ፣ ማጽደቂያ፣ እና ማን እንዳጸደቀው የሚያሳይ ሙሉ የኦዲት መዝገብ።' : 'Manage operating expenses with approver tracking.' ?>
         </p>
     </div>
     <div style="display:flex;gap:8px">
-        <a href="?export=csv" class="btn secondary">⬇️ <?= h(t('common.export_csv', 'Export to CSV')) ?></a>
-        <a href="<?= BASE_URL ?>/modules/finance/dashboard.php" class="btn secondary">← <?= current_locale()==='am'?'ወደ ዳሽቦርድ':'Finance Dashboard' ?></a>
+        <a href="<?= BASE_URL ?>/modules/finance/dashboard.php" class="btn secondary">📊 <?= current_locale() === 'am' ? 'የፋይናንስ ዳሽቦርድ' : 'Finance Dashboard' ?></a>
     </div>
 </div>
 
-<!-- KPI SUMMARY CARDS -->
-<div class="kpi-row" style="margin-bottom:22px">
-    <div class="kpi" style="border-left:4px solid var(--primary)">
-        <div class="label"><?= current_locale()==='am'?'ጠቅላላ የጸደቀ ወጪና ማውጣት':'Total Approved Outflows' ?></div>
-        <div class="value" style="color:var(--primary)"><?= number_format($stats['total_all'], 0) ?> ETB</div>
-    </div>
-    <div class="kpi" style="border-left:4px solid #1565c0">
-        <div class="label"><?= current_locale()==='am'?'መደበኛ የስራ ማስኬጃ ወጪ':'Operating Costs' ?></div>
-        <div class="value" style="color:#1565c0"><?= number_format($stats['total_operating'], 0) ?> ETB</div>
-    </div>
-    <div class="kpi" style="border-left:4px solid #7b1fa2">
-        <div class="label"><?= current_locale()==='am'?'የበዓል ስጦታና አስተዳደር ፕሮቶኮል':'Holiday Gifts & Protocol' ?></div>
-        <div class="value" style="color:#7b1fa2"><?= number_format($stats['total_gifts'], 0) ?> ETB</div>
-    </div>
-    <div class="kpi" style="border-left:4px solid #e65100">
-        <div class="label"><?= current_locale()==='am'?'የምግብ፣ መስተንግዶና ልዩ ማውጫ':'Food & Special Withdrawals' ?></div>
-        <div class="value" style="color:#e65100"><?= number_format($stats['total_special'], 0) ?> ETB</div>
-    </div>
-</div>
+<!-- Expense Form -->
+<div class="card" style="max-width:700px;margin-bottom:24px">
+    <h3 style="margin-top:0">➕ <?= current_locale() === 'am' ? 'አዲስ ወጪ መዝግብ (Record Expense)' : 'Record Expense' ?></h3>
+    <form method="post"><?= csrf_field() ?>
+        <input type="hidden" name="record_expense" value="1">
 
-<!-- REGISTRATION FORM (COLLAPSIBLE / FULL-WIDTH MODERN CARD) -->
-<div class="card" style="margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06);border-top:3px solid var(--primary)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px">
-        <h3 style="margin:0"><?= current_locale() === 'am' ? 'አዲስ ወጪ ወይም ጥሬ ገንዘብ ማውጫ መዝግብ' : 'Record Expense / Cash Withdrawal' ?></h3>
-        <button type="button" class="btn secondary" onclick="toggleExpenseForm()" id="toggleFormBtn" style="padding:4px 12px;font-size:12px">
-            <?= current_locale() === 'am' ? 'ቅጹን ሰብስብ / አሳይ' : 'Toggle Form' ?>
-        </button>
-    </div>
-    <form method="post" id="expenseForm"><?= csrf_field() ?>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:14px;margin-bottom:14px">
-            
-            <!-- WITHDRAWAL / EXPENSE TYPE -->
-            <div class="form-group" style="margin:0">
-                <label style="font-weight:700">
-                    <?= current_locale() === 'am' ? 'የወጪው / የማውጣቱ አይነት *' : 'Transaction Type *' ?>
-                </label>
-                <select name="withdrawal_type" id="withdrawalTypeSelect" required onchange="handleTypeChange(this.value)" style="width:100%;font-weight:600;padding:8px">
-                    <?php foreach ($withdrawalTypes as $k => $v): ?>
-                        <option value="<?= h($k) ?>"><?= h($v['label']) ?></option>
+        <div class="form-row">
+            <div class="form-group">
+                <label>የስራ ክፍል (Department / Unit) *</label>
+                <select name="unit_tag" required style="width:100%;padding:8px">
+                    <?php foreach ($unitLabels as $uKey => $uMeta): ?>
+                        <option value="<?= h($uKey) ?>"><?= h($uMeta['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="form-group">
+                <label>የወጪ ምድብ (Category) *</label>
+                <input type="text" name="category" required placeholder="ለምሳሌ፡ የመብራት ክፍያ፣ የቀን ሰራተኛ፣ ነዳጅ...">
+            </div>
+        </div>
 
-            <!-- PAYMENT SOURCE (Oromia Bank, Telebirr, Cash Safe) -->
-            <div class="form-group" style="margin:0">
-                <label style="font-weight:700">
-                    <?= current_locale() === 'am' ? 'የክፍያ/የማውጫ ምንጭ (አካውንት) *' : 'Payment Source *' ?>
-                </label>
-                <select name="bank_account_id" required style="width:100%;font-weight:600;padding:8px">
-                    <?php foreach ($bankAccounts as $acc): ?>
-                        <option value="<?= (int)$acc['id'] ?>">
-                            <?= h($acc['bank_name']) ?> (<?= h($acc['account_number']) ?>)
+        <div class="form-row">
+            <div class="form-group">
+                <label>የገንዘብ መጠን በብር (Amount) *</label>
+                <input type="number" step="0.01" min="0.01" name="amount" required placeholder="0.00" style="font-size:16px;font-weight:700">
+            </div>
+            <div class="form-group">
+                <label>የወጣበት ባንክ / ካዝና (Bank / Cash Source) *</label>
+                <select name="bank_account_id" required style="width:100%;padding:8px">
+                    <option value="">— ምንጭ ይምረጡ —</option>
+                    <?php foreach ($bankAccounts as $b): ?>
+                        <option value="<?= (int)$b['id'] ?>">
+                            🏦 <?= h($b['bank_name']) ?> (<?= h($b['account_number']) ?>)
                         </option>
                     <?php endforeach; ?>
                 </select>
             </div>
+        </div>
 
-            <!-- RECIPIENT OR PURPOSE -->
-            <div class="form-group" id="recipientGroup" style="margin:0">
-                <label style="font-weight:700">
-                    <?= current_locale() === 'am' ? 'ተቀባይ / የተሰጠበት አላማ' : 'Recipient / Specific Purpose' ?>
-                </label>
-                <input type="text" name="recipient_name" id="recipientInput" style="width:100%;padding:8px" placeholder="<?= current_locale() === 'am' ? 'ለምሳሌ፡ ለቀበሌ አስተዳዳሪ፣ ለበዓል ስጦታ...' : 'e.g. Kebele Admin, Staff holiday gift' ?>">
+        <div class="form-row">
+            <div class="form-group">
+                <label>የወጪ ቀን (Date)</label>
+                <input type="date" name="expense_date" value="<?= date('Y-m-d') ?>">
             </div>
-
-            <!-- BUSINESS UNIT -->
-            <div class="form-group" style="margin:0">
-                <label style="font-weight:700">
-                    <?= current_locale() === 'am' ? 'የስራ ክፍል * (Business Unit)' : 'Business Unit *' ?>
-                </label>
-                <select name="unit_tag" id="unitTagSelect" required style="width:100%;padding:9px;font-weight:700;font-size:13px;border:1px solid var(--border);border-radius:6px;background:var(--card)">
-                    <?php foreach ($unitLabels as $uKey => $uMeta): ?>
-                        <option value="<?= h($uKey) ?>" <?= $uKey==='dairy'?'selected':'' ?>><?= h($uMeta['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="form-group">
+                <label>ገንዘቡን የተቀበለው ሰው / ድርጅት (Recipient)</label>
+                <input type="text" name="recipient_name" placeholder="ለምሳሌ፡ አቶ ዳንኤል (ነዳጅ ማደያ)">
             </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:14px;margin-bottom:14px">
-            <div class="form-group" style="margin:0">
-                <label style="font-weight:700"><?= current_locale() === 'am' ? 'የወጪ ምድብ *' : 'Category *' ?></label>
-                <input type="text" name="category" id="categoryInput" required placeholder="<?= current_locale() === 'am' ? 'የወጪ ምድብ' : 'Category' ?>" value="መደበኛ የስራ ማስኬጃ" style="width:100%;padding:8px">
-            </div>
-
-            <div class="form-group" style="margin:0">
-                <label style="font-weight:700"><?= current_locale() === 'am' ? 'መጠን (በብር) *' : 'Amount (ETB) *' ?></label>
-                <input type="number" step="0.01" min="0.01" name="amount" required placeholder="0.00" style="width:100%;padding:8px;font-size:16px;font-weight:700;color:var(--primary)">
-            </div>
-
-            <div class="form-group" style="margin:0">
-                <label style="font-weight:700"><?= h(t('common.date', 'Date')) ?> *</label>
-                <input type="date" name="expense_date" value="<?= date('Y-m-d') ?>" required style="width:100%;padding:8px">
-            </div>
-
-            <div class="form-group" style="margin:0">
-                <label style="font-weight:700"><?= current_locale() === 'am' ? 'ዝርዝር ማብራሪያ' : 'Description' ?></label>
-                <input type="text" name="description" placeholder="<?= current_locale() === 'am' ? 'ተጨማሪ ማብራሪያ ወይም ማስታወሻ...' : 'Additional notes...' ?>" style="width:100%;padding:8px">
-            </div>
+        <div class="form-group">
+            <label>ማብራሪያ / ዝርዝር ምክንያት</label>
+            <input type="text" name="description" placeholder="ለምሳሌ፡ ለትራክተሩ 100 ሊትር ናፍጣ የተገዛበት...">
         </div>
 
-        <div style="display:flex;justify-content:flex-end">
-            <button class="btn" type="submit" style="padding:9px 24px;font-size:14px;background:#2e7d32;border-color:#2e7d32">
-                <?= current_locale() === 'am' ? 'መዝግብና ለማጽደቅ አቅርብ (Submit)' : 'Submit for Approval' ?>
-            </button>
-        </div>
+        <button class="btn" type="submit" style="font-weight:700">✓ ወጪውን መዝግብ</button>
     </form>
 </div>
 
-<script>
-function toggleExpenseForm() {
-    const f = document.getElementById('expenseForm');
-    const btn = document.getElementById('toggleFormBtn');
-    if (f.style.display === 'none') {
-        f.style.display = 'block';
-        btn.textContent = '<?= current_locale() === 'am' ? 'ቅጹን ሰብስብ' : 'Collapse Form' ?>';
-    } else {
-        f.style.display = 'none';
-        btn.textContent = '<?= current_locale() === 'am' ? 'ቅጹን ክፈት' : 'Expand Form' ?>';
-    }
-}
-</script>
+<!-- Expenses History with Approver Tracking -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">📜 <?= current_locale() === 'am' ? 'የወጪዎች ማህደር እና ያጸደቀው ኃላፊ ዝርዝር' : 'Expenses Audit Log & Approvers' ?></h3>
+        
+        <form method="get" style="margin:0">
+            <select name="unit" onchange="this.form.submit()" style="padding:6px;font-size:13px">
+                <option value="">— በሁሉም የስራ ክፍሎች —</option>
+                <?php foreach ($unitLabels as $uKey => $uMeta): ?>
+                    <option value="<?= h($uKey) ?>" <?= $filterUnit === $uKey ? 'selected' : '' ?>><?= h($uMeta['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </form>
+    </div>
 
-<!-- EXPENSES & WITHDRAWALS TABLE (FULL WIDTH) -->
-<div class="card" style="box-shadow:0 2px 8px rgba(0,0,0,0.06);width:100%">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-            <h3 style="margin:0"><?= current_locale() === 'am' ? 'የቅርብ ጊዜ የወጪና የማውጣት መዝገቦች' : 'Recent Expenses & Withdrawals' ?></h3>
-            
-            <!-- Filter Tabs & Unit Filter -->
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <form method="get" style="display:flex;gap:4px;margin:0;align-items:center">
-                    <?php if ($filterType): ?><input type="hidden" name="filter_type" value="<?= h($filterType) ?>"><?php endif; ?>
-                    <select name="unit" onchange="this.form.submit()" style="padding:5px 10px;font-size:12px;border-radius:4px;font-weight:600">
-                        <option value=""><?= current_locale()==='am'?'— በስራ ክፍል አጣራ (ሁሉም) —':'Filter by Unit (All)' ?></option>
-                        <?php foreach ($unitLabels as $uKey => $uMeta): ?>
-                            <option value="<?= h($uKey) ?>" <?= $unitFilter===$uKey?'selected':'' ?>><?= h($uMeta['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </form>
-                <a href="expenses.php<?= $unitFilter ? '?unit=' . urlencode($unitFilter) : '' ?>" class="btn secondary" style="padding:4px 8px;font-size:11.5px;<?= empty($filterType)?'background:var(--primary);color:white;':'' ?>">
-                    <?= current_locale()==='am'?'ሁሉም':'All' ?>
-                </a>
-                <a href="expenses.php?filter_type=operating<?= $unitFilter ? '&unit=' . urlencode($unitFilter) : '' ?>" class="btn secondary" style="padding:4px 8px;font-size:11.5px;<?= $filterType==='operating'?'background:#1565c0;color:white;':'' ?>">
-                    <?= current_locale()==='am'?'መደበኛ ወጪዎች':'Operating' ?>
-                </a>
-                <a href="expenses.php?filter_type=gifts<?= $unitFilter ? '&unit=' . urlencode($unitFilter) : '' ?>" class="btn secondary" style="padding:4px 8px;font-size:11.5px;<?= $filterType==='gifts'?'background:#7b1fa2;color:white;':'' ?>">
-                    <?= current_locale()==='am'?'የበዓልና አስተዳደር ስጦታ':'Gifts & Protocol' ?>
-                </a>
-                <a href="expenses.php?filter_type=special<?= $unitFilter ? '&unit=' . urlencode($unitFilter) : '' ?>" class="btn secondary" style="padding:4px 8px;font-size:11.5px;<?= $filterType==='special'?'background:#e65100;color:white;':'' ?>">
-                    <?= current_locale()==='am'?'ምግብና የግል ማውጣት':'Food & Drawings' ?>
-                </a>
-            </div>
-        </div>
-
-        <div style="overflow-x:auto">
-            <table>
-                <thead>
+    <div style="overflow-x:auto">
+        <table>
+            <thead>
+                <tr>
+                    <th>ቀን</th>
+                    <th>የስራ ክፍል</th>
+                    <th>ምድብ እና ተቀባይ</th>
+                    <th>የወጣበት ባንክ/ካዝና</th>
+                    <th>መጠን</th>
+                    <th>ሁኔታ</th>
+                    <th>ያስመዘገበው</th>
+                    <th>ያጸደቀው ኃላፊ (Approved By)</th>
+                    <th>እርምጃ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($expenses as $e): 
+                    $uInfo = $unitLabels[$e['unit_tag']] ?? ['name' => $e['unit_tag'], 'color' => '#555'];
+                ?>
                     <tr>
-                        <th><?= h(t('common.date', 'Date')) ?></th>
-                        <th><?= current_locale() === 'am' ? 'አይነትና ተቀባይ / አላማ' : 'Type & Recipient' ?></th>
-                        <th><?= current_locale() === 'am' ? 'የስራ ክፍል' : 'Unit' ?></th>
-                        <th><?= current_locale() === 'am' ? 'የወጣበት ምንጭ' : 'Account' ?></th>
-                        <th><?= current_locale() === 'am' ? 'መጠን (ብር)' : 'Amount' ?></th>
-                        <th><?= h(t('common.status', 'Status')) ?></th>
-                        <th><?= h(t('common.actions', 'Action')) ?></th>
+                        <td style="font-size:12px;white-space:nowrap">
+                            📅 <?= eth_date($e['expense_date']) ?>
+                        </td>
+                        <td>
+                            <span class="badge" style="background:<?= $uInfo['color'] ?>15;color:<?= $uInfo['color'] ?>;font-weight:700">
+                                <?= h($uInfo['name']) ?>
+                            </span>
+                        </td>
+                        <td>
+                            <strong><?= h($e['category']) ?></strong>
+                            <?php if (!empty($e['recipient_name'])): ?>
+                                <div style="font-size:12px;color:#1b5e20">ተቀባይ፡ 👤 <?= h($e['recipient_name']) ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($e['description'])): ?>
+                                <small class="text-muted" style="display:block;font-style:italic"><?= h($e['description']) ?></small>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            🏦 <?= h($e['bank_name'] ?: 'ካዝና') ?>
+                        </td>
+                        <td>
+                            <strong style="color:#c62828;font-size:15px"><?= number_format($e['amount'], 2) ?> ETB</strong>
+                        </td>
+                        <td>
+                            <?php if ($e['status'] === 'approved'): ?>
+                                <span class="badge" style="background:#e8f5e9;color:#2e7d32">✓ የጸደቀ</span>
+                            <?php elseif ($e['status'] === 'rejected'): ?>
+                                <span class="badge" style="background:#ffebee;color:#c62828">✕ ውድቅ</span>
+                            <?php else: ?>
+                                <span class="badge" style="background:#fff8e1;color:#f57c00">⏳ ውሳኔ ይጠብቃል</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            👤 <strong><?= h($e['requester_name']) ?></strong><br>
+                            <small class="text-muted"><?= h($e['requester_role']) ?></small>
+                        </td>
+                        <td>
+                            <?php if (!empty($e['approver_name'])): ?>
+                                <span style="color:#1b5e20;font-weight:700">🛡️ <?= h($e['approver_name']) ?></span><br>
+                                <small class="text-muted"><?= h($e['approver_role']) ?></small>
+                            <?php elseif ($e['status'] === 'pending'): ?>
+                                <span class="text-muted" style="font-style:italic">⏳ ውሳኔ በመጠባበቅ ላይ</span>
+                            <?php else: ?>
+                                <span class="text-muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($e['status'] === 'pending' && has_role(['super_admin', 'general_manager'])): ?>
+                                <div style="display:flex;gap:4px">
+                                    <form method="post" onsubmit="return confirm('ወጪውን ማጽደቅ ይፈልጋሉ?');" style="margin:0">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="expense_id" value="<?= (int)$e['id'] ?>">
+                                        <button class="btn success" type="submit" name="approve_expense" style="padding:4px 8px;font-size:11px">✓ አጽድቅ</button>
+                                    </form>
+                                    <form method="post" onsubmit="return confirm('ወጪውን ውድቅ ማድረግ ይፈልጋሉ?');" style="margin:0">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="expense_id" value="<?= (int)$e['id'] ?>">
+                                        <button class="btn danger" type="submit" name="reject_expense" style="padding:4px 8px;font-size:11px">✕ ውድቅ</button>
+                                    </form>
+                                </div>
+                            <?php else: ?>
+                                <span class="text-muted">—</span>
+                            <?php endif; ?>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($expenses as $e): 
-                        $typeMeta = $withdrawalTypes[$e['withdrawal_type'] ?? 'operating_expense'] ?? $withdrawalTypes['operating_expense'];
-                        $accName = $e['bank_name'] ?: (current_locale() === 'am' ? 'ጥሬ ገንዘብ / ባንክ' : 'Cash / Bank');
-
-                        $stText = match($e['status']) {
-                            'approved' => (current_locale() === 'am' ? 'ጸድቋል' : 'Approved'),
-                            'rejected' => (current_locale() === 'am' ? 'ውድቅ ተደርጓል' : 'Rejected'),
-                            default => (current_locale() === 'am' ? 'በመጠባበቅ ላይ' : 'Pending')
-                        };
-                    ?>
-                        <tr>
-                            <td style="white-space:nowrap;font-weight:600">
-                                <?= h(eth_date($e['expense_date'])) ?>
-                            </td>
-                            <td>
-                                <span class="badge" style="background:<?= $typeMeta['color'] ?>15;color:<?= $typeMeta['color'] ?>;border:1px solid <?= $typeMeta['color'] ?>40">
-                                    <?= h($typeMeta['label']) ?>
-                                </span>
-                                <?php if (!empty($e['recipient_name'])): ?>
-                                    <div style="font-size:12px;font-weight:700;color:#0f172a;margin-top:2px">
-                                        <?= h($e['recipient_name']) ?>
-                                    </div>
-                                <?php endif; ?>
-                                <small class="text-muted" style="display:block"><?= h($e['category']) ?></small>
-                                <?php if (!empty($e['description'])): ?>
-                                    <small style="color:#64748b;font-style:italic"><?= h($e['description']) ?></small>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <span class="badge" style="font-size:11.5px;padding:3px 8px;font-weight:600">
-                                    <?= h($unitLabels[$e['unit_tag']]['name'] ?? $e['unit_tag']) ?>
-                                </span>
-                            </td>
-                            <td>
-                                <small style="font-weight:600"><?= h($accName) ?></small>
-                            </td>
-                            <td>
-                                <strong style="font-size:14px;color:#c62828"><?= number_format($e['amount'], 2) ?> ETB</strong>
-                            </td>
-                            <td>
-                                <span class="badge <?= $e['status']==='approved'?'active':($e['status']==='rejected'?'sold':'dry') ?>">
-                                    <?= h($stText) ?>
-                                </span>
-                            </td>
-                            <td>
-                                <?php if ($e['status'] === 'pending'): ?>
-                                    <div style="display:flex;gap:4px">
-                                        <form method="post" style="display:inline"><?= csrf_field() ?>
-                                            <input type="hidden" name="decide_id" value="<?= (int) $e['id'] ?>">
-                                            <input type="hidden" name="decision" value="approve">
-                                            <button class="btn secondary" type="submit" style="padding:3px 8px;font-size:11px;background:#2e7d32;color:white;border-color:#2e7d32">✓ አጽድቅ</button>
-                                        </form>
-                                        <form method="post" style="display:inline"><?= csrf_field() ?>
-                                            <input type="hidden" name="decide_id" value="<?= (int) $e['id'] ?>">
-                                            <input type="hidden" name="decision" value="reject">
-                                            <button class="btn danger" type="submit" style="padding:3px 8px;font-size:11px">✕ ውድቅ</button>
-                                        </form>
-                                    </div>
-                                <?php else: ?>
-                                    <span class="text-muted" style="font-size:11px">—</span>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                    <?php if (empty($expenses)): ?>
-                        <tr><td colspan="7" class="text-muted" style="text-align:center;padding:16px"><?= h(t('common.no_records', 'No records found.')) ?></td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+                <?php endforeach; ?>
+                <?php if (empty($expenses)): ?>
+                    <tr><td colspan="9" class="text-muted" style="text-align:center">ምንም የተመዘገበ ወጪ የለም።</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 
-<script>
-function handleTypeChange(val) {
-    const cat = document.getElementById('categoryInput');
-    const rec = document.getElementById('recipientInput');
-    const unit = document.getElementById('unitTagSelect');
-
-    if (val === 'holiday_gift') {
-        cat.value = 'የበዓል ስጦታ (Holiday Gift)';
-        rec.placeholder = 'የበዓሉ ስም ወይም የተሰጣቸው ሰዎች (ለምሳሌ፡ ለአዲስ ዓመት፣ ለፋሲካ)';
-        unit.value = 'general_overhead';
-    } else if (val === 'admin_protocol') {
-        cat.value = 'የአስተዳደር ፕሮቶኮል / ድጋፍ';
-        rec.placeholder = 'የመንግስት/ቀበሌ አስተዳዳሪ ስም ወይም ቢሮ';
-        unit.value = 'general_overhead';
-    } else if (val === 'food_withdrawal') {
-        cat.value = 'የምግብና እንግዳ መስተንግዶ';
-        rec.placeholder = 'የምግብ አላማ (ለምሳሌ፡ ለበዓል ድግስ፣ ለእርሻ እንግዶች)';
-        unit.value = 'general_overhead';
-    } else if (val === 'owner_drawing') {
-        cat.value = 'የባለቤት የግል ማውጣት';
-        rec.placeholder = 'የባለቤቱ ስም / የግል ወጪ';
-        unit.value = 'general_overhead';
-    } else if (val === 'cash_withdrawal') {
-        cat.value = 'ጥሬ ገንዘብ ማውጣት (Cash Safe)';
-        rec.placeholder = 'የገንዘብ ማውጫ አላማ';
-        unit.value = 'general_overhead';
-    } else {
-        cat.value = 'መደበኛ የስራ ማስኬጃ';
-        rec.placeholder = 'ተቀባይ / አቅራቢ';
-    }
-}
-</script>
-
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>
-

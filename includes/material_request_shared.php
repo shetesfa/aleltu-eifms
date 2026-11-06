@@ -104,6 +104,50 @@ function render_dept_material_request_page(string $roleName, string $deptCode, s
         </div>
     </div>
 
+    <!-- Direct Dispatches from Warehouse Awaiting Manager Approval / Confirmation -->
+    <?php
+    $directPending = array_filter($requests, function($r) {
+        return $r['status'] === 'sent_to_department' && (float)$r['issued_quantity'] > 0;
+    });
+    ?>
+    <?php if (!empty($directPending)): ?>
+        <div class="card" style="border-left:5px solid #2e7d32;background:#e8f5e9;margin-bottom:24px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                <span style="font-size:26px">🚚</span>
+                <div>
+                    <h3 style="margin:0;color:#1b5e20">
+                        <?= current_locale() === 'am' ? 'ከመጋዘን የተላኩ ርክክብ የሚጠብቁ ዕቃዎች (' . count($directPending) . ')' : 'Incoming Material Dispatches Awaiting Receipt Confirmation (' . count($directPending) . ')' ?>
+                    </h3>
+                    <small class="text-muted"><?= current_locale() === 'am' ? 'መጋዘን በቀጥታ የላከው ወይም የጥያቄዎ እቃ ደርሷል፤ እባክዎ ዕቃውን በአካል ተቀብለው "✓ ተረከብኩ" የሚለውን ይጫኑ።' : 'Items dispatched from warehouse. Verify physical delivery and confirm receipt below.' ?></small>
+                </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <?php foreach ($directPending as $dp): 
+                    $itemName = $dp['custom_item_name'] ?: $dp['catalog_name'];
+                ?>
+                    <div style="background:#fff;border:1px solid #c8e6c9;border-radius:6px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+                        <div>
+                            <strong style="font-size:16px;color:#1b5e20">📦 <?= h($itemName) ?></strong>
+                            <span style="font-size:15px;font-weight:700;margin-left:8px;color:#2e7d32">— <?= number_format($dp['issued_quantity'], 2) ?> <?= h($dp['unit']) ?></span>
+                            <?php if (!empty($dp['note'])): ?>
+                                <div style="font-size:12px;color:#555;margin-top:3px"><em><?= h($dp['note']) ?></em></div>
+                            <?php endif; ?>
+                            <div class="text-muted" style="font-size:11px;margin-top:2px">📅 የተላከበት ቀን፡ <?= eth_date($dp['created_at']) ?> ⏰ <?= eth_time($dp['created_at']) ?></div>
+                        </div>
+                        <form method="post" onsubmit="return confirm('<?= current_locale() === 'am' ? 'ይህንን እቃ በክፍልዎ በአካል መቀበልዎን ያረጋግጣሉ?' : 'Confirm physical receipt of this item?' ?>');" style="margin:0">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="confirm_received" value="1">
+                            <input type="hidden" name="request_id" value="<?= (int)$dp['id'] ?>">
+                            <button class="btn success" type="submit" style="padding:8px 16px;font-size:13px;font-weight:700">
+                                ✓ <?= current_locale() === 'am' ? 'ተረክቤያለሁ (አረጋግጥ)' : 'CONFIRM RECEIVED' ?>
+                            </button>
+                        </form>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <!-- Request Form -->
     <div class="card" style="max-width:620px;margin-bottom:24px">
         <h3>➕ <?= h(t('reqs.new_request', 'Submit New Material Request')) ?></h3>

@@ -168,6 +168,10 @@ function eth_time(?string $timeStr): string {
     return EthiopianDate::formatTime($timeStr);
 }
 
+function eth_time_12h(?string $timeStr): string {
+    return EthiopianDate::formatTime($timeStr);
+}
+
 function eth_datetime(?string $dateTimeStr): string {
     return EthiopianDate::formatDateTime($dateTimeStr);
 }

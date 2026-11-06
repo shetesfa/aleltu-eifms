@@ -255,16 +255,8 @@ if ($selectedRunId > 0) {
                         <label style="font-weight:700">🗓️ <?= current_locale() === 'am' ? 'የክፍያ ወር *' : 'Month *' ?></label>
                         <select name="eth_month" required style="width:100%;padding:8px;font-size:13.5px;font-weight:600">
                             <?php foreach ($ethMonths as $mNum => $mName): ?>
-                                <?php
-                                $mR = eth_month_range($curEthYearNum, $mNum);
-                                $isFuture = ($mR['from'] > $today);
-                                $isOngoing = ($mR['from'] <= $today && $mR['to'] > $today);
-                                ?>
-                                <option value="<?= $mNum ?>" 
-                                        <?= $mNum === $defaultEthMonth ? 'selected' : '' ?>
-                                        <?= $isFuture ? 'disabled style="color:#aaa"' : '' ?>>
-                                    <?= $mName ?> ወር 
-                                    <?= $isFuture ? '(⏳ ወደፊት አልተሰራም)' : ($isOngoing ? '(⌛ የወቅቱ ወር)' : '(✓ የተጠናቀቀ ወር)') ?>
+                                <option value="<?= $mNum ?>" <?= $mNum === $defaultEthMonth ? 'selected' : '' ?>>
+                                    <?= $mNum ?>. <?= $mName ?> ወር
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -378,7 +370,7 @@ if ($selectedRunId > 0) {
     <?php else: ?>
         <?php foreach ($runs as $run): ?>
             <?php
-            $payslipsStmt = db()->prepare("SELECT p.*, e.full_name, e.employee_number FROM fin_payslips p JOIN employees e ON e.id = p.employee_id WHERE p.payroll_run_id = ? ORDER BY e.full_name ASC");
+            $payslipsStmt = db()->prepare("SELECT p.*, e.full_name, e.employee_number, d.name AS dept_name FROM fin_payslips p JOIN employees e ON e.id = p.employee_id LEFT JOIN departments d ON d.id = e.department_id WHERE p.payroll_run_id = ? ORDER BY d.name ASC, e.full_name ASC");
             $payslipsStmt->execute([$run['id']]);
             $payslips = $payslipsStmt->fetchAll();
             $canFinalize = payroll_can_finalize($run['period_start'], $run['period_end']);
@@ -391,6 +383,22 @@ if ($selectedRunId > 0) {
             $totalNet       = array_sum(array_column($payslips, 'net_pay'));
             $totalPaid      = array_sum(array_column($payslips, 'total_paid'));
             $totalRemaining = max(0, $totalNet - $totalPaid);
+
+            // Compute Ethiopian period title
+            $sEth = eth_date($run['period_start']);
+            $eEth = eth_date($run['period_end']);
+            $sParts = explode('/', $sEth);
+            $eParts = explode('/', $eEth);
+            $runTitle = "📅 {$sEth} — {$eEth}";
+            if (count($sParts) === 3 && count($eParts) === 3 && $sParts[1] === $eParts[1] && $sParts[2] === $eParts[2]) {
+                $mIdx = (int)$sParts[1];
+                $mNameEth = $ethMonths[$mIdx] ?? '';
+                if ((int)$sParts[0] === 1 && (int)$eParts[0] >= 30) {
+                    $runTitle = "🗓️ የ{$mNameEth} {$sParts[2]} ዓ.ም ሙሉ ወር ደመወዝ";
+                } else {
+                    $runTitle = "🗓️ የ{$mNameEth} {$sParts[2]} ዓ.ም ደመወዝ (ከቀን {$sParts[0]} እስከ {$eParts[0]})";
+                }
+            }
             ?>
             <div style="border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:24px;background:var(--card);box-shadow:0 2px 6px rgba(0,0,0,0.04)">
                 
@@ -398,7 +406,7 @@ if ($selectedRunId > 0) {
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:12px">
                     <div>
                         <span style="font-size:17px;font-weight:800;color:var(--text)">
-                            📅 <?= eth_date($run['period_start']) ?> — <?= eth_date($run['period_end']) ?>
+                            <?= h($runTitle) ?>
                         </span>
                         <span class="badge <?= $isFinalized ? 'milking' : 'dry' ?>" style="margin-left:8px;font-size:12px">
                             <?= $isFinalized ? (current_locale() === 'am' ? '✓ የጸደቀ / ክፍያ የተጀመረ' : 'Finalized / Active') : (current_locale() === 'am' ? '⏳ ረቂቅ (በዝግጅት ላይ)' : 'Draft') ?>
@@ -466,15 +474,28 @@ if ($selectedRunId > 0) {
                     </div>
                 </div>
 
-                <!-- Payout Filter Toolbar -->
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-                    <div style="display:flex;gap:6px">
+                <!-- Payout Filter Toolbar & Search -->
+                <?php
+                $deptsInRun = array_values(array_unique(array_filter(array_column($payslips, 'dept_name'))));
+                sort($deptsInRun);
+                ?>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;background:var(--hover);padding:10px 14px;border-radius:8px">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
                         <button type="button" class="btn secondary" style="padding:4px 12px;font-size:12px" onclick="filterPayslipTable(this, 'all')">
-                            🔘 <?= current_locale() === 'am' ? 'ሁሉንም ሰራተኞች አሳይ' : 'All Staff' ?> (<?= count($payslips) ?>)
+                            🔘 <?= current_locale() === 'am' ? 'ሁሉንም' : 'All' ?> (<?= count($payslips) ?>)
                         </button>
                         <button type="button" class="btn" style="padding:4px 12px;font-size:12px;background:#c62828;border-color:#c62828" onclick="filterPayslipTable(this, 'unpaid')">
-                            🔴 <?= current_locale() === 'am' ? 'ያልተከፈላቸውን ብቻ አሳይ' : 'Unpaid Only' ?> (<?= count(array_filter($payslips, fn($x) => ((float)$x['net_pay'] - (float)$x['total_paid']) > 0.01)) ?>)
+                            🔴 <?= current_locale() === 'am' ? 'ያልተከፈላቸው ብቻ' : 'Unpaid Only' ?> (<?= count(array_filter($payslips, fn($x) => ((float)$x['net_pay'] - (float)$x['total_paid']) > 0.01)) ?>)
                         </button>
+                        <?php if (!empty($deptsInRun)): ?>
+                            <select onchange="filterPayslipDept(this)" style="padding:4px 10px;font-size:12px;border-radius:4px;border:1px solid var(--border)">
+                                <option value="">🏢 ሁሉም የስራ ክፍሎች (<?= count($deptsInRun) ?>)</option>
+                                <?php foreach ($deptsInRun as $dName): ?>
+                                    <option value="<?= h($dName) ?>"><?= h($dName) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        <?php endif; ?>
+                        <input type="text" placeholder="🔍 በሰራተኛ ስም ፈልግ..." onkeyup="searchPayslips(this)" style="padding:4px 10px;font-size:12px;border-radius:4px;border:1px solid var(--border);width:170px">
                     </div>
                     <span class="text-muted" style="font-size:12px">
                         💡 <?= current_locale() === 'am' ? 'ደመወዝ ለመክፈል ለእያንዳንዱ ሰራተኛ <strong>"💳 ክፈል"</strong> የሚለውን አዝራር ይጫኑ።' : 'Click "Pay" to record salary disbursement.' ?>
@@ -487,6 +508,7 @@ if ($selectedRunId > 0) {
                         <thead>
                             <tr>
                                 <th><?= current_locale() === 'am' ? 'ሰራተኛ' : 'Employee' ?></th>
+                                <th><?= current_locale() === 'am' ? 'የስራ ክፍል' : 'Department' ?></th>
                                 <th style="text-align:right"><?= current_locale() === 'am' ? 'መሰረታዊ' : 'Base' ?></th>
                                 <th style="text-align:center"><?= current_locale() === 'am' ? 'ቀን' : 'Days' ?></th>
                                 <th style="text-align:right"><?= current_locale() === 'am' ? 'ጠቅላላ ገቢ' : 'Gross' ?></th>
@@ -502,10 +524,15 @@ if ($selectedRunId > 0) {
                         <tbody>
                             <?php foreach ($payslips as $p): ?>
                                 <?php $remaining = max(0, (float)$p['net_pay'] - (float)$p['total_paid']); ?>
-                                <tr data-unpaid="<?= $remaining > 0.01 ? '1' : '0' ?>">
+                                <tr data-unpaid="<?= $remaining > 0.01 ? '1' : '0' ?>" data-dept="<?= h($p['dept_name'] ?? '') ?>" data-name="<?= h(mb_strtolower($p['full_name'])) ?>">
                                     <td>
                                         <strong><?= h($p['full_name']) ?></strong><br>
                                         <small class="text-muted"><?= h($p['employee_number'] ?? '') ?></small>
+                                    </td>
+                                    <td>
+                                        <span class="badge" style="background:#e8eaf6;color:#283593;font-size:11px">
+                                            <?= h($p['dept_name'] ?: (current_locale() === 'am' ? 'አልተመደበም' : 'General')) ?>
+                                        </span>
                                     </td>
                                     <td style="text-align:right"><?= number_format($p['base_salary'], 2) ?></td>
                                     <td style="text-align:center"><?= (int)$p['days_present'] ?> ቀ</td>
@@ -534,7 +561,7 @@ if ($selectedRunId > 0) {
                                             <button class="btn secondary" type="button" 
                                                     onclick="openBonusModal(<?= (int)$p['id'] ?>, '<?= addslashes(h($p['full_name'])) ?>', <?= (float)$p['allowances'] ?>)" 
                                                     style="padding:3px 7px;font-size:11px" title="በዚህ ወር ጥሩ ስለሰራ ቦነስ ወይም አበል ጨምር">
-                                                🎁 ቦነስ
+                                                🎁 ቦነስ ጨምር
                                             </button>
 
                                             <!-- Pay Button -->
@@ -622,6 +649,9 @@ if ($selectedRunId > 0) {
             <h3 style="margin:0">🎁 <?= current_locale() === 'am' ? 'ተጨማሪ ቦነስ / አበል ጨምር' : 'Add Employee Bonus' ?></h3>
             <button type="button" onclick="closeBonusModal()" style="background:none;border:none;font-size:22px;cursor:pointer">&times;</button>
         </div>
+        <p style="font-size:12px;color:#1b5e20;background:#e8f5e9;padding:8px 12px;border-radius:6px;margin-bottom:12px">
+            💡 <strong><?= current_locale() === 'am' ? 'ማስታወሻ፦' : 'Note:' ?></strong> <?= current_locale() === 'am' ? 'ቦነስ ነባሪው ዋጋ 0 ብር ነው። አለቃው ለአንድ ሰራተኛ ለዚህ ወር ብቻ ቦነስ መስጠት ሲፈልግ እዚህ ብሩንና ምክንያቱን ጽፎ ይጨምራል፤ ለዚህ ወር ብቻ ይሰላል።' : 'Bonus is optional and defaults to 0 ETB. Add amount here for this pay period only.' ?>
+        </p>
         <form method="post"><?= csrf_field() ?>
             <input type="hidden" name="add_bonus_allowance" value="1">
             <input type="hidden" name="payslip_id" id="bonusPayslipId" value="">
@@ -870,6 +900,36 @@ function filterPayslipTable(btn, mode) {
         } else {
             const isUnpaid = r.getAttribute('data-unpaid') === '1';
             r.style.display = isUnpaid ? '' : 'none';
+        }
+    });
+}
+
+function filterPayslipDept(select) {
+    const parent = select.closest('div[style*="border:1px solid"]');
+    if (!parent) return;
+    const val = select.value.toLowerCase().trim();
+    const rows = parent.querySelectorAll('tbody tr');
+    rows.forEach(r => {
+        const dept = (r.getAttribute('data-dept') || '').toLowerCase().trim();
+        if (!val || dept === val) {
+            r.style.display = '';
+        } else {
+            r.style.display = 'none';
+        }
+    });
+}
+
+function searchPayslips(input) {
+    const parent = input.closest('div[style*="border:1px solid"]');
+    if (!parent) return;
+    const q = input.value.toLowerCase().trim();
+    const rows = parent.querySelectorAll('tbody tr');
+    rows.forEach(r => {
+        const name = (r.getAttribute('data-name') || '').toLowerCase();
+        if (!q || name.includes(q)) {
+            r.style.display = '';
+        } else {
+            r.style.display = 'none';
         }
     });
 }

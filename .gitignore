@@ -4,18 +4,19 @@
 
 # Scratch & temporary development files
 scratch/
+scratch_*
 *.log
 *.tmp
 *.bak
 backup_*.sql
 .DS_Store
 Thumbs.db
+__pycache__/
+
+# Large compressed archives
+*.zip
 
 # IDE and Editor files
 .vscode/
 .idea/
 .gemini/
-
-# Uploads cache (optional, keep directory structure)
-# uploads/*
-# !uploads/.gitkeep

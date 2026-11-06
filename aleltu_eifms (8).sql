@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 24, 2026 at 02:36 AM
+-- Generation Time: Oct 31, 2026 at 07:22 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -191,7 +191,9 @@ INSERT INTO `audit_log` (`id`, `user_id`, `module`, `action`, `record_table`, `r
 (13, 1, 'analytics', 'view_unit', 'analytics', 0, 'unit=dairy from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 16:39:13'),
 (14, 1, 'analytics', 'view', 'analytics', 0, 'from=2026-10-11 to=2026-10-16', '::1', '2026-10-16 16:39:28'),
 (15, 1, 'analytics', 'view', 'analytics', 0, 'from=2026-10-11 to=2026-10-23', '::1', '2026-10-23 00:02:54'),
-(16, 1, 'analytics', 'view', 'analytics', 0, 'from=2026-10-11 to=2026-10-24', '::1', '2026-10-24 01:06:20');
+(16, 1, 'analytics', 'view', 'analytics', 0, 'from=2026-10-11 to=2026-10-24', '::1', '2026-10-24 01:06:20'),
+(17, 1, 'analytics', 'view', 'analytics', 0, 'from=2026-10-11 to=2026-10-31', '::1', '2026-10-31 01:13:38'),
+(18, 1, 'analytics', 'view', 'analytics', 0, 'from=2026-10-11 to=2026-10-31', '::1', '2026-10-31 01:23:30');
 
 -- --------------------------------------------------------
 
@@ -520,6 +522,7 @@ CREATE TABLE `dist_dispatches` (
   `driver_id` int(11) DEFAULT NULL,
   `driver_name` varchar(150) DEFAULT NULL,
   `destination_pos_location` varchar(150) NOT NULL,
+  `shop_id` int(11) DEFAULT NULL,
   `warehouse_id` int(11) NOT NULL,
   `stock_item_id` int(11) NOT NULL,
   `quantity_dispatched` decimal(12,2) NOT NULL,
@@ -543,11 +546,11 @@ CREATE TABLE `dist_dispatches` (
 -- Dumping data for table `dist_dispatches`
 --
 
-INSERT INTO `dist_dispatches` (`id`, `vehicle_id`, `driver_id`, `driver_name`, `destination_pos_location`, `warehouse_id`, `stock_item_id`, `quantity_dispatched`, `unit_price`, `total_price`, `amount_paid`, `payment_status`, `payment_notes`, `sale_channel`, `quantity_delivered`, `variance_flagged`, `planned_dispatch_at`, `dispatched_at`, `confirmed_at`, `status`, `created_by`, `created_at`) VALUES
-(1, 1, 11, 'ሙሉጌታ ወርቁ', 'ቦሌ ፍሬሽ መሸጫ ሱቅ (Bole Fresh Corner) [ተረካቢ: አቶ ቴዎድሮስ ካሳ]', 1, 1, 250.00, 75.00, 18750.00, 18750.00, 'paid', 'በሲቢኢ ባንክ ሙሉ በሙሉ ተከፍሏል', 'shop_transfer', 250.00, 0, '2026-09-23 08:30:00', '2026-09-23 09:00:00', '2026-09-23 10:30:00', 'delivered', 9, '2026-09-25 21:35:39'),
-(2, 1, 11, 'ሙሉጌታ ወርቁ', 'መገናኛ የወተት ማዕከል (Megenagna Dairy Hub) [ተረካቢ: ወ/ሮ ሰላማዊት አበራ]', 1, 2, 1200.00, 13.00, 15600.00, 10000.00, 'partial', '10,000 ብር በቴሌብር ተከፍሏል፤ 5,600 ብር ቀሪ', 'shop_transfer', 1200.00, 0, '2026-09-24 08:30:00', '2026-09-24 09:00:00', '2026-09-24 10:45:00', 'delivered', 9, '2026-09-25 21:35:40'),
-(3, 3, 11, 'ሙሉጌታ ወርቁ', 'የእርሻው በር መሸጫ ሱቅ (Farm Gate Retail Shop) [ተረካቢ: አቶ ታምራት ደሳለኝ]', 1, 1, 100.00, 70.00, 7000.00, 7000.00, 'paid', 'በጥሬ ገንዘብ በደረሰኝ ተከፍሏል', 'shop_transfer', 100.00, 0, '2026-09-25 07:00:00', '2026-09-25 07:15:00', '2026-09-25 07:30:00', 'delivered', 9, '2026-09-25 21:35:40'),
-(4, 2, 9, 'ሰለሞን አበበ', 'ቀጥተኛ ገዢ፡ ኃይሌ ግራንድ ሆቴል (Haile Grand Hotel)', 1, 1, 300.00, 75.00, 22500.00, 0.00, 'unpaid', 'የወር መጨረሻ የሚከፈል የብድር ሽያጭ', NULL, 300.00, 0, '2026-09-25 06:30:00', '2026-09-25 07:00:00', '2026-09-25 08:30:00', 'delivered', 9, '2026-09-25 21:35:40');
+INSERT INTO `dist_dispatches` (`id`, `vehicle_id`, `driver_id`, `driver_name`, `destination_pos_location`, `shop_id`, `warehouse_id`, `stock_item_id`, `quantity_dispatched`, `unit_price`, `total_price`, `amount_paid`, `payment_status`, `payment_notes`, `sale_channel`, `quantity_delivered`, `variance_flagged`, `planned_dispatch_at`, `dispatched_at`, `confirmed_at`, `status`, `created_by`, `created_at`) VALUES
+(1, 1, 11, 'ሙሉጌታ ወርቁ', 'ቦሌ ፍሬሽ መሸጫ ሱቅ (Bole Fresh Corner) [ተረካቢ: አቶ ቴዎድሮስ ካሳ]', NULL, 1, 1, 250.00, 75.00, 18750.00, 18750.00, 'paid', 'በሲቢኢ ባንክ ሙሉ በሙሉ ተከፍሏል', 'shop_transfer', 250.00, 0, '2026-09-23 08:30:00', '2026-09-23 09:00:00', '2026-09-23 10:30:00', 'delivered', 9, '2026-09-25 21:35:39'),
+(2, 1, 11, 'ሙሉጌታ ወርቁ', 'መገናኛ የወተት ማዕከል (Megenagna Dairy Hub) [ተረካቢ: ወ/ሮ ሰላማዊት አበራ]', NULL, 1, 2, 1200.00, 13.00, 15600.00, 12500.00, 'partial', '[ቴሌብር (Telebirr) - 0911002233] ', 'shop_transfer', 1200.00, 0, '2026-09-24 08:30:00', '2026-09-24 09:00:00', '2026-09-24 10:45:00', 'delivered', 9, '2026-09-25 21:35:40'),
+(3, 3, 11, 'ሙሉጌታ ወርቁ', 'የእርሻው በር መሸጫ ሱቅ (Farm Gate Retail Shop) [ተረካቢ: አቶ ታምራት ደሳለኝ]', NULL, 1, 1, 100.00, 70.00, 7000.00, 7000.00, 'paid', 'በጥሬ ገንዘብ በደረሰኝ ተከፍሏል', 'shop_transfer', 100.00, 0, '2026-09-25 07:00:00', '2026-09-25 07:15:00', '2026-09-25 07:30:00', 'delivered', 9, '2026-09-25 21:35:40'),
+(4, 2, 9, 'ሰለሞን አበበ', 'ቀጥተኛ ገዢ፡ ኃይሌ ግራንድ ሆቴል (Haile Grand Hotel)', NULL, 1, 1, 300.00, 75.00, 22500.00, 0.00, 'unpaid', 'የወር መጨረሻ የሚከፈል የብድር ሽያጭ', NULL, 300.00, 0, '2026-09-25 06:30:00', '2026-09-25 07:00:00', '2026-09-25 08:30:00', 'delivered', 9, '2026-09-25 21:35:40');
 
 -- --------------------------------------------------------
 
@@ -560,6 +563,7 @@ CREATE TABLE `dist_dispatch_payments` (
   `dispatch_id` int(11) NOT NULL,
   `amount` decimal(12,2) NOT NULL,
   `payment_method` enum('cash','bank','telebirr') NOT NULL DEFAULT 'cash',
+  `bank_account_id` int(11) DEFAULT NULL,
   `reference_no` varchar(100) DEFAULT NULL,
   `notes` varchar(255) DEFAULT NULL,
   `received_by` int(11) NOT NULL,
@@ -570,10 +574,11 @@ CREATE TABLE `dist_dispatch_payments` (
 -- Dumping data for table `dist_dispatch_payments`
 --
 
-INSERT INTO `dist_dispatch_payments` (`id`, `dispatch_id`, `amount`, `payment_method`, `reference_no`, `notes`, `received_by`, `created_at`) VALUES
-(1, 1, 18750.00, 'bank', 'CBE-FT-994821', 'Bole shop milk delivery payment', 10, '2026-09-23 21:35:41'),
-(2, 2, 10000.00, 'telebirr', 'TB-REC-884721', 'Megenagna shop partial egg payment', 10, '2026-09-24 21:35:41'),
-(3, 3, 7000.00, 'cash', 'CSH-REC-0012', 'Farm gate shop cash payment', 10, '2026-09-25 21:35:41');
+INSERT INTO `dist_dispatch_payments` (`id`, `dispatch_id`, `amount`, `payment_method`, `bank_account_id`, `reference_no`, `notes`, `received_by`, `created_at`) VALUES
+(1, 1, 18750.00, 'bank', NULL, 'CBE-FT-994821', 'Bole shop milk delivery payment', 10, '2026-09-23 21:35:41'),
+(2, 2, 10000.00, 'telebirr', NULL, 'TB-REC-884721', 'Megenagna shop partial egg payment', 10, '2026-09-24 21:35:41'),
+(3, 3, 7000.00, 'cash', NULL, 'CSH-REC-0012', 'Farm gate shop cash payment', 10, '2026-09-25 21:35:41'),
+(4, 2, 2500.00, 'telebirr', 2, NULL, '[ቴሌብር (Telebirr) - 0911002233] ', 2, '2026-10-26 17:16:56');
 
 -- --------------------------------------------------------
 
@@ -906,6 +911,13 @@ CREATE TABLE `fin_payroll_payments` (
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `fin_payroll_payments`
+--
+
+INSERT INTO `fin_payroll_payments` (`id`, `payslip_id`, `amount_paid`, `payment_date`, `payment_method`, `notes`, `recorded_by`, `created_at`) VALUES
+(1, 9, 10464.00, '2026-10-26', 'ኦሮሚያ ባንክ (Oromia Bank)', NULL, 2, '2026-10-26 17:38:33');
+
 -- --------------------------------------------------------
 
 --
@@ -967,7 +979,7 @@ INSERT INTO `fin_payslips` (`id`, `payroll_run_id`, `employee_id`, `base_salary`
 (6, 1, 6, 18000.00, 600.00, 30, 18000.00, 3809.00, 1260.00, 1980.00, 12931.00, 0.00, 2500.00, 5069.00),
 (7, 1, 7, 22000.00, 733.33, 30, 22000.00, 5111.00, 1540.00, 2420.00, 15349.00, 0.00, 2500.00, 6651.00),
 (8, 1, 8, 14500.00, 483.33, 30, 14500.00, 2695.50, 1015.00, 1595.00, 10789.50, 0.00, 1200.00, 3710.50),
-(9, 1, 9, 14000.00, 466.67, 30, 14000.00, 2556.00, 980.00, 1540.00, 10464.00, 0.00, 1200.00, 3536.00),
+(9, 1, 9, 14000.00, 466.67, 30, 14000.00, 2556.00, 980.00, 1540.00, 10464.00, 10464.00, 1200.00, 3536.00),
 (10, 1, 10, 20000.00, 666.67, 30, 20000.00, 4460.00, 1400.00, 2200.00, 14140.00, 0.00, 2500.00, 5860.00),
 (11, 1, 11, 12000.00, 400.00, 30, 12000.00, 1998.00, 840.00, 1320.00, 9162.00, 0.00, 1200.00, 2838.00),
 (12, 1, 12, 8500.00, 283.33, 30, 8500.00, 1126.25, 595.00, 935.00, 6778.75, 0.00, 1200.00, 1721.25);
@@ -1002,7 +1014,8 @@ CREATE TABLE `fin_purchase_orders` (
 INSERT INTO `fin_purchase_orders` (`id`, `purchase_request_id`, `material_request_id`, `supplier_name`, `stock_item_id`, `quantity`, `unit_price`, `total_amount`, `amount_paid`, `payment_status`, `status`, `created_by`, `approved_by`, `created_at`) VALUES
 (1, 1, NULL, 'Ethio-Feed Processing SC (ኢትዮ-መኖ አ.ማ)', 4, 5000.00, 28.00, 140000.00, 140000.00, 'paid', 'received', 10, 2, '2026-09-15 20:35:42'),
 (2, 2, NULL, 'Vet Pharma Ethiopia (የእንስሳት መድኃኒት አቅራቢ)', 9, 100.00, 45.00, 4500.00, 4500.00, 'paid', 'received', 10, 2, '2026-09-18 20:35:42'),
-(3, 3, NULL, 'Alema Koudijs Feed PLC (አለማ መኖ ፋብሪካ)', 3, 2000.00, 32.00, 64000.00, 0.00, 'unpaid', '', 10, 2, '2026-09-23 20:35:42');
+(3, 3, NULL, 'Alema Koudijs Feed PLC (አለማ መኖ ፋብሪካ)', 3, 2000.00, 32.00, 64000.00, 0.00, 'unpaid', '', 10, 2, '2026-09-23 20:35:42'),
+(4, 5, NULL, 'tesfa', 11, 100.00, 200.01, 20001.00, 0.00, 'unpaid', 'pending_receipt', 2, 2, '2026-10-26 17:31:52');
 
 -- --------------------------------------------------------
 
@@ -1030,7 +1043,7 @@ INSERT INTO `fin_purchase_requests` (`id`, `material_request_id`, `stock_item_id
 (2, NULL, 9, 100.00, 'የአፍ እና እግር በሽታ መከላከያ ክትባት (Annual preventive vaccination)', 7, 'converted_to_po', '2026-09-18 21:35:41'),
 (3, NULL, 3, 2000.00, 'የዶሮዎች መኖ ተጨማሪ ትዕዛዝ (Poultry feed shortage)', 4, 'converted_to_po', '2026-09-22 21:35:41'),
 (4, NULL, 10, 10.00, 'ተጨማሪ የወተት ማጓጓዣ ጣሳዎች (Cans for new shop)', 3, 'approved', '2026-09-25 21:35:41'),
-(5, NULL, 11, 100.00, '[መጋዘን ቀጥታ ጥያቄ - አስቸኳይነት: critical] we need it', 8, 'pending', '2026-10-23 00:11:17');
+(5, NULL, 11, 100.00, '[መጋዘን ቀጥታ ጥያቄ - አስቸኳይነት: critical] we need it', 8, 'converted_to_po', '2026-10-23 00:11:17');
 
 -- --------------------------------------------------------
 
@@ -1070,7 +1083,9 @@ INSERT INTO `fin_transactions` (`id`, `bank_account_id`, `direction`, `amount`, 
 (8, 3, 'outflow', 3200.00, 'cash', 'feed_production', 'expense', 'fin_expenses', 11, '2026-09-26', 'የመኖ መፍጫ ማሽን ቪ-ቤልትና ቅባት ግዢ (ተቀባይ/አላማ: መካኒክ ወርክሾፕ (Workshop))', NULL, 10, '2026-09-27 23:52:06'),
 (9, 1, 'outflow', 100000.00, 'bank', 'general_overhead', 'internal_transfer', 'fin_bank_accounts', 1, '2026-10-16', 'ከ ኦሮሚያ ባንክ ➜ ወደ ቴሌብር (for test)', 'TRF-20261016-7E15AB', 1, '2026-10-16 16:40:56'),
 (10, 2, 'inflow', 100000.00, 'telebirr', 'general_overhead', 'internal_transfer', 'fin_bank_accounts', 2, '2026-10-16', 'ከ ኦሮሚያ ባንክ ➜ ወደ ቴሌብር (for test)', 'TRF-20261016-7E15AB', 1, '2026-10-16 16:40:57'),
-(12, 1, 'outflow', 100.00, 'bank', 'feed_production', 'expense', 'fin_expenses', 12, '2026-10-24', 'test for system', NULL, 10, '2026-10-24 03:02:18');
+(12, 1, 'outflow', 100.00, 'bank', 'feed_production', 'expense', 'fin_expenses', 12, '2026-10-24', 'test for system', NULL, 10, '2026-10-24 03:02:18'),
+(13, 2, 'inflow', 2500.00, 'telebirr', 'distribution', 'product_sales', 'dist_dispatches', 2, '2026-10-26', 'Sales revenue for Dispatch #2 (የዶሮ ዕንቁላል)', NULL, 2, '2026-10-26 17:16:56'),
+(14, 1, 'outflow', 10464.00, 'bank', 'general_overhead', 'payroll_payment', 'fin_payslips', 9, '2026-10-26', 'Salary payment for Solomon Abebe (EMP-009)', NULL, 2, '2026-10-26 17:38:33');
 
 -- --------------------------------------------------------
 
@@ -1272,7 +1287,8 @@ INSERT INTO `notifications` (`id`, `module`, `priority`, `target_user_id`, `targ
 (5, 'warehouse', 'medium', NULL, 8, NULL, 'Department confirmed receipt of የወተት ማጠራቀሚያ ጣሳ (Request #4).', '/aleltu-eifms/modules/warehouse/requisitions.php', 0, '2026-09-27 23:40:32'),
 (6, 'warehouse', 'high', NULL, 8, NULL, 'Daily milk yield from Dairy (20 Liters, evening session) sent to Store Partition 1 for physical verification.', '/aleltu-eifms/modules/warehouse/receiving.php', 0, '2026-10-01 22:18:28'),
 (7, 'warehouse', 'high', NULL, 8, NULL, 'Daily milk yield from Dairy (20 Liters, morning session) sent to Store Partition 1 for physical verification.', '/aleltu-eifms/modules/warehouse/receiving.php', 0, '2026-10-01 22:18:43'),
-(8, 'warehouse', 'high', NULL, 8, NULL, 'Daily milk yield from Dairy (15 Liters net of 20L gross, morning session) sent to Store Partition 1 for physical verification.', '/aleltu-eifms/modules/warehouse/receiving.php', 0, '2026-10-24 02:10:48');
+(8, 'warehouse', 'high', NULL, 8, NULL, 'Daily milk yield from Dairy (15 Liters net of 20L gross, morning session) sent to Store Partition 1 for physical verification.', '/aleltu-eifms/modules/warehouse/receiving.php', 0, '2026-10-24 02:10:48'),
+(9, 'warehouse', 'high', NULL, 8, NULL, 'Purchased goods from tesfa (PO#4, 100.00 units of ትኩስ ዓሳ (Fresh Fish)) sent to Store for physical check.', '/aleltu-eifms/modules/warehouse/receiving.php', 0, '2026-10-26 17:32:40');
 
 -- --------------------------------------------------------
 
@@ -1734,7 +1750,9 @@ INSERT INTO `settings` (`id`, `setting_key`, `setting_value`, `description`) VAL
 (10, 'analytics_shop_dispatch_treatment', 'internal', 'Super Admin analytics: internal = dispatches to company shops are transfers, not income; external = shops are outside customers'),
 (12, 'payroll_tax_brackets', '[{\"min\":0,\"max\":2000,\"rate\":0,\"deduction\":0,\"label\":\"ከስራ ግብር ነፃ (Exempt)\"},{\"min\":2001,\"max\":4000,\"rate\":15,\"deduction\":300,\"label\":\"እርከን 1 (15%)\"},{\"min\":4001,\"max\":7000,\"rate\":20,\"deduction\":500,\"label\":\"እርከን 2 (20%)\"},{\"min\":7001,\"max\":10000,\"rate\":25,\"deduction\":850,\"label\":\"እርከን 3 (25%)\"},{\"min\":10001,\"max\":14000,\"rate\":30,\"deduction\":1350,\"label\":\"እርከን 4 (30%)\"},{\"min\":14001,\"max\":null,\"rate\":35,\"deduction\":2050,\"label\":\"እርከን 5 (35% እና ከዚያ በላይ)\"}]', NULL),
 (14, 'tax_exempt_threshold', '2000', NULL),
-(17, 'milk_price_per_liter', '75.00', 'Selling price of raw milk per liter');
+(17, 'milk_price_per_liter', '75.00', 'Selling price of raw milk per liter'),
+(18, 'pension_employee_rate', '7', NULL),
+(19, 'pension_employer_rate', '11', NULL);
 
 -- --------------------------------------------------------
 
@@ -1783,8 +1801,8 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `name`, `email`, `password`, `api_token`, `role_id`, `department_id`, `locale`, `theme`, `two_factor_secret`, `two_factor_enabled`, `is_active`, `last_login_at`, `created_at`) VALUES
-(1, 'admin', 'admin@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 1, NULL, 'am', 'light', NULL, 0, 1, '2026-10-24 02:44:04', '2026-08-08 12:58:26'),
-(2, 'manager', 'manager@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 2, NULL, 'en', 'dark', NULL, 0, 1, '2026-08-09 15:48:55', '2026-08-08 12:58:27'),
+(1, 'admin', 'admin@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 1, NULL, 'am', 'light', NULL, 0, 1, '2026-10-31 00:43:04', '2026-08-08 12:58:26'),
+(2, 'manager', 'manager@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 2, NULL, 'am', 'light', NULL, 0, 1, '2026-10-26 16:48:51', '2026-08-08 12:58:27'),
 (3, 'dairy', 'dairy@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 3, 1, 'am', 'light', NULL, 0, 1, '2026-10-24 02:09:18', '2026-08-08 12:58:27'),
 (4, 'poultry', 'poultry@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 4, 2, 'am', 'dark', NULL, 0, 1, '2026-09-27 22:47:16', '2026-08-08 12:58:27'),
 (5, 'fish', 'fish@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 5, 3, 'am', 'dark', NULL, 0, 1, '2026-09-27 22:59:59', '2026-08-08 12:58:27'),
@@ -1792,7 +1810,7 @@ INSERT INTO `users` (`id`, `name`, `email`, `password`, `api_token`, `role_id`, 
 (7, 'vet', 'vet@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 7, 5, 'am', 'dark', NULL, 0, 1, '2026-09-27 23:19:19', '2026-08-08 12:58:28'),
 (8, 'warehouse', 'warehouse@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 8, 6, 'am', 'light', NULL, 0, 1, '2026-10-24 01:38:08', '2026-08-08 12:58:28'),
 (9, 'distribution', 'distribution@aleltufarm.com', '$2y$10$9UAh9OniZ8Z6bg24y7QpD.WcRxb7NZf5ZSuf83YvjWVUlm/GXLqN6', NULL, 9, 5, 'en', 'light', NULL, 0, 1, '2026-08-19 19:43:50', '2026-08-08 12:58:28'),
-(10, 'finance', 'finance@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 10, 7, 'am', 'light', NULL, 0, 1, '2026-10-24 03:01:19', '2026-08-08 12:58:28'),
+(10, 'finance', 'finance@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 10, 7, 'am', 'light', NULL, 0, 1, '2026-10-31 00:27:53', '2026-08-08 12:58:28'),
 (11, 'hr', 'hr@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 11, 8, 'am', 'light', NULL, 0, 1, '2026-10-24 01:48:13', '2026-08-08 12:58:28'),
 (12, 'milker', 'milker@aleltufarm.com', '$2y$10$P9Is4V5IKXtBkTm05zTPZuW8KnJj9jliLwNQtDMWFOSd9dsFBQBM6', NULL, 12, 1, 'en', 'light', NULL, 0, 1, '2026-08-19 19:44:42', '2026-08-08 12:58:28'),
 (13, 'tesfa', 'tesfa@gmail.com', '$2y$10$sHgx3RbKPwHSP9SlrGUz3.hZulJKMmf1g.UqpNWIlTY2JiADYBn.O', NULL, 8, 7, 'am', 'light', NULL, 0, 1, '2026-09-27 20:59:53', '2026-09-27 20:59:36');
@@ -1919,6 +1937,10 @@ CREATE TABLE `wh_stock_adjustments` (
   `quantity` decimal(12,2) NOT NULL,
   `reason` varchar(255) NOT NULL,
   `adjusted_by` int(11) NOT NULL,
+  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `rejection_reason` text DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -2068,7 +2090,8 @@ INSERT INTO `wh_store_receiving` (`id`, `dispatch_code`, `source_type`, `source_
 (2, 'DISP-PLT-001', 'poultry', 'Daily Egg Harvest #1', NULL, 1, 2, 1760.00, 1760.00, NULL, 'received_full', 4, '2026-09-24 21:35:38', 8, '2026-09-24 21:35:38'),
 (3, 'MILK-10-20261001-6285', 'dairy', 'Daily Milking (evening session, 2026-10-01)', NULL, 1, 1, 20.00, NULL, NULL, 'pending_receipt', 1, '2026-10-01 22:18:28', NULL, NULL),
 (4, 'MILK-9-20261001-8201', 'dairy', 'Daily Milking (morning session, 2026-10-01)', NULL, 1, 1, 20.00, NULL, NULL, 'pending_receipt', 1, '2026-10-01 22:18:43', NULL, NULL),
-(5, 'MILK-17-20261024-9251', 'dairy', 'Daily Milking (morning session, 2026-10-24): Gross 20L, Calf Consumed 5L, Net to Store 15L', NULL, 1, 1, 15.00, NULL, NULL, 'pending_receipt', 3, '2026-10-24 02:10:47', NULL, NULL);
+(5, 'MILK-17-20261024-9251', 'dairy', 'Daily Milking (morning session, 2026-10-24): Gross 20L, Calf Consumed 5L, Net to Store 15L', NULL, 1, 1, 15.00, NULL, NULL, 'pending_receipt', 3, '2026-10-24 02:10:47', NULL, NULL),
+(6, 'PO-4-20261026', 'purchase', 'PO#4 tesfa', NULL, 1, 11, 100.00, NULL, NULL, 'pending_receipt', 2, '2026-10-26 17:32:40', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -2212,7 +2235,8 @@ ALTER TABLE `dist_dispatches`
   ADD KEY `stock_item_id` (`stock_item_id`),
   ADD KEY `created_by` (`created_by`),
   ADD KEY `idx_an_disp_status_date` (`status`,`dispatched_at`,`stock_item_id`),
-  ADD KEY `idx_an_disp_channel` (`sale_channel`);
+  ADD KEY `idx_an_disp_channel` (`sale_channel`),
+  ADD KEY `fk_dispatch_shop` (`shop_id`);
 
 --
 -- Indexes for table `dist_dispatch_payments`
@@ -2221,7 +2245,8 @@ ALTER TABLE `dist_dispatch_payments`
   ADD PRIMARY KEY (`id`),
   ADD KEY `dispatch_id` (`dispatch_id`),
   ADD KEY `received_by` (`received_by`),
-  ADD KEY `idx_an_dpay_created` (`created_at`,`dispatch_id`);
+  ADD KEY `idx_an_dpay_created` (`created_at`,`dispatch_id`),
+  ADD KEY `fk_dispatch_payment_bank` (`bank_account_id`);
 
 --
 -- Indexes for table `dist_shops`
@@ -2590,7 +2615,8 @@ ALTER TABLE `wh_stock_adjustments`
   ADD KEY `warehouse_id` (`warehouse_id`),
   ADD KEY `stock_item_id` (`stock_item_id`),
   ADD KEY `adjusted_by` (`adjusted_by`),
-  ADD KEY `idx_an_adj_date_type` (`created_at`,`adjustment_type`);
+  ADD KEY `idx_an_adj_date_type` (`created_at`,`adjustment_type`),
+  ADD KEY `fk_stock_adj_approver` (`approved_by`);
 
 --
 -- Indexes for table `wh_stock_batches`
@@ -2660,7 +2686,7 @@ ALTER TABLE `attendance`
 -- AUTO_INCREMENT for table `audit_log`
 --
 ALTER TABLE `audit_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `dairy_breeding_records`
@@ -2738,7 +2764,7 @@ ALTER TABLE `dist_dispatches`
 -- AUTO_INCREMENT for table `dist_dispatch_payments`
 --
 ALTER TABLE `dist_dispatch_payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `dist_shops`
@@ -2816,7 +2842,7 @@ ALTER TABLE `fin_expenses`
 -- AUTO_INCREMENT for table `fin_payroll_payments`
 --
 ALTER TABLE `fin_payroll_payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `fin_payroll_runs`
@@ -2834,7 +2860,7 @@ ALTER TABLE `fin_payslips`
 -- AUTO_INCREMENT for table `fin_purchase_orders`
 --
 ALTER TABLE `fin_purchase_orders`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `fin_purchase_requests`
@@ -2846,7 +2872,7 @@ ALTER TABLE `fin_purchase_requests`
 -- AUTO_INCREMENT for table `fin_transactions`
 --
 ALTER TABLE `fin_transactions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `fish_feeding_logs`
@@ -2900,7 +2926,7 @@ ALTER TABLE `leave_requests`
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `performance_reviews`
@@ -2948,7 +2974,7 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `settings`
 --
 ALTER TABLE `settings`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `tasks`
@@ -3026,7 +3052,7 @@ ALTER TABLE `wh_stock_receipts`
 -- AUTO_INCREMENT for table `wh_store_receiving`
 --
 ALTER TABLE `wh_store_receiving`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `wh_warehouses`
@@ -3124,7 +3150,14 @@ ALTER TABLE `dist_dispatches`
   ADD CONSTRAINT `dist_dispatches_ibfk_1` FOREIGN KEY (`vehicle_id`) REFERENCES `dist_vehicles` (`id`),
   ADD CONSTRAINT `dist_dispatches_ibfk_3` FOREIGN KEY (`warehouse_id`) REFERENCES `wh_warehouses` (`id`),
   ADD CONSTRAINT `dist_dispatches_ibfk_4` FOREIGN KEY (`stock_item_id`) REFERENCES `wh_stock_items` (`id`),
-  ADD CONSTRAINT `dist_dispatches_ibfk_5` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`);
+  ADD CONSTRAINT `dist_dispatches_ibfk_5` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`),
+  ADD CONSTRAINT `fk_dispatch_shop` FOREIGN KEY (`shop_id`) REFERENCES `dist_shops` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `dist_dispatch_payments`
+--
+ALTER TABLE `dist_dispatch_payments`
+  ADD CONSTRAINT `fk_dispatch_payment_bank` FOREIGN KEY (`bank_account_id`) REFERENCES `fin_bank_accounts` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `dist_vehicles`
@@ -3346,6 +3379,12 @@ ALTER TABLE `vet_vaccination_records`
 ALTER TABLE `wh_minimum_stock_rules`
   ADD CONSTRAINT `wh_minimum_stock_rules_ibfk_1` FOREIGN KEY (`warehouse_id`) REFERENCES `wh_warehouses` (`id`),
   ADD CONSTRAINT `wh_minimum_stock_rules_ibfk_2` FOREIGN KEY (`stock_item_id`) REFERENCES `wh_stock_items` (`id`);
+
+--
+-- Constraints for table `wh_stock_adjustments`
+--
+ALTER TABLE `wh_stock_adjustments`
+  ADD CONSTRAINT `fk_stock_adj_approver` FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `wh_stock_batches`

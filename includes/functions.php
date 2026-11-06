@@ -2140,7 +2140,7 @@ function vehicle_register(string $plate, ?string $type, ?float $capacityKg, ?str
  * Creates a vehicle dispatch for selling/delivering farm products.
  * Deducts stock from warehouse 1 and calculates total sales value.
  */
-function dispatch_create(?int $vehicleId, ?string $driverName, string $destination, int $warehouseId, int $stockItemId, float $quantity, float $unitPrice = 0.00, ?string $saleChannel = null): int
+function dispatch_create(?int $vehicleId, ?string $driverName, string $destination, int $warehouseId, int $stockItemId, float $quantity, float $unitPrice = 0.00, ?string $saleChannel = null, ?int $shopId = null): int
 {
     if ($quantity <= 0) {
         throw new InvalidArgumentException('Dispatch quantity must be greater than zero.');
@@ -2159,10 +2159,10 @@ function dispatch_create(?int $vehicleId, ?string $driverName, string $destinati
         $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
         $stmt = db()->prepare(
             "INSERT INTO dist_dispatches 
-             (vehicle_id, driver_name, destination_pos_location, warehouse_id, stock_item_id, quantity_dispatched, unit_price, total_price, amount_paid, payment_status, planned_dispatch_at, dispatched_at, status, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.00, 'unpaid', NOW(), NOW(), 'dispatched', ?)"
+             (vehicle_id, driver_name, destination_pos_location, shop_id, warehouse_id, stock_item_id, quantity_dispatched, unit_price, total_price, amount_paid, payment_status, planned_dispatch_at, dispatched_at, status, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, 'unpaid', NOW(), NOW(), 'dispatched', ?)"
         );
-        $stmt->execute([$vehicleId ?: null, $driverName ?: null, $destination, $warehouseId, $stockItemId, $quantity, $unitPrice, $totalPrice, $userId]);
+        $stmt->execute([$vehicleId ?: null, $driverName ?: null, $destination, $shopId ?: null, $warehouseId, $stockItemId, $quantity, $unitPrice, $totalPrice, $userId]);
         $id = (int) db()->lastInsertId();
         
         if (in_array($saleChannel, ['direct_sale', 'shop_transfer', 'internal_use'], true)) {
@@ -2192,8 +2192,9 @@ function dispatch_create(?int $vehicleId, ?string $driverName, string $destinati
 
 /**
  * Record a full or partial payment from driver / customer for dispatched goods.
+ * Strictly linked to real company bank accounts / cash / telebirr merchant.
  */
-function dispatch_record_payment(int $dispatchId, float $amount, string $paymentMethod = 'cash', ?string $refNo = null, ?string $notes = null, int $receivedBy = 1): void
+function dispatch_record_payment(int $dispatchId, float $amount, string $paymentMethod = 'cash', ?string $refNo = null, ?string $notes = null, int $receivedBy = 1, ?int $bankAccountId = null): void
 {
     if ($amount <= 0) {
         throw new InvalidArgumentException('Payment amount must be greater than zero.');
@@ -2205,11 +2206,6 @@ function dispatch_record_payment(int $dispatchId, float $amount, string $payment
         $ownsTx = true;
     }
     try {
-        // Lock the dispatch row before reading its paid/total amounts (BR-FN-lock):
-        // reading and validating remaining balance outside a lock lets two
-        // concurrent payments (e.g. a double-submit) both pass the "does not
-        // exceed remaining balance" check against the same stale figure and
-        // together overpay the dispatch.
         $disp = db()->prepare(
             "SELECT d.*, i.name AS item_name FROM dist_dispatches d
              JOIN wh_stock_items i ON i.id = d.stock_item_id
@@ -2236,12 +2232,12 @@ function dispatch_record_payment(int $dispatchId, float $amount, string $payment
         db()->prepare("UPDATE dist_dispatches SET amount_paid = ?, payment_status = ?, payment_notes = ? WHERE id = ?")
             ->execute([$newPaid, $newStatus, $notes ?: null, $dispatchId]);
 
-        // Insert into dist_dispatch_payments audit log
+        // Insert into dist_dispatch_payments audit log with real bank_account_id
         $stmt = db()->prepare(
-            "INSERT INTO dist_dispatch_payments (dispatch_id, amount, payment_method, reference_no, notes, received_by)
-             VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO dist_dispatch_payments (dispatch_id, amount, payment_method, bank_account_id, reference_no, notes, received_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
         );
-        $stmt->execute([$dispatchId, $amount, $paymentMethod, $refNo ?: null, $notes ?: null, $receivedBy]);
+        $stmt->execute([$dispatchId, $amount, $paymentMethod, $bankAccountId ?: null, $refNo ?: null, $notes ?: null, $receivedBy]);
 
         // Book cash/bank inflow in finance transactions
         finance_record_transaction(
@@ -2254,13 +2250,14 @@ function dispatch_record_payment(int $dispatchId, float $amount, string $payment
             'dist_dispatches',
             $dispatchId,
             null,
-            $paymentMethod
+            $paymentMethod,
+            $bankAccountId
         );
 
         if ($ownsTx && db()->inTransaction()) {
             db()->commit();
         }
-        log_activity('finance', 'create', 'dist_dispatch_payments', $dispatchId, "Recorded {$amount} ETB payment for dispatch #{$dispatchId} (Status: {$newStatus})");
+        log_activity('finance', 'create', 'dist_dispatch_payments', $dispatchId, "Recorded {$amount} ETB payment for dispatch #{$dispatchId} into bank account #{$bankAccountId} (Status: {$newStatus})");
     } catch (Throwable $e) {
         if ($ownsTx && db()->inTransaction()) {
             db()->rollBack();
@@ -3045,8 +3042,70 @@ function dept_material_request_confirm_received(int $requestId, int $confirmedBy
     }
 }
 
-// Controlled Stock Adjustment with Audit
-function stock_adjust(int $warehouseId, int $stockItemId, string $type, float $quantity, string $reason, int $userId): void
+// Direct Warehouse Dispatch without prior department requisition
+function warehouse_direct_issue_to_dept(int $warehouseId, int $stockItemId, float $quantity, int $departmentId, string $note, int $issuedBy): int
+{
+    if ($quantity <= 0) {
+        throw new InvalidArgumentException("Quantity must be greater than zero.");
+    }
+    $current = stock_current($warehouseId, $stockItemId);
+    if ($quantity > $current) {
+        throw new RuntimeException("Cannot issue {$quantity} units; only {$current} units currently available in warehouse.");
+    }
+
+    $dept = db()->prepare("SELECT id, name, code, business_unit FROM departments WHERE id = ?");
+    $dept->execute([$departmentId]);
+    $d = $dept->fetch();
+    if (!$d) {
+        throw new RuntimeException("Target department not found.");
+    }
+
+    $item = db()->prepare("SELECT id, name, unit FROM wh_stock_items WHERE id = ?");
+    $item->execute([$stockItemId]);
+    $it = $item->fetch();
+    if (!$it) {
+        throw new RuntimeException("Stock item not found.");
+    }
+
+    $deptUnitTag = $d['business_unit'] ?: 'general_overhead';
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
+    try {
+        // 1. Deduct stock physically from warehouse
+        stock_issue($warehouseId, $stockItemId, $quantity, $deptUnitTag);
+
+        // 2. Insert into dept_material_requests with status 'sent_to_department'
+        $fullNote = '🚚 በቀጥታ ከመጋዘን የተላከ (Direct Issue - no prior requisition)' . ($note !== '' ? ' | ' . $note : '');
+        $stmt = db()->prepare(
+            "INSERT INTO dept_material_requests (department_id, stock_item_id, requested_quantity, issued_quantity, shortage_quantity, status, requested_by, fulfilled_by, note, created_at)
+             VALUES (?, ?, ?, ?, 0.00, 'sent_to_department', ?, ?, ?, NOW())"
+        );
+        $stmt->execute([$departmentId, $stockItemId, $quantity, $quantity, $issuedBy, $issuedBy, $fullNote]);
+        $reqId = (int) db()->lastInsertId();
+
+        // 3. Notify department manager to acknowledge receipt
+        $deptRequestLink = BASE_URL . "/modules/{$deptUnitTag}/material_request.php";
+        notify_targeted($deptUnitTag, "🚚 ማዕከላዊ መጋዘን {$quantity} {$it['unit']} {$it['name']} ልኮልዎታል። እባክዎ ርክክቡን ያረጋግጡ (Please confirm receipt).", 'high', null, null, $departmentId, $deptRequestLink);
+
+        log_activity('warehouse', 'create', 'dept_material_requests', $reqId, "Direct warehouse issue of {$quantity} {$it['unit']} of {$it['name']} to department {$d['name']} (Req #{$reqId}). Pending confirmation.");
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+        return $reqId;
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+}
+
+// Controlled Stock Adjustment with Workflow & Approvals
+function stock_adjust_request(int $warehouseId, int $stockItemId, string $type, float $quantity, string $reason, int $userId): int
 {
     if ($quantity <= 0) {
         throw new InvalidArgumentException("Adjustment quantity must be greater than zero.");
@@ -3054,6 +3113,42 @@ function stock_adjust(int $warehouseId, int $stockItemId, string $type, float $q
     if (empty(trim($reason))) {
         throw new InvalidArgumentException("A valid reason is required for stock adjustments.");
     }
+    if ($type === 'decrease') {
+        $current = stock_current($warehouseId, $stockItemId);
+        if ($quantity > $current) {
+            throw new RuntimeException("Cannot request adjustment of {$quantity} units; only {$current} units currently available in warehouse.");
+        }
+    }
+
+    $stmt = db()->prepare(
+        "INSERT INTO wh_stock_adjustments (warehouse_id, stock_item_id, adjustment_type, quantity, reason, adjusted_by, status, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())"
+    );
+    $stmt->execute([$warehouseId, $stockItemId, $type, $quantity, $reason, $userId]);
+    $adjId = (int) db()->lastInsertId();
+
+    log_activity('warehouse', 'create', 'wh_stock_adjustments', $adjId, "Stock adjustment requested ({$type} {$quantity}) for item #{$stockItemId} by User #{$userId}. Reason: {$reason}");
+    return $adjId;
+}
+
+function stock_adjust_approve(int $adjustmentId, int $approverId): void
+{
+    $stmt = db()->prepare("SELECT * FROM wh_stock_adjustments WHERE id = ?");
+    $stmt->execute([$adjustmentId]);
+    $adj = $stmt->fetch();
+    if (!$adj) {
+        throw new RuntimeException("Stock adjustment record #{$adjustmentId} not found.");
+    }
+    if ($adj['status'] !== 'pending') {
+        throw new RuntimeException("This stock adjustment is already {$adj['status']}.");
+    }
+
+    $warehouseId = (int) $adj['warehouse_id'];
+    $stockItemId = (int) $adj['stock_item_id'];
+    $type = $adj['adjustment_type'];
+    $quantity = (float) $adj['quantity'];
+    $reason = $adj['reason'];
+
     $ownsTx = false;
     if (!db()->inTransaction()) {
         db()->beginTransaction();
@@ -3063,25 +3158,51 @@ function stock_adjust(int $warehouseId, int $stockItemId, string $type, float $q
         if ($type === 'decrease') {
             $current = stock_current($warehouseId, $stockItemId);
             if ($quantity > $current) {
-                throw new RuntimeException("Cannot reduce {$quantity} units; only {$current} units currently available in warehouse.");
+                throw new RuntimeException("Cannot apply decrease of {$quantity} units; current available stock is only {$current}.");
             }
             stock_issue($warehouseId, $stockItemId, $quantity, 'stock_adjustment');
         } else {
             stock_receive($warehouseId, $stockItemId, $quantity, 'stock_adjustment', null, 'adjustment');
         }
-        $stmt = db()->prepare("INSERT INTO wh_stock_adjustments (warehouse_id, stock_item_id, adjustment_type, quantity, reason, adjusted_by) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$warehouseId, $stockItemId, $type, $quantity, $reason, $userId]);
-        $adjId = (int) db()->lastInsertId();
+
+        $upd = db()->prepare("UPDATE wh_stock_adjustments SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?");
+        $upd->execute([$approverId, $adjustmentId]);
+
         if ($ownsTx && db()->inTransaction()) {
             db()->commit();
         }
-        log_activity('warehouse', 'update', 'wh_stock_adjustments', $adjId, "Stock adjustment ({$type} {$quantity}) for item #{$stockItemId}. Reason: {$reason}");
+        log_activity('warehouse', 'approve', 'wh_stock_adjustments', $adjustmentId, "Stock adjustment #{$adjustmentId} approved by User #{$approverId}. Stock updated ({$type} {$quantity}).");
     } catch (Throwable $e) {
         if ($ownsTx && db()->inTransaction()) {
             db()->rollBack();
         }
         throw $e;
     }
+}
+
+function stock_adjust_reject(int $adjustmentId, int $approverId, string $rejectionReason = ''): void
+{
+    $stmt = db()->prepare("SELECT * FROM wh_stock_adjustments WHERE id = ?");
+    $stmt->execute([$adjustmentId]);
+    $adj = $stmt->fetch();
+    if (!$adj) {
+        throw new RuntimeException("Stock adjustment record #{$adjustmentId} not found.");
+    }
+    if ($adj['status'] !== 'pending') {
+        throw new RuntimeException("This stock adjustment is already {$adj['status']}.");
+    }
+
+    $upd = db()->prepare("UPDATE wh_stock_adjustments SET status = 'rejected', approved_by = ?, approved_at = NOW(), rejection_reason = ? WHERE id = ?");
+    $upd->execute([$approverId, trim($rejectionReason), $adjustmentId]);
+
+    log_activity('warehouse', 'reject', 'wh_stock_adjustments', $adjustmentId, "Stock adjustment #{$adjustmentId} rejected by User #{$approverId}. Reason: {$rejectionReason}");
+}
+
+// Backward-compatible wrapper for direct adjustment (used if super_admin approves immediately)
+function stock_adjust(int $warehouseId, int $stockItemId, string $type, float $quantity, string $reason, int $userId): void
+{
+    $adjId = stock_adjust_request($warehouseId, $stockItemId, $type, $quantity, $reason, $userId);
+    stock_adjust_approve($adjId, $userId);
 }
 
 // Resolves which physical warehouse holds a given stock item's product class,
@@ -3929,74 +4050,82 @@ function finance_department_profitability(?string $startDate = null, ?string $en
 
     $departments = [
         'dairy' => [
-            'name_am' => 'የወተት እርሻ',
-            'name_en' => 'Dairy Farm',
-            'icon'    => '',
+            'name_am' => 'የከብቶች ምርት',
+            'name_en' => 'Cattle & Dairy Production',
+            'icon'    => '🐄',
             'color'   => '#1565c0',
             'scope'   => 'dairy',
+            'is_profit_center' => true,
             'product_classes' => ['milk'],
             'sku_prefix'      => 'MILK%',
         ],
         'poultry' => [
             'name_am' => 'የዶሮና እንቁላል እርባታ',
             'name_en' => 'Poultry & Eggs',
-            'icon'    => '',
+            'icon'    => '🐓',
             'color'   => '#e65100',
             'scope'   => 'poultry',
+            'is_profit_center' => true,
             'product_classes' => ['eggs', 'poultry_meat', 'birds', 'general'],
             'sku_prefix'      => 'EGG%',
         ],
         'fish' => [
             'name_am' => 'የዓሳ እርባታ',
             'name_en' => 'Fish Aquaculture',
-            'icon'    => '',
+            'icon'    => '🐟',
             'color'   => '#00838f',
             'scope'   => 'fish',
+            'is_profit_center' => true,
             'product_classes' => ['fish', 'fingerlings'],
             'sku_prefix'      => 'FISH%',
         ],
         'feed_production' => [
             'name_am' => 'የመኖ ምርትና እርሻ',
             'name_en' => 'Feed Production & Crops',
-            'icon'    => '',
+            'icon'    => '🌾',
             'color'   => '#2e7d32',
             'scope'   => 'feed_production',
+            'is_profit_center' => true,
             'product_classes' => ['feed', 'crop'],
             'sku_prefix'      => 'FEED%',
         ],
         'warehouse' => [
-            'name_am' => 'መጋዘንና ግዢ',
+            'name_am' => 'መጋዘንና ግዢ (ክምችት ማዕከል)',
             'name_en' => 'Warehouse & Inventory',
-            'icon'    => '',
+            'icon'    => '📦',
             'color'   => '#6a1b9a',
             'scope'   => 'warehouse',
+            'is_profit_center' => false,
             'product_classes' => ['materials_supplies', 'equipment', 'spare_parts'],
             'sku_prefix'      => 'EQUIP%',
         ],
         'distribution' => [
-            'name_am' => 'ስርጭትና መዳረሻ ሱቆች',
-            'name_en' => 'Distribution & Sales Outlets',
-            'icon'    => '',
+            'name_am' => 'ስርጭትና መዳረሻ ሱቆች (ሎጂስቲክስ)',
+            'name_en' => 'Distribution & Logistics',
+            'icon'    => '🚚',
             'color'   => '#ad1457',
             'scope'   => 'distribution',
+            'is_profit_center' => false,
             'product_classes' => [],
             'sku_prefix'      => null,
         ],
         'veterinary' => [
-            'name_am' => 'የእንስሳት ህክምና',
+            'name_am' => 'የእንስሳት ህክምናና ጤና ጥበቃ',
             'name_en' => 'Veterinary Clinic',
-            'icon'    => '',
+            'icon'    => '💉',
             'color'   => '#00695c',
             'scope'   => 'veterinary',
+            'is_profit_center' => false,
             'product_classes' => ['medicine', 'vaccine'],
             'sku_prefix'      => 'MED%',
         ],
         'general_overhead' => [
             'name_am' => 'አጠቃላይ አስተዳደርና ደመወዝ',
             'name_en' => 'General Overhead & Admin',
-            'icon'    => '',
+            'icon'    => '🏢',
             'color'   => '#455a64',
             'scope'   => 'general_overhead',
+            'is_profit_center' => false,
             'product_classes' => [],
             'sku_prefix'      => null,
         ],

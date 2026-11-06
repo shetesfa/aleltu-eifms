@@ -476,7 +476,7 @@ $bouncedCnt         = (int)($kpis['bounced_count'] ?? 0);
                 <label style="font-weight:700">🏢 <?= current_locale() === 'am' ? 'ተዛማጅ የስራ ክፍል / ሞጁል' : 'Related Module' ?></label>
                 <select name="related_module" style="width:100%;padding:8px">
                     <option value="distribution" selected><?= current_locale() === 'am' ? 'የወተትና ምርት ሽያጭ (Distribution/Sales)' : 'Distribution/Sales' ?></option>
-                    <option value="dairy"><?= current_locale() === 'am' ? 'የወተት እርሻ (Dairy)' : 'Dairy' ?></option>
+                    <option value="dairy"><?= current_locale() === 'am' ? 'የከብቶች ምርት (Dairy/Cattle)' : 'Dairy/Cattle' ?></option>
                     <option value="poultry"><?= current_locale() === 'am' ? 'የዶሮና እንቁላል ሽያጭ (Poultry)' : 'Poultry' ?></option>
                     <option value="warehouse"><?= current_locale() === 'am' ? 'መጋዘን (Warehouse)' : 'Warehouse' ?></option>
                     <option value="finance"><?= current_locale() === 'am' ? 'አጠቃላይ ገቢ (General Inflow)' : 'General Inflow' ?></option>
