@@ -30,8 +30,8 @@ $monthRevenue = finance_revenue_vs_collected($monthStart, $today);
 $stmtYtdRev = db()->prepare("SELECT COALESCE(SUM(amount_paid), 0) FROM dist_dispatches WHERE status NOT IN ('failed', 'cancelled') AND (DATE(planned_dispatch_at) >= ? OR DATE(created_at) >= ?)");
 $stmtYtdRev->execute([$yearStart, $yearStart]);
 $ytdRevSales = (float)$stmtYtdRev->fetchColumn();
-// 2. Direct finance income transactions (excluding internal transfers)
-$stmtOtherIn = db()->prepare("SELECT COALESCE(SUM(amount), 0) FROM fin_transactions WHERE direction='inflow' AND category NOT IN ('internal_transfer') AND (source_table IS NULL OR source_table = 'manual') AND transaction_date >= ?");
+// 2. Direct finance income transactions (excluding internal transfers and opening balance)
+$stmtOtherIn = db()->prepare("SELECT COALESCE(SUM(amount), 0) FROM fin_transactions WHERE direction='inflow' AND category NOT IN ('internal_transfer', 'transfer', 'opening_balance') AND (source_table IS NULL OR source_table != 'dist_dispatches') AND transaction_date >= ?");
 $stmtOtherIn->execute([$yearStart]);
 $ytdOtherIn = (float)$stmtOtherIn->fetchColumn();
 $ytdRev      = $ytdRevSales + $ytdOtherIn;

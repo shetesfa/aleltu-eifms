@@ -366,13 +366,14 @@ function an_dq_text(string $code): array
 function an_kv(array $items): void
 {
     echo '<div class="an-kv">';
-    foreach ($items as [$label, $val]) {
-        echo '<div><span>' . h($label) . '</span><b>' . $val . '</b></div>';
+    foreach ($items as $item) {
+        $label = $item[0] ?? ($item['label'] ?? '');
+        $val   = $item[1] ?? ($item['value'] ?? 0);
+        echo '<div><span>' . h((string)$label) . '</span><b>' . $val . '</b></div>';
     }
     echo '</div>';
 }
 
-/** Plain table from rows. $cols = [key => label]; $fmt = optional [key => callable(value,row): htmlEscaped]. */
 function an_rows_table(array $rows, array $cols, array $fmt = []): void
 {
     if (!$rows) {

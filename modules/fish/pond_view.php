@@ -143,7 +143,7 @@ if (!in_array($activeTab, $validTabs)) {
         </div>
         <div style="background:var(--hover);padding:12px 14px;border-radius:8px">
             <div style="font-size:12px;color:var(--text-muted)"><?= current_locale() === 'am' ? 'የኩሬ ስፋት' : 'Surface Area' ?></div>
-            <div style="font-size:16px;font-weight:700"><?= number_format($pond['surface_area_sq_m'] ?? 0, 1) ?> m²</div>
+            <div style="font-size:16px;font-weight:700"><?= number_format($pond['area_sq_m'] ?? $pond['surface_area_sq_m'] ?? 0, 1) ?> m²</div>
         </div>
         <div style="background:var(--hover);padding:12px 14px;border-radius:8px">
             <div style="font-size:12px;color:var(--text-muted)"><?= current_locale() === 'am' ? 'የውሃ ጥልቀት' : 'Water Depth' ?></div>
@@ -159,6 +159,7 @@ if (!in_array($activeTab, $validTabs)) {
         <?php
         $liveCount = (int)$currentStock['stocking_quantity'] - (int)$currentStock['cumulative_mortality'];
         $survivalRate = (int)$currentStock['stocking_quantity'] > 0 ? round(($liveCount / (int)$currentStock['stocking_quantity']) * 100, 1) : 0;
+        $fcr = fish_calculate_fcr((int)$currentStock['id']);
         ?>
         <h4 style="margin:16px 0 8px">🐟 <?= current_locale() === 'am' ? 'የአሁኑ የዓሣ ዝርያ መረጃ' : 'Active Stock Details' ?></h4>
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px">
@@ -173,6 +174,10 @@ if (!in_array($activeTab, $validTabs)) {
             <div style="background:rgba(46,125,50,0.08);border-left:4px solid #2e7d32;padding:12px 14px;border-radius:6px">
                 <div style="font-size:12px;color:var(--text-muted)"><?= current_locale() === 'am' ? 'የመዳን ምጣኔ (Survival)' : 'Survival Rate' ?></div>
                 <div style="font-size:18px;font-weight:700;color:#2e7d32"><?= $survivalRate ?>%</div>
+            </div>
+            <div style="background:rgba(46,125,50,0.08);border-left:4px solid #2e7d32;padding:12px 14px;border-radius:6px">
+                <div style="font-size:12px;color:var(--text-muted)"><?= current_locale() === 'am' ? 'የመኖ ልወጣ ምጣኔ (FCR)' : 'Feed Conversion (FCR)' ?></div>
+                <div style="font-size:18px;font-weight:700;color:#0288d1"><?= $fcr !== null ? number_format($fcr, 2) : '—' ?></div>
             </div>
             <div style="background:rgba(46,125,50,0.08);border-left:4px solid #2e7d32;padding:12px 14px;border-radius:6px">
                 <div style="font-size:12px;color:var(--text-muted)"><?= current_locale() === 'am' ? 'የተሰበሰበ ምርት' : 'Total Harvested' ?></div>

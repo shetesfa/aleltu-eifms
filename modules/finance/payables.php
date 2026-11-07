@@ -23,8 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new InvalidArgumentException(current_locale() === 'am' ? 'እባክዎ የተከፈለበትን የባንክ አካውንት ይምረጡ።' : 'Please select bank account.');
             }
 
-            // Get PO
-            $po = db()->prepare("SELECT * FROM fin_purchase_orders WHERE id = ?");
+            $ownsTx = false;
+            if (!db()->inTransaction()) {
+                db()->beginTransaction();
+                $ownsTx = true;
+            }
+
+            // Get PO with row lock
+            $po = db()->prepare("SELECT * FROM fin_purchase_orders WHERE id = ? FOR UPDATE");
             $po->execute([$poId]);
             $p = $po->fetch();
             if (!$p) {
@@ -43,13 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $bank = db()->prepare("SELECT * FROM fin_bank_accounts WHERE id = ?");
             $bank->execute([$bankAccountId]);
             $b = $bank->fetch();
-            $method = ($b && $b['account_type'] === 'cash') ? 'cash' : 'bank';
-
-            $ownsTx = false;
-            if (!db()->inTransaction()) {
-                db()->beginTransaction();
-                $ownsTx = true;
-            }
+            $method = ($b && $b['account_type'] === 'cash') ? 'cash' : (($b && $b['account_type'] === 'mobile') ? 'telebirr' : 'bank');
 
             // Update PO
             db()->prepare("UPDATE fin_purchase_orders SET amount_paid = ?, payment_status = ? WHERE id = ?")
@@ -59,10 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             finance_record_transaction(
                 'outflow',
                 $amount,
-                'purchasing',
-                'supplier_payment',
+                'warehouse',
+                'purchase',
                 date('Y-m-d'),
-                "ለአቅራቢ የተፈጸመ ክፍያ (PO #{$poId} - {$p['supplier_name']})",
+                "ለአቅራቢ የተፈጸመ ክፍያ (PO #{$poId} - {$p['supplier_name']})" . ($refNo ? " [Ref: {$refNo}]" : ""),
                 'fin_purchase_orders',
                 $poId,
                 null,

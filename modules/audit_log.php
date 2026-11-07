@@ -2,7 +2,6 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_role(['super_admin', 'general_manager']);
-require_once __DIR__ . '/../includes/header.php';
 
 $module = $_GET['module'] ?? '';
 $user_q = trim($_GET['user'] ?? '');
@@ -13,19 +12,24 @@ $page   = max(1, (int)($_GET['page'] ?? 1));
 $limit  = 50;
 $offset = ($page - 1) * $limit;
 
-// Export CSV
-if (($_GET['export'] ?? '') === 'csv') {
-    require_once __DIR__ . '/../includes/export.php';
-    $rows = db()->query("SELECT a.created_at, u.name AS user_name, a.module, a.action, a.table_name, a.record_id, a.details, a.ip_address FROM audit_log a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 5000")->fetchAll();
-    export_csv($rows, 'audit_log_' . date('Y-m-d') . '.csv');
-}
-
-// Build query
+// Build query with filters
 $where = ["a.created_at BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)"];
 $params = [$from, $to];
 if ($module) { $where[] = "a.module = ?"; $params[] = $module; }
 if ($user_q) { $where[] = "(u.name LIKE ? OR u.email LIKE ?)"; $params[] = "%$user_q%"; $params[] = "%$user_q%"; }
 $whereSQL = 'WHERE ' . implode(' AND ', $where);
+
+// Export CSV respecting filters
+if (($_GET['export'] ?? '') === 'csv') {
+    require_once __DIR__ . '/../includes/export.php';
+    $exportStmt = db()->prepare(
+        "SELECT a.created_at, u.name AS user_name, a.module, a.action, a.record_table AS table_name, a.record_id, a.details, a.ip_address
+         FROM audit_log a LEFT JOIN users u ON u.id=a.user_id $whereSQL ORDER BY a.id DESC LIMIT 5000"
+    );
+    $exportStmt->execute($params);
+    $rows = $exportStmt->fetchAll();
+    export_csv($rows, 'audit_log_' . date('Y-m-d') . '.csv');
+}
 
 $countStmt = db()->prepare("SELECT COUNT(*) FROM audit_log a LEFT JOIN users u ON u.id=a.user_id $whereSQL");
 $countStmt->execute($params);
@@ -37,6 +41,8 @@ $stmt->execute($params);
 $logs = $stmt->fetchAll();
 
 $modules = db()->query("SELECT DISTINCT module FROM audit_log ORDER BY module")->fetchAll(PDO::FETCH_COLUMN);
+
+require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -104,7 +110,7 @@ $modules = db()->query("SELECT DISTINCT module FROM audit_log ORDER BY module")-
                 <td><?= h($l['user_name'] ?: (current_locale() === 'am' ? 'ሲስተም' : 'System')) ?></td>
                 <td><span class="badge"><?= h($l['module']) ?></span></td>
                 <td><span class="badge <?= $actionClass ?>"><?= h($l['action']) ?></span></td>
-                <td class="text-muted" style="font-size:12px"><?= h($l['table_name']) ?></td>
+                <td class="text-muted" style="font-size:12px"><?= h($l['record_table'] ?? $l['table_name'] ?? '') ?></td>
                 <td class="text-muted" style="font-size:12px"><?= $l['record_id'] ?: '—' ?></td>
                 <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= h($l['details']) ?>"><?= h($l['details'] ?: '—') ?></td>
                 <td class="text-muted" style="font-size:11px"><?= h($l['ip_address']) ?></td>

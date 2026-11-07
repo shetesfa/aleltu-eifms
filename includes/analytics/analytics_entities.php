@@ -13,6 +13,9 @@
 
 require_once __DIR__ . '/analytics_service.php';
 
+// Safe entity ID resolution for analytics filters
+$entityId = (int)($filter['entity_id'] ?? 0);
+
 /** Recorded sales that count as income for one unit in the period (dispatch channels only, same rule as the overview). */
 function an_unit_counted_sales(PDO $pdo, string $unit, string $from, string $to): array
 {
@@ -205,7 +208,7 @@ function an_unit_breakdown(PDO $pdo, string $unit, string $from, string $to): ar
 
     // payroll by department (no individual salaries on this page)
     $st = $pdo->prepare(
-        "SELECT COALESCE(dep.name,'—') AS dept, COUNT(DISTINCT ps.employee_id) AS staff, SUM(ps.net_pay + ps.deductions) AS gross
+        "SELECT COALESCE(dep.name,'—') AS dept, COUNT(DISTINCT ps.employee_id) AS staff, SUM(ps.net_pay + ps.deductions + COALESCE(ps.pension_employer, 0)) AS gross
            FROM fin_payslips ps
            JOIN fin_payroll_runs pr ON pr.id = ps.payroll_run_id AND pr.status = 'finalized'
            JOIN employees e ON e.id = ps.employee_id
@@ -333,6 +336,81 @@ function an_cow_detail(PDO $pdo, int $id, string $from, string $to): ?array
     $st->execute([':id' => $id]);
     $saleReceipts = $st->fetchAll();
 
+    // Direct veterinary treatment and vaccination costs
+    $stTreat = $pdo->prepare("SELECT COALESCE(SUM(treatment_cost), 0) FROM vet_treatments WHERE subject_type = 'dairy_cow' AND subject_id = :id");
+    $stTreat->execute([':id' => $id]);
+    $vetTreatCost = (float)$stTreat->fetchColumn();
+
+    $stHealth = $pdo->prepare("SELECT COALESCE(SUM(cost), 0) FROM vet_health_records WHERE subject_type = 'dairy_cow' AND subject_id = :id");
+    $stHealth->execute([':id' => $id]);
+    $vetHealthCost = (float)$stHealth->fetchColumn();
+
+    $stVacc = $pdo->prepare("SELECT COALESCE(SUM(cost), 0) FROM vet_vaccination_records WHERE subject_type = 'dairy_cow' AND subject_id = :id AND status = 'administered'");
+    $stVacc->execute([':id' => $id]);
+    $vetVaccCost = (float)$stVacc->fetchColumn();
+
+    $totalDirectVetCost = round($vetTreatCost + $vetHealthCost + $vetVaccCost, 2);
+
+    // Active herd-days proration for dairy department feed / material requests
+    $cowStart = $cow['acquired_date'] ?: ($cow['date_of_birth'] ?: substr($cow['created_at'] ?? '2000-01-01', 0, 10));
+    $cowExitD = !empty($exits) ? ($exits[0]['exit_date'] ?? null) : null;
+    $cowEnd = in_array($cow['lifecycle_status'], ['sold', 'deceased'], true)
+        ? ($cowExitD ?: substr($cow['updated_at'] ?? date('Y-m-d'), 0, 10))
+        : date('Y-m-d');
+
+    $pS = max($from, $cowStart);
+    $pE = min($to, $cowEnd);
+    $cowActiveDays = (strtotime($pE) >= strtotime($pS)) ? (int)ceil((strtotime($pE) - strtotime($pS)) / 86400) + 1 : 0;
+
+    $allCows = $pdo->query("
+        SELECT c.id,
+               COALESCE(c.acquired_date, c.date_of_birth, DATE(c.created_at)) AS start_d,
+               c.lifecycle_status,
+               c.updated_at,
+               (SELECT x.exit_date FROM dairy_cow_exit_records x WHERE x.cow_id = c.id ORDER BY x.id DESC LIMIT 1) AS exit_d
+        FROM dairy_cows c
+    ")->fetchAll();
+    $totalHerdDays = 0;
+    $todayStr = date('Y-m-d');
+    foreach ($allCows as $ac) {
+        $acStart = $ac['start_d'] ?: '2000-01-01';
+        $acEnd = in_array($ac['lifecycle_status'], ['sold', 'deceased'], true)
+            ? ($ac['exit_d'] ?: substr($ac['updated_at'] ?? $todayStr, 0, 10))
+            : $todayStr;
+        $cS = max($from, $acStart);
+        $cE = min($to, $acEnd);
+        if (strtotime($cE) >= strtotime($cS)) {
+            $totalHerdDays += (int)ceil((strtotime($cE) - strtotime($cS)) / 86400) + 1;
+        }
+    }
+    $totalHerdDays = max(1, $totalHerdDays);
+
+    $stDeptFeed = $pdo->prepare("
+        SELECT COALESCE(SUM(COALESCE(r.total_cost, r.issued_quantity * r.unit_cost, 0)), 0)
+        FROM dept_material_requests r
+        JOIN departments d ON d.id = r.department_id
+        WHERE (d.code = 'DAIRY' OR d.name LIKE '%Dairy%')
+          AND r.status IN ('fulfilled', 'completed', 'sent_to_department')
+          AND r.created_at >= :f AND r.created_at < :next
+    ");
+    $stDeptFeed->execute([':f' => $from, ':next' => an_next_day($to)]);
+    $deptFeedCost = (float)$stDeptFeed->fetchColumn();
+    $allocatedFeedCost = round($deptFeedCost * ($cowActiveDays / $totalHerdDays), 2);
+
+    $acquisitionCost = (float)($cow['acquisition_cost'] ?? $cow['purchase_price'] ?? 0.0);
+    $salePrice = 0.0;
+    if ($cow['lifecycle_status'] === 'sold') {
+        $salePrice = (float)($cow['sale_price'] ?? 0.0);
+        if ($salePrice <= 0 && !empty($exits)) {
+            foreach ($exits as $ex) {
+                if (($ex['exit_type'] ?? '') === 'sale' || ($ex['exit_type'] ?? '') === 'sold') {
+                    $salePrice = (float)($ex['sale_price'] ?? 0.0);
+                    break;
+                }
+            }
+        }
+    }
+
     $sales = an_unit_counted_sales($pdo, 'dairy', $from, $to);
     $share = $unitLitres > 0 ? (float)$milk['l_period'] / $unitLitres : null;
 
@@ -348,6 +426,12 @@ function an_cow_detail(PDO $pdo, int $id, string $from, string $to): ?array
         'cow' => $cow, 'milk' => $milk, 'unit_litres' => $unitLitres, 'daily' => $daily,
         'health' => $health, 'vaccinations' => $vacc, 'breeding' => $breeding, 'calving' => $calving,
         'offspring' => $offspring, 'exits' => $exits, 'sale_receipts' => $saleReceipts,
+        'direct_vet_cost' => $totalDirectVetCost,
+        'allocated_feed_cost' => $allocatedFeedCost,
+        'cow_active_days' => $cowActiveDays,
+        'total_herd_days' => $totalHerdDays,
+        'acquisition_cost' => $acquisitionCost,
+        'sale_price' => $salePrice,
         'share' => $share,
         'allocated_value_cents' => $share !== null ? (int)round($sales['cents'] * $share) : null,
         'unit_sales_cents' => $sales['cents'],
@@ -409,24 +493,31 @@ function an_flock_detail(PDO $pdo, int $id, string $from, string $to): ?array
 
     // all poultry eggs in the period, for this flock's share of unit output
     $st = $pdo->prepare(
-        "SELECT COALESCE(SUM(whole_count + cracked_count + broken_count),0) FROM poultry_egg_collections WHERE collection_date BETWEEN :f AND :t"
+        "SELECT COALESCE(SUM(whole_count),0) FROM poultry_egg_collections WHERE collection_date BETWEEN :f AND :t"
     );
     $st->execute([':f' => $from, ':t' => $to]);
     $unitEggs = (int)$st->fetchColumn();
-    $flockEggs = (int)$eggs['whole_p'] + (int)$eggs['cracked_p'] + (int)$eggs['broken_p'];
+    $flockEggs = (int)$eggs['whole_p'];
 
     $sales = an_unit_counted_sales($pdo, 'poultry', $from, $to);
     $share = $unitEggs > 0 ? $flockEggs / $unitEggs : null;
 
     $isLayer = ((int)$eggs['whole_life'] + (int)$eggs['cracked_life'] + (int)$eggs['broken_life']) > 0;
+    $liveBirds = (int)($flock['current_count'] ?? $flock['live_pop'] ?? 0);
+    $daysPeriod = max(1, (int)($eggs['days_p'] ?? 0));
+    $avgBirdDays = $liveBirds * $daysPeriod;
 
     return [
         'flock' => $flock, 'eggs' => $eggs, 'daily' => $daily, 'mortality' => $mortality, 'health' => $health, 'vaccinations' => $vacc,
         'flock_eggs_period' => $flockEggs, 'unit_eggs_period' => $unitEggs, 'share' => $share,
+        'flock_good_eggs_period' => $flockEggs, 'unit_good_eggs_period' => $unitEggs,
+        'live_birds' => $liveBirds, 'avg_bird_days' => $avgBirdDays,
         'allocated_value_cents' => ($share !== null && $isLayer) ? (int)round($sales['cents'] * $share) : null,
         'unit_sales_cents' => $sales['cents'],
         'is_layer' => $isLayer,
-        'eggs_per_bird_day' => ($isLayer && (int)$flock['live_pop'] > 0 && (int)$eggs['days_p'] > 0)
+        'eggs_per_bird_day' => ($isLayer && $avgBirdDays > 0)
+            ? $flockEggs / $avgBirdDays : null,
+        'raw_eggs_per_bird_day' => ($isLayer && (int)$flock['live_pop'] > 0 && (int)$eggs['days_p'] > 0)
             ? $flockEggs / ((int)$flock['live_pop'] * (int)$eggs['days_p']) : null,
         'missing' => ['feed_per_flock' => true, 'medicine_cost' => true, 'sales_per_flock' => true, 'broiler_sales' => !$isLayer],
     ];

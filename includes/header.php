@@ -135,7 +135,9 @@ if ($userRole === 'super_admin') {
                 ['url' => BASE_URL . '/modules/dairy/dashboard.php',          'label' => (current_locale()==='am'?'የወተት ምርት ማጠቃለያ':'Dairy Overview'), 'roles' => ['super_admin']],
                 ['url' => BASE_URL . '/modules/poultry/dashboard.php',        'label' => (current_locale()==='am'?'የዶሮ እርባታ ማጠቃለያ':'Poultry Overview'), 'roles' => ['super_admin']],
                 ['url' => BASE_URL . '/modules/fish/dashboard.php',           'label' => (current_locale()==='am'?'የዓሳ እርባታ ማጠቃለያ':'Fish Overview'), 'roles' => ['super_admin']],
-                ['url' => BASE_URL . '/modules/feed_production/plots.php',    'label' => (current_locale()==='am'?'የመኖ ሰብል ማሳዎች':'Feed Plots'), 'roles' => ['super_admin']],
+                ['url' => BASE_URL . '/modules/feed_production/dashboard.php',    'label' => (current_locale()==='am'?'የመኖ ሰብል ማሳዎች':'Feed Plots'), 'roles' => ['super_admin']],
+                ['url' => BASE_URL . '/modules/feed_production/formulas.php',     'label' => (current_locale()==='am'?'የመኖ ቀመሮች':'Feed Formulas'), 'roles' => ['super_admin']],
+                ['url' => BASE_URL . '/modules/feed_production/batches.php',      'label' => (current_locale()==='am'?'የመኖ ማምረቻ ባቾች':'Feed Batches'), 'roles' => ['super_admin']],
                 ['url' => BASE_URL . '/modules/warehouse/dashboard.php',      'label' => (current_locale()==='am'?'የመጋዘን ክምችት ማጠቃለያ':'Warehouse Overview'), 'roles' => ['super_admin']],
                 ['url' => BASE_URL . '/modules/warehouse/purchasing.php',     'label' => (current_locale()==='am'?'የመጋዘን ግዢና ክምችት':'Warehouse Purchasing'), 'roles' => ['super_admin']],
                 ['url' => BASE_URL . '/modules/distribution/dispatches.php',  'label' => (current_locale()==='am'?'ስርጭት እና ሽያጭ':'Distribution & Sales'), 'roles' => ['super_admin']],
@@ -189,7 +191,9 @@ if ($userRole === 'super_admin') {
         [
             'title' => t('section.feed_production', 'Feed Production'),
             'items' => [
-                ['url' => BASE_URL . '/modules/feed_production/plots.php',        'label' => t('nav.plots', 'Crop Plots'),                'roles' => ['general_manager', 'feed_production_manager']],
+                ['url' => BASE_URL . '/modules/feed_production/dashboard.php',        'label' => t('nav.plots', 'Crop Plots'),                'roles' => ['general_manager', 'feed_production_manager']],
+                ['url' => BASE_URL . '/modules/feed_production/formulas.php',         'label' => (current_locale()==='am'?'የመኖ ቀመሮች':'Feed Formulas'), 'roles' => ['general_manager', 'feed_production_manager']],
+                ['url' => BASE_URL . '/modules/feed_production/batches.php',          'label' => (current_locale()==='am'?'የመኖ ማምረቻ ባቾች':'Production Batches'), 'roles' => ['general_manager', 'feed_production_manager']],
                 ['url' => BASE_URL . '/modules/feed_production/distribution.php', 'label' => t('nav.distribution_requests', 'Send to Warehouse'), 'roles' => ['general_manager', 'feed_production_manager']],
             ]
         ],
@@ -273,7 +277,7 @@ $dashboardRoutes = [
     'warehouse_keeper'        => BASE_URL . '/modules/warehouse/dashboard.php',
     'finance_officer'         => BASE_URL . '/modules/finance/dashboard.php',
     'hr_officer'              => BASE_URL . '/modules/employees/dashboard.php',
-    'feed_production_manager' => BASE_URL . '/modules/feed_production/plots.php',
+    'feed_production_manager' => BASE_URL . '/modules/feed_production/dashboard.php',
     'veterinary_officer'      => BASE_URL . '/modules/veterinary/dashboard.php',
     'distribution_officer'    => BASE_URL . '/modules/distribution/dispatches.php',
     'field_worker'            => BASE_URL . '/modules/employees/self_service.php',

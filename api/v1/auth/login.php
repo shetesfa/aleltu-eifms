@@ -1,10 +1,10 @@
 <?php
 /**
  * POST /api/v1/auth/login
- * Body: { "email": "...", "password": "..." }
+ * Body: { "email": "...", "password": "..." } or { "username": "...", "password": "..." }
  * Returns: { "token": "...", "user": { ... } }
  */
-require_once __DIR__ . '/../../../includes/functions.php';
+require_once dirname(__DIR__, 3) . '/includes/functions.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') api_error('Method not allowed', 405);
 
@@ -20,13 +20,27 @@ $pass  = $body['password'] ?? '';
 if (!$login || !$pass) api_error('username/email and password are required');
 
 $stmt = db()->prepare(
-    "SELECT u.*, r.name AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE (u.email = ? OR u.name = ?) AND u.is_active = 1 LIMIT 1"
+    "SELECT u.*, r.name AS role, r.name AS role_name 
+     FROM users u 
+     JOIN roles r ON r.id = u.role_id 
+     WHERE (u.email = ? OR u.name = ?) AND u.is_active = 1 
+     LIMIT 1"
 );
 $stmt->execute([$login, $login]);
 $user = $stmt->fetch();
 
 if (!$user || !password_verify($pass, $user['password'])) {
     api_error('Invalid credentials', 401);
+}
+
+// Check linked employee status if present
+if (!empty($user['employee_id'])) {
+    $empStmt = db()->prepare("SELECT status FROM employees WHERE id = ?");
+    $empStmt->execute([$user['employee_id']]);
+    $empStatus = $empStmt->fetchColumn();
+    if ($empStatus === 'terminated' || $empStatus === 'inactive') {
+        api_error('Account linked to inactive/terminated employee', 403);
+    }
 }
 
 // Generate or reuse API token
@@ -42,9 +56,10 @@ log_activity('auth', 'login', 'users', $user['id'], 'API login from ' . ($_SERVE
 api_json([
     'token' => $token,
     'user'  => [
-        'id'    => (int) $user['id'],
-        'name'  => $user['name'],
-        'email' => $user['email'],
-        'role'  => $user['role'],
+        'id'        => (int) $user['id'],
+        'name'      => $user['name'],
+        'email'     => $user['email'],
+        'role'      => $user['role'],
+        'role_name' => $user['role_name'] ?? $user['role'],
     ],
 ]);

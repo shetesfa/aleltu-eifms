@@ -48,15 +48,16 @@ if ($isBroadcastRole) {
 $filterClause = "";
 $filterParams = [];
 if ($filter === 'unread') {
-    $filterClause = " AND n.id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id = {$userId})";
+    $filterClause = " AND n.id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id = :unread_uid)";
+    $filterParams[':unread_uid'] = $userId;
 } elseif (in_array($filter, ['low', 'medium', 'high'], true)) {
     $filterClause = " AND priority = :priority";
     $filterParams[':priority'] = $filter;
 }
 
-$sql = "SELECT n.*, (SELECT 1 FROM notification_reads nr WHERE nr.notification_id = n.id AND nr.user_id = {$userId} LIMIT 1) AS is_read
+$sql = "SELECT n.*, (SELECT 1 FROM notification_reads nr WHERE nr.notification_id = n.id AND nr.user_id = :read_user_id LIMIT 1) AS is_read
         FROM notifications n WHERE {$scopeClause}{$filterClause} ORDER BY n.created_at DESC LIMIT 100";
-$params = array_merge($scopeParams, $filterParams);
+$params = array_merge($scopeParams, $filterParams, [':read_user_id' => $userId]);
 $stmt = db()->prepare($sql);
 $stmt->execute($params);
 $notifications = $stmt->fetchAll();
@@ -64,9 +65,10 @@ $notifications = $stmt->fetchAll();
 // Per-user unread count (not global is_read)
 $unreadSql = "SELECT COUNT(*) FROM notifications n
               WHERE {$scopeClause}
-              AND n.id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id = {$userId})";
+              AND n.id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id = :cnt_user_id)";
+$cntParams = array_merge($scopeParams, [':cnt_user_id' => $userId]);
 $cntStmt = db()->prepare($unreadSql);
-$cntStmt->execute($scopeParams ?: []);
+$cntStmt->execute($cntParams);
 $unreadCount = (int) $cntStmt->fetchColumn();
 ?>
 

@@ -31,6 +31,7 @@ $ethMonths = [
 ];
 
 // 1. REVENUE (From delivered/dispatched goods: milk, eggs, fish, feed, etc.)
+// Include both planned_dispatch_at and fallback created_at, excluding failed/cancelled
 $revStmt = db()->prepare(
     "SELECT i.product_class, i.name AS item_name, 
             COUNT(d.id) AS dispatch_count,
@@ -40,7 +41,7 @@ $revStmt = db()->prepare(
      FROM dist_dispatches d
      JOIN wh_stock_items i ON i.id = d.stock_item_id
      WHERE d.status NOT IN ('failed', 'cancelled')
-       AND DATE(d.planned_dispatch_at) BETWEEN ? AND ?
+       AND COALESCE(DATE(d.planned_dispatch_at), DATE(d.created_at)) BETWEEN ? AND ?
      GROUP BY i.id
      ORDER BY total_sales DESC"
 );
@@ -52,22 +53,39 @@ foreach ($revenueRows as $r) {
     $totalRevenue += (float)$r['total_sales'];
 }
 
-// 2. COST OF GOODS SOLD (COGS: Stock issues / feed consumption valued at batch unit cost)
+// 2. COST OF GOODS SOLD (COGS: Stock issues valued at weighted-average unit cost from movements)
 $cogsStmt = db()->prepare(
     "SELECT i.name AS item_name, i.product_class,
-            COALESCE(SUM(iss.quantity), 0) AS total_issued_qty,
+            COALESCE(SUM(ABS(m.quantity)), 0) AS total_issued_qty,
             i.unit,
-            COALESCE(SUM(iss.quantity * COALESCE(b.unit_cost, 0)), 0) AS total_cost
-     FROM wh_stock_issues iss
-     JOIN wh_stock_items i ON i.id = iss.stock_item_id
-     LEFT JOIN wh_stock_batches b ON b.id = iss.stock_batch_id
-     WHERE DATE(iss.issued_at) BETWEEN ? AND ?
-       AND i.product_class IN ('feed', 'medicine', 'seed')
+            COALESCE(SUM(ABS(m.quantity) * COALESCE(m.unit_cost, 0)), 0) AS total_cost
+     FROM wh_stock_movements m
+     JOIN wh_stock_items i ON i.id = m.stock_item_id
+     WHERE m.movement_type = 'issue'
+       AND DATE(m.created_at) BETWEEN ? AND ?
      GROUP BY i.id
      ORDER BY total_cost DESC"
 );
 $cogsStmt->execute([$dateFrom, $dateTo]);
 $cogsRows = $cogsStmt->fetchAll();
+
+// If no stock movements logged yet for the period, fallback to wh_stock_issues
+if (empty($cogsRows)) {
+    $fallbackCogsStmt = db()->prepare(
+        "SELECT i.name AS item_name, i.product_class,
+                COALESCE(SUM(iss.quantity), 0) AS total_issued_qty,
+                i.unit,
+                COALESCE(SUM(iss.quantity * COALESCE(b.unit_cost, 0)), 0) AS total_cost
+         FROM wh_stock_issues iss
+         JOIN wh_stock_items i ON i.id = iss.stock_item_id
+         LEFT JOIN wh_stock_batches b ON b.id = iss.stock_batch_id
+         WHERE DATE(iss.issued_at) BETWEEN ? AND ?
+         GROUP BY i.id
+         ORDER BY total_cost DESC"
+    );
+    $fallbackCogsStmt->execute([$dateFrom, $dateTo]);
+    $cogsRows = $fallbackCogsStmt->fetchAll();
+}
 
 $totalCogs = 0.0;
 foreach ($cogsRows as $c) {
@@ -94,9 +112,9 @@ foreach ($expenseRows as $e) {
     $totalExpenses += (float)$e['total_amount'];
 }
 
-// 4. PAYROLL / SALARIES EXPENSE (From approved/paid payroll runs in this period)
+// 4. PAYROLL / SALARIES EXPENSE (Gross salaries + 11% Employer Pension contribution + allowances)
 $payStmt = db()->prepare(
-    "SELECT COALESCE(SUM(ps.net_pay + ps.allowances), 0) AS total_salaries
+    "SELECT COALESCE(SUM(ps.gross_pay + COALESCE(ps.pension_employer, ps.base_salary * 0.11) + ps.allowances), 0) AS total_salaries
      FROM fin_payslips ps
      JOIN fin_payroll_runs pr ON pr.id = ps.payroll_run_id
      WHERE pr.period_start BETWEEN ? AND ?
@@ -105,12 +123,13 @@ $payStmt = db()->prepare(
 $payStmt->execute([$dateFrom, $dateTo, $dateFrom, $dateTo]);
 $totalPayroll = (float)$payStmt->fetchColumn();
 
-// 5. OTHER INFLOWS & OUTFLOWS (General finance transactions not categorized as dispatch/PO)
+// 5. OTHER INFLOWS & OUTFLOWS (Non-transfer operating inflows excluding dispatches and opening balance)
 $otherInStmt = db()->prepare(
     "SELECT category, COALESCE(SUM(amount), 0) AS total
      FROM fin_transactions
      WHERE direction = 'inflow'
-       AND source_table IS NULL
+       AND category NOT IN ('internal_transfer', 'transfer', 'opening_balance')
+       AND (source_table IS NULL OR source_table != 'dist_dispatches')
        AND transaction_date BETWEEN ? AND ?
      GROUP BY category"
 );

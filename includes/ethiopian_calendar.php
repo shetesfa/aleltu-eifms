@@ -33,21 +33,29 @@ class EthiopianDate {
         6 => 'ቅዳሜ'
     ];
 
-    public static function fromGregorian(int $gy, int $gm, int $gd): array {
+    public static function fromGregorian(int $gy, int $gm, int $gd): array
+    {
         $jdn = gregoriantojd($gm, $gd, $gy);
-        $r = ($jdn - self::ETHIOPIC_EPOCH) % 1461;
-        $n = ($r % 365) + 365 * intdiv($r, 1460);
-        $ey = 4 * intdiv($jdn - self::ETHIOPIC_EPOCH, 1461) + intdiv($r, 365) - intdiv($r, 1460);
-        $em = intdiv($n, 30) + 1;
-        $ed = ($n % 30) + 1;
+        $r = $jdn - self::ETHIOPIC_EPOCH;
+        $ey = intdiv(4 * $r + 1463, 1461);
+        $dayOfYear = $r - (365 * ($ey - 1) + intdiv($ey, 4));
+        $em = intdiv($dayOfYear, 30) + 1;
+        $ed = ($dayOfYear % 30) + 1;
         return [$ey, $em, $ed];
     }
 
-    public static function toGregorian(int $ey, int $em, int $ed): array {
-        $jdn = self::ETHIOPIC_EPOCH + 365 * $ey + intdiv($ey, 4) + 30 * ($em - 1) + $ed - 1;
-        $greg = jdtogregorian($jdn);
-        [$gm, $gd, $gy] = explode('/', $greg);
-        return [(int)$gy, (int)$gm, (int)$gd];
+    public static function toGregorian(int $ey, int $em, int $ed): array
+    {
+        $jdn = self::ETHIOPIC_EPOCH
+             + 365 * ($ey - 1) + intdiv($ey, 4)
+             + 30 * ($em - 1) + ($ed - 1);
+        $greg = jdtogregorian($jdn); // returns "m/d/Y"
+        [$gm, $gd, $gy] = array_map('intval', explode('/', $greg));
+        return [$gy, $gm, $gd];
+    }
+
+    public static function formatDate(?string $dateStr, string $format = 'medium'): string {
+        return self::format($dateStr, $format);
     }
 
     public static function format(?string $dateStr, string $format = 'medium'): string {
@@ -190,5 +198,15 @@ function eth_current_year(): int {
 
 function eth_current_month(): int {
     return EthiopianDate::currentMonth();
+}
+
+function eth_format_date(?string $dateStr, string $format = 'medium'): string {
+    return EthiopianDate::format($dateStr, $format);
+}
+
+if (!function_exists('is_ethiopian_mode')) {
+    function is_ethiopian_mode(): bool {
+        return ($_SESSION['calendar_mode'] ?? $_COOKIE['calendar_mode'] ?? 'ethiopian') === 'ethiopian';
+    }
 }
 

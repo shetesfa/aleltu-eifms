@@ -52,8 +52,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             throw $e;
         }
+        $collectionId = (int)db()->lastInsertId();
+        if ($whole > 0) {
+            $eggItemId = 2; // Central Table Egg Item ID in wh_stock_items
+            $whId = 1;
+            stock_receive($whId, $eggItemId, (float)$whole, 'poultry', null, 'flock_' . $flockId, 0.0);
+
+            // Record in wh_store_receiving for audit tracking
+            $dispatchCode = 'EGG-' . $flockId . '-' . date('Ymd') . '-' . rand(1000, 9999);
+            $desc = "Egg Collection (Flock #{$flockId}, Round #{$round}, {$date}): {$whole} whole eggs received into Store";
+            db()->prepare(
+                "INSERT INTO wh_store_receiving
+                 (dispatch_code, source_type, source_reference, warehouse_id, stock_item_id, sent_quantity, sent_by, status)
+                 VALUES (?, 'poultry', ?, ?, ?, ?, ?, 'verified_received')"
+            )->execute([$dispatchCode, $desc, $whId, $eggItemId, $whole, $userId]);
+        }
         $total = max(0, $whole - $broken);
-        log_activity('poultry', 'create', 'poultry_egg_collections', (int)db()->lastInsertId(), "Flock #{$flockId}: {$total} eggs (whole:{$whole}, cracked:{$cracked}, broken:{$broken})");
+        log_activity('poultry', 'create', 'poultry_egg_collections', $collectionId, "Flock #{$flockId}: {$total} eggs (whole:{$whole}, cracked:{$cracked}, broken:{$broken})");
         flash('✓ ' . (current_locale() === 'am' ? "የዛሬ እንቁላል ({$total}) ተመዝግቧል!" : "Egg collection recorded! Total: {$total} eggs."));
         header('Location: ' . BASE_URL . '/modules/poultry/egg_entry.php');
         exit;

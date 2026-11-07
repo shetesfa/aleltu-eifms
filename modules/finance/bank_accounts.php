@@ -27,10 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $stmt = db()->prepare(
-                "INSERT INTO fin_bank_accounts (bank_name, account_type, account_name, account_number, opening_balance, created_at)
-                 VALUES (?, ?, ?, ?, ?, NOW())"
+                "INSERT INTO fin_bank_accounts (bank_name, account_type, account_name, account_number, opening_balance, current_balance, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, NOW())"
             );
-            $stmt->execute([$bankName, $accType, $accName ?: $bankName, $accNum, $openBal]);
+            $stmt->execute([$bankName, $accType, $accName ?: $bankName, $accNum, $openBal, $openBal]);
             $newAccId = (int) db()->lastInsertId();
 
             // Record initial transaction if opening balance > 0
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'fin_bank_accounts',
                     $newAccId,
                     null,
-                    $accType === 'cash' ? 'cash' : 'bank',
+                    $accType === 'cash' ? 'cash' : ($accType === 'mobile' ? 'telebirr' : 'bank'),
                     $newAccId
                 );
             }
@@ -99,8 +99,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $desc,
                 'fin_expenses',
                 $expId,
-                $bankId,
-                'bank'
+                null,
+                'bank',
+                $bankId
             );
 
             if ($ownsTx && db()->inTransaction()) {

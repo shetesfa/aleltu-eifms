@@ -50,20 +50,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Payslip not found.');
             }
 
-            $newAllowances = (float)$ps['allowances'] + $bonusAmount;
-            $newGross = (float)$ps['gross_pay'] + $bonusAmount;
-            
-            // Recalculate tax
-            $taxable = max(0.0, $newGross - (float)$ps['pension_employee']);
-            $newTax = payroll_calculate_tax($taxable);
-            $newTotalDeductions = round((float)$ps['pension_employee'] + $newTax, 2);
-            $newNet = max(0.0, round($newGross - $newTotalDeductions, 2));
+            // Extract earned basic before existing allowances
+            $prevAllowances = (float)($ps['allowances'] ?? 0);
+            $earnedBasic = (float)$ps['gross_pay'] - $prevAllowances;
+            if ($earnedBasic <= 0) {
+                $earnedBasic = (float)$ps['base_salary'];
+            }
 
-            $stmt = db()->prepare("UPDATE fin_payslips SET allowances = ?, gross_pay = ?, tax_amount = ?, deductions = ?, net_pay = ? WHERE id = ?");
-            $stmt->execute([$newAllowances, $newGross, $newTax, $newTotalDeductions, $newNet, $payslipId]);
+            $newAllowances = round($prevAllowances + $bonusAmount, 2);
+            $taxableGross = round($earnedBasic + $newAllowances, 2);
+
+            // Recalculate tax using Proclamation 979/2016 brackets
+            $newTax = payroll_calculate_tax($taxableGross);
+
+            // Pension strictly on baseSalary / earnedBasic, NEVER on bonuses or allowances
+            $pensionEmployee = (float)$ps['pension_employee'];
+
+            $newGross = round($earnedBasic + $newAllowances, 2);
+            $newTotalDeductions = round($pensionEmployee + $newTax, 2);
+            $newNet = max(0.0, round($newGross - $newTotalDeductions, 2));
+            $newRemaining = max(0.0, round($newNet - (float)$ps['total_paid'], 2));
+
+            $stmt = db()->prepare("UPDATE fin_payslips SET allowances = ?, gross_pay = ?, tax_amount = ?, deductions = ?, net_pay = ?, remaining_balance = ? WHERE id = ?");
+            $stmt->execute([$newAllowances, $newGross, $newTax, $newTotalDeductions, $newNet, $newRemaining, $payslipId]);
 
             log_activity('finance', 'update', 'fin_payslips', $payslipId, "Added bonus of {$bonusAmount} ETB: {$reason}");
-            flash(current_locale() === 'am' ? "✓ ተጨማሪ ቦነስ/አበል {$bonusAmount} ETB በተሳካ ሁኔታ ተደምሯል!" : "Bonus of {$bonusAmount} ETB added.");
+            flash(current_locale() === 'am' ? "✓ ተጨማሪ ቦነስ/አበል {$bonusAmount} ETB ተደምሮ የስራ ግብርና የተጣራ ደመወዝ እንደገና ተሰልቷል!" : "Bonus of {$bonusAmount} ETB added with tax and net pay recalculated.");
         } elseif (isset($_POST['create_eth_run'])) {
             $ey = (int)$_POST['eth_year'];
             $em = (int)$_POST['eth_month'];
@@ -105,14 +117,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $psStmt->execute([$runId]);
                 $payslips = $psStmt->fetchAll();
                 foreach ($payslips as $ps) {
-                    $gross = (float)$ps['gross_pay'];
+                    $prevAllowances = (float)($ps['allowances'] ?? 0);
+                    $earnedBasic = (float)$ps['gross_pay'] - $prevAllowances;
+                    if ($earnedBasic <= 0) $earnedBasic = (float)$ps['base_salary'];
+
+                    $taxableGross = $earnedBasic + $prevAllowances;
+                    $newTax = payroll_calculate_tax($taxableGross);
                     $pensionEmp = (float)$ps['pension_employee'];
-                    $taxable = max(0.0, $gross - $pensionEmp);
-                    $newTax = payroll_calculate_tax($taxable);
+                    $newGross = $earnedBasic + $prevAllowances;
                     $newDed = round($pensionEmp + $newTax, 2);
-                    $newNet = max(0.0, round($gross - $newDed, 2));
-                    db()->prepare("UPDATE fin_payslips SET tax_amount = ?, deductions = ?, net_pay = ? WHERE id = ?")
-                        ->execute([$newTax, $newDed, $newNet, $ps['id']]);
+                    $newNet = max(0.0, round($newGross - $newDed, 2));
+                    $newRem = max(0.0, round($newNet - (float)$ps['total_paid'], 2));
+
+                    db()->prepare("UPDATE fin_payslips SET tax_amount = ?, deductions = ?, net_pay = ?, remaining_balance = ? WHERE id = ?")
+                        ->execute([$newTax, $newDed, $newNet, $newRem, $ps['id']]);
                 }
                 flash(current_locale() === 'am' ? '✓ የደመወዝ ዙሩ ስሌቶች በአዲሶቹ የስራ ግብር እርከኖች መሠረት ታድሰዋል!' : 'Draft payroll recalculated with updated tax brackets.');
             }

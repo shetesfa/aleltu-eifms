@@ -11,15 +11,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $decision = $_POST['decision'];
             $leaveId  = (int)$_POST['leave_id'];
             leave_decide($leaveId, $decision);
-            log_activity('employees', $decision, 'leave_requests', $leaveId, "Leave {$decision} by " . (current_user()['name'] ?? 'system'));
-            flash('Leave request ' . $decision . 'd.');
+            $uName = (function_exists('current_user') && current_user()) ? (current_user()['full_name'] ?? current_user()['name'] ?? 'system') : 'system';
+            log_activity('employees', $decision, 'leave_requests', $leaveId, "Leave {$decision} by " . $uName);
+            flash(current_locale() === 'am' ? ($decision === 'approve' ? '✓ የፈቃድ ጥያቄው ጸድቋል፤ ወደ መገኘት መዝገብ ተላልፏል!' : '✕ የፈቃድ ጥያቄው ውድቅ ተደርጓል!') : ('Leave request ' . $decision . 'd.'));
         } else {
             require_permission('employees', 'create');
-            $newId = leave_request((int)$_POST['employee_id'], $_POST['start_date'], $_POST['end_date'], $_POST['reason'] ?? '');
-            log_activity('employees', 'create', 'leave_requests', (int)db()->lastInsertId(), "Leave {$_POST['start_date']} to {$_POST['end_date']}");
+            $newId = leave_request_create((int)$_POST['employee_id'], $_POST['start_date'], $_POST['end_date'], $_POST['reason'] ?? '');
+            log_activity('employees', 'create', 'leave_requests', $newId, "Leave {$_POST['start_date']} to {$_POST['end_date']}");
             // Notify HR
             notify_role('hr_officer', 'New Leave Request', 'A new leave request has been submitted and requires approval.', BASE_URL . '/modules/employees/leave.php');
-            flash('Leave requested.');
+            flash(current_locale() === 'am' ? '✓ የፈቃድ ጥያቄው በተሳካ ሁኔታ ቀርቧል!' : 'Leave requested.');
         }
         header('Location: ' . BASE_URL . '/modules/employees/leave.php');
         exit;

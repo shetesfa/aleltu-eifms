@@ -258,7 +258,7 @@ function render_dept_material_request_page(string $roleName, string $deptCode, s
                             <?php endif; ?>
                             <div style="color:<?= $step6_sent_dept ? '#2e7d32' : 'var(--text-muted)' ?>">
                                 <strong><?= $step6_sent_dept ? '🚚' : '○' ?> <?= $hasShortage ? '5' : '3' ?>. <?= current_locale() === 'am' ? 'ወደ ክፍሉ ተልኳል' : 'Sent to Dept' ?></strong>
-                                <div><?= (float)$r['issued_quantity'] > 0 ? number_format($r['issued_quantity'], 1).' '.$r['unit'] : (current_locale() === 'am' ? 'በመጠባበቅ ላይ' : 'Pending') ?></div>
+                                <div><?= (float)$r['issued_quantity'] > 0 ? number_format($r['issued_quantity'], 1).' '.h($r['unit']) : (current_locale() === 'am' ? 'በመጠባበቅ ላይ' : 'Pending') ?></div>
                             </div>
                             <div style="color:<?= $step7_done ? '#2e7d32' : ($canConfirm ? '#d32f2f' : 'var(--text-muted)') ?>">
                                 <strong><?= $step7_done ? '✓' : ($canConfirm ? '🔴' : '○') ?> <?= $hasShortage ? '6' : '4' ?>. <?= current_locale() === 'am' ? 'ርክክብ ማረጋገጥ' : 'Confirmation' ?></strong>

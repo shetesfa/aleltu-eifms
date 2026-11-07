@@ -29,7 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             purchase_order_receive($poId, resolve_warehouse_for_item((int) $po['stock_item_id']));
             flash('Goods marked purchased and sent to Storekeeper for physical verification.');
         } elseif (isset($_POST['pay_po'])) {
-            po_record_payment((int) $_POST['pay_po'], (float) $_POST['payment_amount'], $_POST['payment_method'], $_POST['payment_notes'] ?? null);
+            $bankAccId = !empty($_POST['bank_account_id']) ? (int)$_POST['bank_account_id'] : null;
+            po_record_payment((int) $_POST['pay_po'], (float) $_POST['payment_amount'], $_POST['payment_method'], $_POST['payment_notes'] ?? null, $bankAccId);
             flash('Payment recorded successfully.');
         } else {
             purchase_request_create($_POST);

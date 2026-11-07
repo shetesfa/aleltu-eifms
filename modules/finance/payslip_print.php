@@ -6,44 +6,28 @@
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/auth.php';
 
-$slipId = (int)($_GET['id'] ?? 0);
-$slip = null;
-if ($slipId > 0) {
-    $stmt = db()->prepare(
-        "SELECT p.*, e.full_name, e.employee_number, e.department_id, e.job_title, e.base_salary,
-                r.period_start, r.period_end, r.status AS run_status,
-                u.name AS approved_by_name
-         FROM fin_payslips p
-         JOIN employees e ON e.id = p.employee_id
-         JOIN fin_payroll_runs r ON r.id = p.payroll_run_id
-         LEFT JOIN users u ON u.id = r.processed_by
-         WHERE p.id = ?"
-    );
-    $stmt->execute([$slipId]);
-    $slip = $stmt->fetch();
+if (empty($_GET['id']) || (int)$_GET['id'] <= 0) {
+    http_response_code(400);
+    die('<h2>400 Bad Request</h2><p>Payslip ID is required.</p>');
 }
 
+$slipId = (int)$_GET['id'];
+$stmt = db()->prepare(
+    "SELECT p.*, e.full_name, e.employee_number, e.department_id, e.job_title, e.base_salary,
+            r.period_start, r.period_end, r.status AS run_status,
+            u.name AS approved_by_name
+     FROM fin_payslips p
+     JOIN employees e ON e.id = p.employee_id
+     JOIN fin_payroll_runs r ON r.id = p.payroll_run_id
+     LEFT JOIN users u ON u.id = r.processed_by
+     WHERE p.id = ?"
+);
+$stmt->execute([$slipId]);
+$slip = $stmt->fetch();
+
 if (!$slip) {
-    $firstId = db()->query("SELECT id FROM fin_payslips ORDER BY id DESC LIMIT 1")->fetchColumn();
-    if ($firstId) {
-        $slipId = (int)$firstId;
-        $stmt = db()->prepare(
-            "SELECT p.*, e.full_name, e.employee_number, e.department_id, e.job_title, e.base_salary,
-                    r.period_start, r.period_end, r.status AS run_status,
-                    u.name AS approved_by_name
-             FROM fin_payslips p
-             JOIN employees e ON e.id = p.employee_id
-             JOIN fin_payroll_runs r ON r.id = p.payroll_run_id
-             LEFT JOIN users u ON u.id = r.processed_by
-             WHERE p.id = ?"
-        );
-        $stmt->execute([$slipId]);
-        $slip = $stmt->fetch();
-    } else {
-        flash('No payslips generated yet.', 'error');
-        header('Location: ' . BASE_URL . '/modules/finance/payroll.php');
-        exit;
-    }
+    http_response_code(404);
+    die('<h2>404 Not Found</h2><p>Payslip not found.</p>');
 }
 
 // Access control: self, HR, Finance, GM, super_admin
@@ -137,13 +121,22 @@ th { background: #f5f5f5; font-weight: 600; font-size: 12px; }
         <tbody>
             <tr><td><?= h(t('payroll.base_salary', 'Base Monthly Salary')) ?></td><td style="text-align:right"><?= number_format($slip['base_salary'] ?? 0, 2) ?></td></tr>
             <tr><td><?= h(t('payroll.daily_rate', 'Daily Rate')) ?></td><td style="text-align:right"><?= number_format($slip['daily_rate'] ?? 0, 2) ?></td></tr>
-            <tr><td><?= current_locale() === 'am' ? 'የሰራበት ቀናት' : 'Days Present / Worked' ?></td><td style="text-align:right"><?= (int)$slip['days_present'] ?> <?= current_locale() === 'am' ? 'ቀናት' : 'day(s)' ?></td></tr>
-            <?php if (!empty($slip['allowances'])): ?>
-            <tr><td><?= current_locale() === 'am' ? 'አበል' : 'Allowances' ?></td><td style="text-align:right"><?= number_format($slip['allowances'] ?? 0, 2) ?></td></tr>
+            <tr><td><?= current_locale() === 'am' ? 'የተሰላበት የስራ/የፈቃድ ቀናት' : 'Days Present / Worked' ?></td><td style="text-align:right"><?= (float)$slip['days_present'] ?> <?= current_locale() === 'am' ? 'ቀናት' : 'day(s)' ?></td></tr>
+            <?php if (!empty($slip['allowances']) && (float)$slip['allowances'] > 0): ?>
+            <tr><td><?= current_locale() === 'am' ? 'ተጨማሪ ቦነስ / አበል' : 'Bonuses / Allowances' ?></td><td style="text-align:right">+<?= number_format($slip['allowances'] ?? 0, 2) ?></td></tr>
             <?php endif; ?>
-            <?php if (!empty($slip['deductions']) && $slip['deductions'] > 0): ?>
-            <tr><td style="color:#b3261e"><?= current_locale() === 'am' ? 'ተቀናሽ' : 'Deductions' ?></td><td style="text-align:right;color:#b3261e">-<?= number_format($slip['deductions'] ?? 0, 2) ?></td></tr>
+            <tr><td><strong><?= current_locale() === 'am' ? 'ጠቅላላ ገቢ (Gross Pay)' : 'Gross Pay' ?></strong></td><td style="text-align:right"><strong><?= number_format($slip['gross_pay'] ?? 0, 2) ?></strong></td></tr>
+            
+            <!-- Deductions breakdown -->
+            <tr><td style="color:#b3261e;padding-left:14px">• <?= current_locale() === 'am' ? 'የሰራተኛ የጡረታ መዋጮ (7% - አዋጅ 715/2003)' : 'Employee Pension (7%)' ?></td><td style="text-align:right;color:#b3261e">-<?= number_format($slip['pension_employee'] ?? 0, 2) ?></td></tr>
+            <tr><td style="color:#b3261e;padding-left:14px">• <?= current_locale() === 'am' ? 'የስራ ግብር (Income Tax - አዋጅ 979/2008)' : 'Employment Income Tax (Proc. 979/2016)' ?></td><td style="text-align:right;color:#b3261e">-<?= number_format($slip['tax_amount'] ?? 0, 2) ?></td></tr>
+            <?php 
+            $otherDed = (float)($slip['deductions'] ?? 0) - ((float)($slip['pension_employee'] ?? 0) + (float)($slip['tax_amount'] ?? 0));
+            if ($otherDed > 0.01):
+            ?>
+            <tr><td style="color:#b3261e;padding-left:14px">• <?= current_locale() === 'am' ? 'ሌሎች ተቀናሾች' : 'Other Deductions' ?></td><td style="text-align:right;color:#b3261e">-<?= number_format($otherDed, 2) ?></td></tr>
             <?php endif; ?>
+            
             <tr class="total-row"><td><?= h(t('payroll.net_pay', 'NET PAY')) ?></td><td style="text-align:right"><?= number_format($slip['net_pay'], 2) ?> <?= h(t('common.etb', 'ETB')) ?></td></tr>
             <tr class="paid-row"><td><?= h(t('payroll.total_paid', 'Total Paid')) ?></td><td style="text-align:right"><?= number_format($slip['total_paid'], 2) ?> <?= h(t('common.etb', 'ETB')) ?></td></tr>
             <?php $rem = (float)$slip['net_pay'] - (float)$slip['total_paid']; ?>
@@ -151,6 +144,14 @@ th { background: #f5f5f5; font-weight: 600; font-size: 12px; }
             <tr class="remaining-row"><td><?= h(t('payroll.remaining', 'Remaining Balance')) ?></td><td style="text-align:right"><?= number_format($rem, 2) ?> <?= h(t('common.etb', 'ETB')) ?></td></tr>
             <?php else: ?>
             <tr><td style="color:#2e7d32;font-weight:bold">✅ <?= current_locale() === 'am' ? 'ሙሉ በሙሉ ተከፍሏል' : 'Fully Paid' ?></td><td></td></tr>
+            <?php endif; ?>
+            
+            <!-- Employer Pension Note -->
+            <?php if (!empty($slip['pension_employer']) && (float)$slip['pension_employer'] > 0): ?>
+            <tr style="background:#f9f9f9;font-size:11px;color:#555">
+                <td>ℹ️ <?= current_locale() === 'am' ? 'የአሰሪው የጡረታ መዋጮ (11% - በድርጅቱ የሚሸፈን)' : 'Employer Pension Contribution (11%)' ?></td>
+                <td style="text-align:right"><?= number_format($slip['pension_employer'], 2) ?> ETB</td>
+            </tr>
             <?php endif; ?>
         </tbody>
     </table>

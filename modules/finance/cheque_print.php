@@ -23,6 +23,7 @@ if (!$cheque) {
 
 $companyName = setting_get('company_name') ?? 'አለልቱ የተቀናጀ እርሻና የወተት ማቀነባበሪያ';
 $isIssued = ($cheque['cheque_type'] === 'issued');
+$isCancelled = in_array($cheque['status'], ['cancelled', 'bounced'], true);
 ?>
 <!DOCTYPE html>
 <html lang="am">
@@ -69,6 +70,27 @@ $isIssued = ($cheque['cheque_type'] === 'issued');
             padding-bottom: 4px;
         }
         .info-item strong { color: #111; }
+        .watermark-void {
+            position: absolute;
+            top: 38%;
+            left: 5%;
+            right: 5%;
+            transform: rotate(-25deg);
+            font-size: 65px;
+            font-weight: 900;
+            color: rgba(220, 20, 60, 0.4);
+            text-align: center;
+            text-transform: uppercase;
+            border: 8px solid rgba(220, 20, 60, 0.45);
+            padding: 15px 20px;
+            border-radius: 12px;
+            pointer-events: none;
+            z-index: 99;
+            letter-spacing: 4px;
+        }
+        @media print {
+            .no-print { display: none !important; }
+        }
         .amount-box {
             background: #f8f9fa;
             border: 2px dashed #444;
@@ -131,7 +153,15 @@ $isIssued = ($cheque['cheque_type'] === 'issued');
     </a>
 </div>
 
+<?php if ($isCancelled): ?>
+<div style="max-width:750px;margin:0 auto 16px auto;background:#ffebee;color:#c62828;padding:14px 20px;border:2px solid #ef5350;border-radius:8px;font-weight:bold;text-align:center;" class="no-print">
+    ⚠️ ይህ ቼክ <?= $cheque['status'] === 'bounced' ? 'የተመለሰ (BOUNCED)' : 'የተሰረዘ (CANCELLED / VOID)' ?> በመሆኑ ህጋዊ ዋጋ የለውም! ማተም አይቻልም።
+</div>
+<?php endif; ?>
 <div class="voucher-box">
+    <?php if ($isCancelled): ?>
+        <div class="watermark-void">VOID / <?= strtoupper($cheque['status']) ?></div>
+    <?php endif; ?>
     <div class="status-stamp">
         <?= strtoupper($cheque['status']) ?>
     </div>

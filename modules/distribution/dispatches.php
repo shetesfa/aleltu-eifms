@@ -71,6 +71,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $deliveredQty = (float) $_POST['delivered_quantity'];
             dispatch_confirm_delivery($dispatchId, $deliveredQty);
             flash(current_locale() === 'am' ? '✓ ርክክቡ ተረጋግጧል!' : 'Delivery confirmed.');
+        } elseif (isset($_POST['record_payment'])) {
+            if (!has_role(['super_admin', 'general_manager', 'finance_officer', 'distribution_officer'])) {
+                throw new RuntimeException(current_locale() === 'am' ? 'ይህንን ተግባር ለማከናወን ፈቃድ የለዎትም።' : 'Unauthorized to record payments.');
+            }
+            $dispatchId = (int) $_POST['dispatch_id'];
+            $amount = (float) $_POST['amount'];
+            $method = $_POST['payment_method'] ?? 'cash';
+            $refNo = $_POST['reference_number'] ?? null;
+            $notes = $_POST['notes'] ?? null;
+            $bankAccountId = !empty($_POST['bank_account_id']) ? (int)$_POST['bank_account_id'] : null;
+            dispatch_record_payment($dispatchId, $amount, $method, $refNo, $notes, (int)$currentUser['id'], $bankAccountId);
+            flash(current_locale() === 'am' ? '✓ ክፍያው በተሳካ ሁኔታ ተመዝግቧል!' : 'Payment recorded successfully.');
+        } elseif (isset($_POST['cancel_dispatch'])) {
+            if (!has_role(['super_admin', 'general_manager', 'distribution_officer'])) {
+                throw new RuntimeException(current_locale() === 'am' ? 'ይህንን ተግባር ለማከናወን ፈቃድ የለዎትም።' : 'Unauthorized.');
+            }
+            $dispatchId = (int)$_POST['dispatch_id'];
+            $reason = trim($_POST['cancel_reason'] ?? 'Cancelled by user');
+            dispatch_cancel($dispatchId, $reason, (int)$currentUser['id']);
+            flash(current_locale() === 'am' ? '✓ መላኪያው ተሰርዟል፤ የወጣው ክምችት ወደ መጋዘን ተመልሷል!' : 'Dispatch cancelled and stock returned to warehouse.');
         }
         header('Location: ' . BASE_URL . '/modules/distribution/dispatches.php');
         exit;
@@ -233,6 +253,7 @@ $dispatches = db()->query(
                     <th>ጠቅላላ ሽያጭ ዋጋ</th>
                     <th>የክፍያ ሁኔታ (ፋይናንስ)</th>
                     <th>ያወጣው ሠራተኛ</th>
+                    <th>ተግባር</th>
                 </tr>
             </thead>
             <tbody>
@@ -260,6 +281,20 @@ $dispatches = db()->query(
                         <td>
                             👤 <strong><?= h($d['creator_name']) ?></strong><br>
                             <small class="text-muted"><?= h($d['creator_role']) ?></small>
+                        </td>
+                        <td>
+                            <?php if ($d['status'] === 'cancelled'): ?>
+                                <span class="badge" style="background:#ffebee;color:#c62828">የተሰረዘ</span>
+                            <?php elseif ((float)$d['amount_paid'] <= 0 && has_role(['super_admin', 'general_manager', 'distribution_officer'])): ?>
+                                <form method="post" onsubmit="return confirm('መላኪያውን መሰረዝ እና ምርቱን ወደ መጋዘን መመለስ ይፈልጋሉ?');" style="display:inline;margin:0">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="cancel_dispatch" value="1">
+                                    <input type="hidden" name="dispatch_id" value="<?= (int)$d['id'] ?>">
+                                    <button type="submit" class="btn secondary" style="padding:3px 8px;font-size:11px;color:#c62828">❌ ሰርዝ</button>
+                                </form>
+                            <?php else: ?>
+                                <span class="text-muted" style="font-size:12px">—</span>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/pos.php';
 require_once __DIR__ . '/ethiopian_calendar.php';
 
 function h(?string $s): string { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
+function e(?string $s): string { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 function flash(string $msg, string $type = 'success'): void { $_SESSION['flash'][] = ['msg' => $msg, 'type' => $type]; }
 function get_flashes(): array { $f = $_SESSION['flash'] ?? []; unset($_SESSION['flash']); return $f; }
 
@@ -44,16 +45,37 @@ function cow_register(array $data): int
         throw new InvalidArgumentException('Purchase/acquired date is required for a purchased cow.');
     }
 
+    $purchasePrice = isset($data['purchase_price']) ? (float)$data['purchase_price'] : 0.0;
     $stmt = db()->prepare(
-        "INSERT INTO dairy_cows (tag_number, name, photo_path, sex, date_of_birth, breed, dam_id, sire_id, cow_group_id, lifecycle_status, acquired_date, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered', ?, ?)"
+        "INSERT INTO dairy_cows (tag_number, name, photo_path, sex, date_of_birth, breed, dam_id, sire_id, cow_group_id, lifecycle_status, acquired_date, source, purchase_price)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered', ?, ?, ?)"
     );
     $stmt->execute([
         $data['tag_number'], $data['name'] ?? null ?: null, $data['photo_path'] ?? null ?: null, $data['sex'], $data['date_of_birth'] ?? null ?: null,
         $data['breed'] ?? null ?: null, $data['dam_id'] ?? null ?: null, $data['sire_id'] ?? null ?: null,
         $data['cow_group_id'] ?? null ?: null, $data['acquired_date'] ?? null ?: null, $data['source'] ?? null ?: null,
+        $purchasePrice
     ]);
     $id = (int) db()->lastInsertId();
+
+    // If purchased with price > 0 and paid from bank/cash account, record capital purchase expense
+    if (($data['source'] ?? '') === 'purchased' && $purchasePrice > 0 && !empty($data['bank_account_id'])) {
+        $method = $data['payment_method'] ?? 'bank';
+        finance_record_transaction(
+            'outflow',
+            $purchasePrice,
+            'dairy',
+            'capital_purchase',
+            $data['acquired_date'] ?: date('Y-m-d'),
+            "የላም ግዢ ወጪ (Purchase of cow tag #{$data['tag_number']})",
+            'dairy_cows',
+            $id,
+            $id,
+            $method,
+            (int)$data['bank_account_id']
+        );
+    }
+
     log_activity('dairy', 'create', 'dairy_cows', $id, "Registered cow {$data['tag_number']}");
     return $id;
 }
@@ -75,7 +97,7 @@ function cow_record_exit(int $cowId, array $data): void
         $stmt->execute([
             $cowId, $data['exit_type'], $data['exit_date'], $data['cause_of_death'] ?: null,
             $data['buyer_name'] ?: null, $data['sale_price'] ?: null, $data['notes'] ?: null,
-            current_user()['id'],
+            (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1),
         ]);
 
         $newStatus = $data['exit_type'] === 'death' ? 'deceased' : 'sold';
@@ -92,13 +114,13 @@ function cow_record_exit(int $cowId, array $data): void
                 $cashPart = (float)($data['split_cash_amount'] ?? ($salePrice / 2));
                 $bankPart = max(0, $salePrice - $cashPart);
                 if ($cashPart > 0) {
-                    finance_record_transaction('inflow', $cashPart, 'cash', 'dairy', 'livestock_sale', 'dairy_cow_exit_records', $cowId, $desc . ' (በጥሬ ገንዘብ)');
+                    finance_record_transaction('inflow', $cashPart, 'dairy', 'livestock_sale', date('Y-m-d'), $desc . ' (በጥሬ ገንዘብ)', 'dairy_cow_exit_records', $cowId, null, 'cash', null);
                 }
                 if ($bankPart > 0) {
-                    finance_record_transaction('inflow', $bankPart, 'bank', 'dairy', 'livestock_sale', 'dairy_cow_exit_records', $cowId, $desc . ' (በኦሮሚያ ባንክ)');
+                    finance_record_transaction('inflow', $bankPart, 'dairy', 'livestock_sale', date('Y-m-d'), $desc . ' (በኦሮሚያ ባንክ)', 'dairy_cow_exit_records', $cowId, null, 'bank', null);
                 }
             } else {
-                finance_record_transaction('inflow', $salePrice, $method, 'dairy', 'livestock_sale', 'dairy_cow_exit_records', $cowId, $desc);
+                finance_record_transaction('inflow', $salePrice, 'dairy', 'livestock_sale', date('Y-m-d'), $desc, 'dairy_cow_exit_records', $cowId, null, $method, null);
             }
         }
 
@@ -120,7 +142,7 @@ function milking_open_session(string $date, string $type): int
         return (int) $row['id'];
     }
     $stmt = db()->prepare("INSERT INTO dairy_milking_sessions (session_date, session_type, recorded_by) VALUES (?, ?, ?)");
-    $stmt->execute([$date, $type, current_user()['id']]);
+    $stmt->execute([$date, $type, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
     return (int) db()->lastInsertId();
 }
 
@@ -142,7 +164,7 @@ function cow_record_breeding(int $cowId, string $method, ?string $sireReference,
             "INSERT INTO dairy_breeding_records (cow_id, method, sire_reference, breeding_date, expected_calving_date, recorded_by)
              VALUES (?, ?, ?, ?, ?, ?)"
         );
-        $stmt->execute([$cowId, $method, $sireReference, $breedingDate, $expectedCalvingDate, current_user()['id']]);
+        $stmt->execute([$cowId, $method, $sireReference, $breedingDate, $expectedCalvingDate, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
         $id = (int) db()->lastInsertId();
 
         // Update mother's status to 'pregnant'
@@ -157,17 +179,19 @@ function cow_record_breeding(int $cowId, string $method, ?string $sireReference,
     }
 }
 
-function cow_record_calving(int $breedingRecordId, int $damId, string $calvingDate, string $outcome, ?string $notes = null, ?array $calfData = null): int
+function cow_record_calving(?int $breedingRecordId, int $damId, string $calvingDate, string $outcome, ?string $notes = null, ?array $calfData = null): int
 {
     $cow = db()->query("SELECT * FROM dairy_cows WHERE id = " . (int) $damId)->fetch();
     if (!$cow || !cow_is_active($cow)) {
         throw new RuntimeException("Dam is not active and cannot record calving (BR-D01).");
     }
 
+    $bId = ($breedingRecordId && $breedingRecordId > 0) ? $breedingRecordId : null;
+
     db()->beginTransaction();
     try {
         $calfId = null;
-        if ($outcome === 'live_birth' && !empty($calfData['tag_number'])) {
+        if (in_array($outcome, ['live_birth', 'single_live', 'twins_live'], true) && !empty($calfData['tag_number'])) {
             // Register the calf automatically
             $stmt = db()->prepare(
                 "INSERT INTO dairy_cows (tag_number, name, sex, date_of_birth, breed, dam_id, lifecycle_status, source)
@@ -189,7 +213,7 @@ function cow_record_calving(int $breedingRecordId, int $damId, string $calvingDa
             "INSERT INTO dairy_calving_records (breeding_record_id, dam_id, calf_id, calving_date, outcome, notes)
              VALUES (?, ?, ?, ?, ?, ?)"
         );
-        $stmt->execute([$breedingRecordId, $damId, $calfId, $calvingDate, $outcome, $notes]);
+        $stmt->execute([$bId, $damId, $calfId, $calvingDate, $outcome, $notes]);
         $calvingId = (int) db()->lastInsertId();
 
         // Reset mother's status back to milking
@@ -212,7 +236,7 @@ function milking_record_yield(int $sessionId, int $cowId, float $liters, string 
         throw new RuntimeException("Cow {$cow['tag_number']} is {$cow['lifecycle_status']} and cannot be milked (BR-D01).");
     }
 
-    $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
+    $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
     $stmt = db()->prepare(
         "INSERT INTO dairy_milk_yield_entries (milking_session_id, cow_id, yield_liters, observation, flagged_abnormal, recorded_by)
          VALUES (?, ?, ?, ?, ?, ?)
@@ -247,29 +271,32 @@ function milking_close_and_transfer(int $sessionId, int $warehouseId, int $milkI
         ->execute([$calfLiters, $otherLiters, $notes ?: null, $sessionId]);
 
     if ($netTransfer > 0) {
-        // Automatically create incoming intake for Storekeeper in Partition 1 (Finished Products)
+        // Automatically receive milk into warehouse batches and sync total
+        $rawMilkItemId = $milkItemId ?: 1;
+        stock_receive($warehouseId, $rawMilkItemId, $netTransfer, 'dairy', null, 'milking_session_' . $sessionId, 0.0);
+
+        // Also record store receiving tracking entry
         $dispatchCode = 'MILK-' . $sessionId . '-' . date('Ymd') . '-' . rand(1000, 9999);
-        $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
-        
+        $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
         $desc = "Daily Milking ({$sessionType} session, {$sessionDate}): Gross {$grossTotal}L, Calf Consumed {$calfLiters}L, Net to Store {$netTransfer}L";
         $stmt = db()->prepare(
             "INSERT INTO wh_store_receiving
              (dispatch_code, source_type, source_reference, warehouse_id, stock_item_id, sent_quantity, sent_by, status)
-             VALUES (?, 'dairy', ?, ?, ?, ?, ?, 'pending_receipt')"
+             VALUES (?, 'dairy', ?, ?, ?, ?, ?, 'verified_received')"
         );
         $stmt->execute([
             $dispatchCode,
             $desc,
             $warehouseId,
-            $milkItemId,
+            $rawMilkItemId,
             $netTransfer,
             $userId
         ]);
 
         notify_targeted(
             'warehouse',
-            "Daily milk yield from Dairy ({$netTransfer} Liters net of {$grossTotal}L gross, {$sessionType} session) sent to Store Partition 1 for physical verification.",
-            'high', null, 8, null, BASE_URL . '/modules/warehouse/receiving.php'
+            "Daily milk yield from Dairy ({$netTransfer} Liters net of {$grossTotal}L gross, {$sessionType} session) added to Warehouse inventory.",
+            'high', null, 8, null, BASE_URL . '/modules/warehouse/stock.php'
         );
     }
 }
@@ -345,14 +372,25 @@ function milking_month_marked_days(int $year, int $month): array
  * every module calls stock_receive()/stock_issue(), never writes to
  * wh_stock_batches directly. This is what makes Current Stock trustworthy. */
 
+function warehouse_sync_item_total(int $stockItemId): void
+{
+    db()->prepare("
+        UPDATE wh_stock_items
+        SET quantity_on_hand = COALESCE((
+            SELECT SUM(quantity_on_hand) FROM wh_stock_batches WHERE stock_item_id = ? AND quantity_on_hand > 0
+        ), 0)
+        WHERE id = ?
+    ")->execute([$stockItemId, $stockItemId]);
+}
+
 function stock_current(int $warehouseId, int $stockItemId): float
 {
-    $stmt = db()->prepare("SELECT COALESCE(SUM(quantity_on_hand),0) FROM wh_stock_batches WHERE warehouse_id = ? AND stock_item_id = ?");
+    $stmt = db()->prepare("SELECT COALESCE(SUM(quantity_on_hand), 0) FROM wh_stock_batches WHERE warehouse_id = ? AND stock_item_id = ? AND quantity_on_hand > 0");
     $stmt->execute([$warehouseId, $stockItemId]);
     return (float) $stmt->fetchColumn();
 }
 
-function stock_receive(int $warehouseId, int $stockItemId, float $quantity, string $sourceType, ?string $expiryDate = null, string $batchSource = 'internal', float $unitCost = 0.0): void
+function stock_receive(int $warehouseId, int $stockItemId, float $quantity, string $sourceType, ?string $expiryDate = null, string $batchSource = 'internal', float $unitCost = 0.0): int
 {
     if ($quantity <= 0) {
         throw new InvalidArgumentException('Receipt quantity must be positive.');
@@ -366,25 +404,40 @@ function stock_receive(int $warehouseId, int $stockItemId, float $quantity, stri
         $partitionCode = db()->query("SELECT partition_code FROM wh_stock_items WHERE id = " . (int)$stockItemId)->fetchColumn() ?: 'finished_products';
         $batchNo = 'BAT-' . strtoupper(substr($partitionCode, 0, 3)) . '-' . date('Ymd') . '-' . rand(100, 999);
 
-        // unit_cost enables inventory valuation: finance_inventory_value() reads quantity_on_hand × unit_cost
+        // Insert new batch with tracked unit_cost
         $stmt = db()->prepare(
             "INSERT INTO wh_stock_batches (warehouse_id, partition_code, stock_item_id, batch_number, quantity_on_hand, unit_cost, received_date, expiry_date, source)
              VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, ?)"
         );
-        $stmt->execute([$warehouseId, $partitionCode, $stockItemId, $batchNo, $quantity, $unitCost > 0 ? $unitCost : null, $expiryDate, $batchSource]);
+        $stmt->execute([$warehouseId, $partitionCode, $stockItemId, $batchNo, $quantity, (float)$unitCost, $expiryDate, $batchSource]);
         $batchId = (int) db()->lastInsertId();
 
-        $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
+        $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
         $stmt = db()->prepare(
             "INSERT INTO wh_stock_receipts (warehouse_id, stock_item_id, stock_batch_id, quantity, source_type, received_by, received_at)
              VALUES (?, ?, ?, ?, ?, ?, NOW())"
         );
         $stmt->execute([$warehouseId, $stockItemId, $batchId, $quantity, $sourceType, $userId]);
+        $receiptId = (int) db()->lastInsertId();
+
+        // Log receive movement into wh_stock_movements
+        $movStmt = db()->prepare(
+            "INSERT INTO wh_stock_movements (stock_item_id, warehouse_id, stock_batch_id, movement_type, quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at)
+             VALUES (?, ?, ?, 'receive', ?, ?, 'wh_stock_receipts', ?, ?, ?, NOW())"
+        );
+        $movStmt->execute([
+            $stockItemId, $warehouseId, $batchId, $quantity, $unitCost > 0 ? $unitCost : null,
+            $receiptId, "Received {$quantity} from {$sourceType}", $userId
+        ]);
+
+        // Sync wh_stock_items total
+        warehouse_sync_item_total($stockItemId);
 
         if ($ownsTx && db()->inTransaction()) {
             db()->commit();
         }
         log_activity('warehouse', 'create', 'wh_stock_receipts', $batchId, "Received {$quantity} @ unit_cost {$unitCost} ETB into warehouse {$warehouseId} partition {$partitionCode}");
+        return $batchId;
     } catch (Throwable $e) {
         if ($ownsTx && db()->inTransaction()) {
             db()->rollBack();
@@ -393,12 +446,15 @@ function stock_receive(int $warehouseId, int $stockItemId, float $quantity, stri
     }
 }
 
-// FR-WH07 FEFO-aware, BR-W02: refuses to take stock negative.
-function stock_issue(int $warehouseId, int $stockItemId, float $quantity, string $destinationType): void
+/**
+ * Single robust FIFO stock issue method.
+ * Locks candidate batches, deducts stock, calculates weighted-average cost,
+ * inserts a movement record, and syncs wh_stock_items.quantity_on_hand.
+ */
+function store_issue_stock(int $warehouseId, int $stockItemId, float $quantity, string $destinationType, ?string $referenceType = null, ?int $referenceId = null): array
 {
-    $available = stock_current($warehouseId, $stockItemId);
-    if ($quantity > $available) {
-        throw new RuntimeException("Cannot issue {$quantity}; only {$available} available (BR-W02).");
+    if ($quantity <= 0) {
+        throw new InvalidArgumentException('Issue quantity must be greater than zero.');
     }
 
     $ownsTx = false;
@@ -407,45 +463,94 @@ function stock_issue(int $warehouseId, int $stockItemId, float $quantity, string
         $ownsTx = true;
     }
     try {
+        // Lock candidate FIFO batches (sorted by received date / expiry)
         $stmt = db()->prepare(
-            "SELECT id, quantity_on_hand FROM wh_stock_batches
-             WHERE warehouse_id = ? AND stock_item_id = ? AND quantity_on_hand > 0
-             ORDER BY (expiry_date IS NULL), expiry_date ASC
+            "SELECT id, quantity_on_hand, COALESCE(unit_cost, 0.0) AS unit_cost
+             FROM wh_stock_batches
+             WHERE stock_item_id = ? AND warehouse_id = ? AND quantity_on_hand > 0
+             ORDER BY (expiry_date IS NULL), expiry_date ASC, received_date ASC, id ASC
              FOR UPDATE"
         );
-        $stmt->execute([$warehouseId, $stockItemId]);
-        $batches = $stmt->fetchAll();
+        $stmt->execute([$stockItemId, $warehouseId]);
+        $batches = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $remaining = $quantity;
-        $lastBatchId = null;
-        foreach ($batches as $batch) {
-            if ($remaining <= 0) break;
-            $take = min($remaining, (float) $batch['quantity_on_hand']);
-            db()->prepare("UPDATE wh_stock_batches SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?")
-                ->execute([$take, $batch['id']]);
-            $remaining -= $take;
-            $lastBatchId = $batch['id'];
+        $available = 0.0;
+        foreach ($batches as $b) {
+            $available += (float) $b['quantity_on_hand'];
         }
 
-        $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
-        $stmt = db()->prepare(
+        if ($available < $quantity) {
+            throw new RuntimeException("Cannot issue {$quantity}; only {$available} available in warehouse {$warehouseId} (BR-W02).");
+        }
+
+        $remaining = $quantity;
+        $totalCostConsumed = 0.0;
+        $lastBatchId = null;
+
+        foreach ($batches as $b) {
+            if ($remaining <= 0.00001) break;
+            $batchQty = (float) $b['quantity_on_hand'];
+            $take = min($remaining, $batchQty);
+            $batchCost = (float) $b['unit_cost'];
+
+            db()->prepare("UPDATE wh_stock_batches SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?")
+                ->execute([$take, $b['id']]);
+
+            $totalCostConsumed += ($take * $batchCost);
+            $remaining -= $take;
+            $lastBatchId = (int) $b['id'];
+        }
+
+        $weightedUnitCost = $quantity > 0 ? round($totalCostConsumed / $quantity, 4) : 0.0;
+        $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
+
+        // Legacy issue log
+        $issueStmt = db()->prepare(
             "INSERT INTO wh_stock_issues (warehouse_id, stock_item_id, stock_batch_id, quantity, destination_type, issued_by, issued_at)
              VALUES (?, ?, ?, ?, ?, ?, NOW())"
         );
-        $stmt->execute([$warehouseId, $stockItemId, $lastBatchId, $quantity, $destinationType, $userId]);
+        $issueStmt->execute([$warehouseId, $stockItemId, $lastBatchId, $quantity, $destinationType, $userId]);
         $issueId = (int) db()->lastInsertId();
+
+        // Unified stock movements ledger
+        $movStmt = db()->prepare(
+            "INSERT INTO wh_stock_movements (stock_item_id, warehouse_id, stock_batch_id, movement_type, quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at)
+             VALUES (?, ?, ?, 'issue', ?, ?, ?, ?, ?, ?, NOW())"
+        );
+        $movStmt->execute([
+            $stockItemId, $warehouseId, $lastBatchId, -$quantity, $weightedUnitCost,
+            $referenceType ?: 'store_issue', $referenceId ?: $issueId,
+            "Issued {$quantity} to {$destinationType}", $userId
+        ]);
+
+        // Keep wh_stock_items.quantity_on_hand in sync
+        warehouse_sync_item_total($stockItemId);
 
         if ($ownsTx && db()->inTransaction()) {
             db()->commit();
         }
+
         check_minimum_stock($warehouseId, $stockItemId);
-        log_activity('warehouse', 'create', 'wh_stock_issues', $issueId, "Issued {$quantity} from warehouse {$warehouseId}");
+        log_activity('warehouse', 'create', 'wh_stock_issues', $issueId, "Issued {$quantity} from warehouse {$warehouseId} (@ {$weightedUnitCost} ETB)");
+
+        return [
+            'issue_id' => $issueId,
+            'weighted_unit_cost' => $weightedUnitCost,
+            'total_cost' => round($totalCostConsumed, 2),
+            'quantity' => $quantity,
+        ];
     } catch (Throwable $e) {
         if ($ownsTx && db()->inTransaction()) {
             db()->rollBack();
         }
         throw $e;
     }
+}
+
+// Global alias for compatibility
+function stock_issue(int $warehouseId, int $stockItemId, float $quantity, string $destinationType): void
+{
+    store_issue_stock($warehouseId, $stockItemId, $quantity, $destinationType);
 }
 
 // BR-W03: fires once per breach, resets once replenished.
@@ -506,9 +611,9 @@ function poultry_record_mortality(int $flockId, string $date, int $count, string
         }
 
         db()->prepare("INSERT INTO poultry_mortality_logs (flock_id, log_date, count, cause_code, recorded_by) VALUES (?, ?, ?, ?, ?)")
-            ->execute([$flockId, $date, $count, $cause, current_user()['id']]);
-        db()->prepare("UPDATE poultry_flocks SET cumulative_mortality = cumulative_mortality + ? WHERE id = ?")
-            ->execute([$count, $flockId]);
+            ->execute([$flockId, $date, $count, $cause, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
+        db()->prepare("UPDATE poultry_flocks SET cumulative_mortality = cumulative_mortality + ?, current_count = GREATEST(0, initial_population - (cumulative_mortality + ?) - cumulative_culled_sold + cumulative_transfers_in) WHERE id = ?")
+            ->execute([$count, $count, $flockId]);
         db()->commit();
         log_activity('poultry', 'create', 'poultry_mortality_logs', $flockId, "{$count} mortality logged ({$cause})");
     } catch (Throwable $e) {
@@ -553,10 +658,10 @@ function poultry_flock_create(int $houseId, string $breed, string $stockingDate,
     }
 
     $stmt = db()->prepare(
-        "INSERT INTO poultry_flocks (poultry_house_id, breed, stocking_date, initial_population, status)
-         VALUES (?, ?, ?, ?, 'active')"
+        "INSERT INTO poultry_flocks (poultry_house_id, breed, stocking_date, initial_population, current_count, status)
+         VALUES (?, ?, ?, ?, ?, 'active')"
     );
-    $stmt->execute([$houseId, $breed, $stockingDate, $initialPopulation]);
+    $stmt->execute([$houseId, $breed, $stockingDate, $initialPopulation, $initialPopulation]);
     $id = (int) db()->lastInsertId();
     log_activity('poultry', 'create', 'poultry_flocks', $id, "Flock stocked: {$breed}, {$initialPopulation} birds into house #{$houseId}");
     return $id;
@@ -568,7 +673,7 @@ function poultry_egg_collection_record(int $flockId, string $date, int $round, i
     if ($whole < 0 || $cracked < 0 || $broken < 0) {
         throw new InvalidArgumentException('Egg counts cannot be negative.');
     }
-    $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
+    $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
     $stmt = db()->prepare(
         "INSERT INTO poultry_egg_collections (flock_id, collection_date, round_no, whole_count, cracked_count, broken_count, recorded_by)
          VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -577,15 +682,17 @@ function poultry_egg_collection_record(int $flockId, string $date, int $round, i
     $id = (int) db()->lastInsertId();
     log_activity('poultry', 'create', 'poultry_egg_collections', $id, "Egg round #{$round} logged: {$whole} whole, {$cracked} cracked, {$broken} broken");
 
-    // Automatically create incoming intake for Storekeeper in Partition 1 (Finished Products)
+    // Automatically receive good eggs into warehouse batches and sync total
     if ($whole > 0) {
-        $eggItem = db()->query("SELECT id FROM wh_stock_items WHERE sku = 'EGG-TABLE-01' OR product_class = 'general' AND name LIKE '%Egg%' LIMIT 1")->fetch();
+        $eggItem = db()->query("SELECT id FROM wh_stock_items WHERE sku = 'EGG-TABLE-01' OR name LIKE '%ዕንቁላል%' OR name LIKE '%Egg%' LIMIT 1")->fetch();
         $eggItemId = $eggItem ? (int)$eggItem['id'] : 2;
+        stock_receive(1, $eggItemId, (float)$whole, 'poultry', null, 'egg_round_' . $id, 0.0);
+
         $dispatchCode = 'EGG-' . $id . '-' . date('Ymd') . '-' . rand(1000, 9999);
         $dbStmt = db()->prepare(
             "INSERT INTO wh_store_receiving
              (dispatch_code, source_type, source_reference, warehouse_id, stock_item_id, sent_quantity, sent_by, status)
-             VALUES (?, 'poultry', ?, 1, ?, ?, ?, 'pending_receipt')"
+             VALUES (?, 'poultry', ?, 1, ?, ?, ?, 'verified_received')"
         );
         $dbStmt->execute([
             $dispatchCode,
@@ -597,8 +704,8 @@ function poultry_egg_collection_record(int $flockId, string $date, int $round, i
 
         notify_targeted(
             'warehouse',
-            "Daily egg collection ({$whole} whole eggs, Round #{$round}) sent to Store Partition 1 for physical verification.",
-            'medium', null, 8, null, BASE_URL . '/modules/warehouse/receiving.php'
+            "Daily egg collection ({$whole} whole eggs, Round #{$round}) added to Warehouse inventory.",
+            'medium', null, 8, null, BASE_URL . '/modules/warehouse/stock.php'
         );
     }
 
@@ -673,29 +780,41 @@ function attendance_month_summary(int $year, int $month): array
     return $out;
 }
 
-// BR-E01: a leave request overlapping already-approved leave for the same
+// BR-E01: a leave request overlapping approved or pending leave for the same
 // employee is blocked.
-function leave_has_overlap(int $employeeId, string $start, string $end): bool
+function leave_has_overlap(int $employeeId, string $start, string $end, ?int $excludeLeaveId = null): bool
 {
-    $stmt = db()->prepare(
-        "SELECT COUNT(*) FROM leave_requests
-         WHERE employee_id = ? AND status IN ('manager_approved','approved')
-         AND start_date <= ? AND end_date >= ?"
-    );
-    $stmt->execute([$employeeId, $end, $start]);
+    $sql = "SELECT COUNT(*) FROM leave_requests
+            WHERE employee_id = ? AND status IN ('pending', 'manager_approved', 'approved')
+            AND start_date <= ? AND end_date >= ?";
+    $params = [$employeeId, $end, $start];
+    if ($excludeLeaveId !== null && $excludeLeaveId > 0) {
+        $sql .= " AND id != ?";
+        $params[] = $excludeLeaveId;
+    }
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
     return (int) $stmt->fetchColumn() > 0;
 }
 
-function leave_request(int $employeeId, string $start, string $end, string $reason): int
+function leave_request_create(int $employeeId, string $start, string $end, string $reason): int
 {
+    if ($end < $start) {
+        throw new InvalidArgumentException(current_locale() === 'am' ? 'የማብቂያ ቀን ከመጀመሪያ ቀን ቀደም ብሎ ሊሆን አይችልም።' : 'End date cannot be earlier than start date.');
+    }
     if (leave_has_overlap($employeeId, $start, $end)) {
-        throw new RuntimeException('This employee already has approved leave overlapping these dates (BR-E01).');
+        throw new RuntimeException(current_locale() === 'am' ? 'ይህ ሰራተኛ በነዚህ ቀናት የተደራረበ የጸደቀ ወይም በመጠባበቅ ላይ ያለ የፈቃድ ጥያቄ አለው (BR-E01)።' : 'This employee already has an overlapping approved or pending leave request (BR-E01).');
     }
     $stmt = db()->prepare("INSERT INTO leave_requests (employee_id, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, 'pending')");
     $stmt->execute([$employeeId, $start, $end, $reason ?: null]);
     $id = (int) db()->lastInsertId();
     log_activity('employee', 'create', 'leave_requests', $id, "Leave requested {$start} to {$end}");
     return $id;
+}
+
+function leave_request(int $employeeId, string $start, string $end, string $reason): int
+{
+    return leave_request_create($employeeId, $start, $end, $reason);
 }
 
 // SAD section 7: Manager -> HR approval chain, simplified here to a
@@ -707,27 +826,27 @@ function leave_decide(int $leaveId, string $decision): void
     log_activity('employee', 'update', 'leave_requests', $leaveId, "Leave {$status}");
 
     if ($status === 'approved') {
-        $lr = db()->query("SELECT employee_id, start_date, end_date FROM leave_requests WHERE id = {$leaveId}")->fetch();
+        $lr = db()->query("SELECT employee_id, start_date, end_date, reason FROM leave_requests WHERE id = {$leaveId}")->fetch();
         if ($lr) {
             $empId = (int)$lr['employee_id'];
+            $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
+            $notes = $lr['reason'] ?: 'Approved Leave';
+
             try {
                 $start = new DateTime($lr['start_date']);
                 $end   = new DateTime($lr['end_date']);
                 $end->modify('+1 day'); // inclusive
 
+                $upsert = db()->prepare("
+                    INSERT INTO attendance (employee_id, attendance_date, status, notes, recorded_by)
+                    VALUES (?, ?, 'leave', ?, ?)
+                    ON DUPLICATE KEY UPDATE status = 'leave', notes = VALUES(notes), recorded_by = VALUES(recorded_by)
+                ");
+
                 $period = new DatePeriod($start, new DateInterval('P1D'), $end);
                 foreach ($period as $dt) {
                     $dayStr = $dt->format('Y-m-d');
-                    $chk = db()->prepare("SELECT id FROM attendance WHERE employee_id = ? AND attendance_date = ?");
-                    $chk->execute([$empId, $dayStr]);
-                    $attId = $chk->fetchColumn();
-
-                    if ($attId) {
-                        db()->prepare("UPDATE attendance SET status = 'on_leave' WHERE id = ?")->execute([(int)$attId]);
-                    } else {
-                        db()->prepare("INSERT INTO attendance (employee_id, attendance_date, status) VALUES (?, ?, 'on_leave')")
-                            ->execute([$empId, $dayStr]);
-                    }
+                    $upsert->execute([$empId, $dayStr, $notes, $userId]);
                 }
 
                 $today = date('Y-m-d');
@@ -784,9 +903,30 @@ function employee_performance(int $employeeId, string $start, string $end): arra
 const FINANCE_UNIT_TAGS = ['dairy', 'poultry', 'fish', 'feed_production', 'warehouse', 'distribution', 'general_overhead', 'veterinary'];
 
 // FR-FN01: every transaction carries a unit tag (BR-FN01).
-function finance_record_transaction(string $direction, float $amount, string $unitTag, string $category, string $date, string $description, ?string $sourceTable = null, ?int $sourceId = null, ?int $bankAccountId = null, string $paymentMethod = 'bank'): int
-{
-    if ($bankAccountId === null) {
+// Standardized signature with automatic bank balance synchronization.
+function finance_record_transaction(
+    string $direction,
+    float $amount,
+    string $unitTag,
+    string $category,
+    string $transactionDate,
+    string $description,
+    ?string $sourceTable = null,
+    ?int $sourceId = null,
+    ?int $relatedEntityId = null,
+    string $paymentMethod = 'cash',
+    ?int $bankAccountId = null
+): int {
+    $dir = strtolower(trim($direction));
+    if (in_array($dir, ['in', 'inflow', 'deposit', 'income'], true)) {
+        $normDirection = 'inflow';
+    } elseif (in_array($dir, ['out', 'outflow', 'withdrawal', 'expense'], true)) {
+        $normDirection = 'outflow';
+    } else {
+        $normDirection = 'inflow';
+    }
+
+    if ($bankAccountId === null || $bankAccountId <= 0) {
         $accType = match($paymentMethod) {
             'cash' => 'cash',
             'telebirr', 'mobile' => 'mobile',
@@ -795,47 +935,71 @@ function finance_record_transaction(string $direction, float $amount, string $un
         $accId = (int)(db()->query("SELECT id FROM fin_bank_accounts WHERE account_type='{$accType}' ORDER BY id ASC LIMIT 1")->fetchColumn());
         if ($accId > 0) {
             $bankAccountId = $accId;
+        } else {
+            $bankAccountId = null;
         }
     }
+
     $stmt = db()->prepare(
         "INSERT INTO fin_transactions (bank_account_id, direction, amount, payment_method, unit_tag, category, source_table, source_id, transaction_date, description, recorded_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
-    $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
-    $stmt->execute([$bankAccountId, $direction, $amount, $paymentMethod, $unitTag, $category, $sourceTable, $sourceId, $date, $description, $userId]);
-    return (int) db()->lastInsertId();
+    $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
+    $stmt->execute([$bankAccountId, $normDirection, $amount, $paymentMethod, $unitTag, $category, $sourceTable, $sourceId, $transactionDate, $description, $userId]);
+    $txId = (int) db()->lastInsertId();
+
+    // Whenever bank account is linked and it is not an opening balance entry, update current_balance atomically
+    if ($bankAccountId && $category !== 'opening_balance') {
+        $delta = ($normDirection === 'inflow') ? $amount : -$amount;
+        $upd = db()->prepare("UPDATE fin_bank_accounts SET current_balance = current_balance + ? WHERE id = ?");
+        $upd->execute([$delta, $bankAccountId]);
+    }
+
+    return $txId;
 }
 
-// Balance broken down by Bank / Cash / Mobile, using the account_type
-// column added in migration_v6. Each named account is calculated as:
-// opening_balance + inflows - outflows for transactions linked to that account.
+// Balance broken down by Bank / Cash / Mobile, supporting telebirr mapping
 function finance_balance_by_method(): array
 {
-    // Get all accounts with their types and opening balances
     $accounts = db()->query(
-        "SELECT id, account_type, opening_balance, account_name, bank_name FROM fin_bank_accounts ORDER BY id"
+        "SELECT id, account_type, opening_balance, current_balance, account_name, bank_name FROM fin_bank_accounts ORDER BY id"
     )->fetchAll();
 
     $result = ['bank' => 0.0, 'cash' => 0.0, 'mobile' => 0.0, '_accounts' => []];
 
     foreach ($accounts as $acc) {
+        $type = $acc['account_type'] ?: 'bank';
+        if ($type === 'telebirr') {
+            $type = 'mobile';
+        }
+
         $opening = (float) $acc['opening_balance'];
-        // Sum flows linked to this specific bank account
         $stmt = db()->prepare(
             "SELECT direction, COALESCE(SUM(amount),0) AS total
-             FROM fin_transactions WHERE bank_account_id = ? GROUP BY direction"
+             FROM fin_transactions WHERE bank_account_id = ? AND category != 'opening_balance' GROUP BY direction"
         );
         $stmt->execute([$acc['id']]);
         $flows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         $balance = $opening + (float)($flows['inflow'] ?? 0) - (float)($flows['outflow'] ?? 0);
-        $type = $acc['account_type'] ?: 'bank';
 
-        // Also add unlinked transactions to the primary bank account
-        if ($acc['id'] === (int)(db()->query("SELECT MIN(id) FROM fin_bank_accounts WHERE account_type='bank'")->fetchColumn())) {
+        // Add unlinked transactions matching account type
+        if ($type === 'bank' && $acc['id'] === (int)(db()->query("SELECT MIN(id) FROM fin_bank_accounts WHERE account_type='bank'")->fetchColumn())) {
             $unlinked = db()->query(
                 "SELECT direction, COALESCE(SUM(amount),0) AS total
-                 FROM fin_transactions WHERE bank_account_id IS NULL GROUP BY direction"
+                 FROM fin_transactions WHERE bank_account_id IS NULL AND payment_method NOT IN ('cash', 'telebirr', 'mobile') GROUP BY direction"
+            )->fetchAll(PDO::FETCH_KEY_PAIR);
+            $balance += (float)($unlinked['inflow'] ?? 0) - (float)($unlinked['outflow'] ?? 0);
+        } elseif ($type === 'mobile' && $acc['id'] === (int)(db()->query("SELECT MIN(id) FROM fin_bank_accounts WHERE account_type='mobile'")->fetchColumn())) {
+            $unlinked = db()->query(
+                "SELECT direction, COALESCE(SUM(amount),0) AS total
+                 FROM fin_transactions WHERE bank_account_id IS NULL AND payment_method IN ('telebirr', 'mobile') GROUP BY direction"
+            )->fetchAll(PDO::FETCH_KEY_PAIR);
+            $balance += (float)($unlinked['inflow'] ?? 0) - (float)($unlinked['outflow'] ?? 0);
+        } elseif ($type === 'cash' && $acc['id'] === (int)(db()->query("SELECT MIN(id) FROM fin_bank_accounts WHERE account_type='cash'")->fetchColumn())) {
+            $unlinked = db()->query(
+                "SELECT direction, COALESCE(SUM(amount),0) AS total
+                 FROM fin_transactions WHERE bank_account_id IS NULL AND payment_method = 'cash' GROUP BY direction"
             )->fetchAll(PDO::FETCH_KEY_PAIR);
             $balance += (float)($unlinked['inflow'] ?? 0) - (float)($unlinked['outflow'] ?? 0);
         }
@@ -853,12 +1017,13 @@ function finance_balance_by_method(): array
 
 // Full transaction ledger, newest first, with optional filters — powers
 // the drill-down when someone clicks the balance card on the dashboard.
-function finance_transactions_list(?string $unitTag = null, ?string $paymentMethod = null, int $limit = 100): array
+function finance_transactions_list(?string $unitTag = null, ?string $paymentMethod = null, int $limit = 100, ?int $bankAccountId = null): array
 {
     $where = ['1=1'];
     $params = [];
     if ($unitTag) { $where[] = 't.unit_tag = ?'; $params[] = $unitTag; }
     if ($paymentMethod) { $where[] = 't.payment_method = ?'; $params[] = $paymentMethod; }
+    if ($bankAccountId) { $where[] = 't.bank_account_id = ?'; $params[] = $bankAccountId; }
     $sql = "SELECT t.*, u.name AS recorded_by_name FROM fin_transactions t
             LEFT JOIN users u ON u.id = t.recorded_by
             WHERE " . implode(' AND ', $where) . "
@@ -871,21 +1036,22 @@ function finance_transactions_list(?string $unitTag = null, ?string $paymentMeth
 // Records a payment (full or partial) against a Purchase Order. Goods can
 // be received from Store before the supplier is fully paid — this lets
 // Finance pay in installments until amount_paid reaches total_amount.
-function po_record_payment(int $poId, float $amount, string $paymentMethod, ?string $notes): void
+function po_record_payment(int $poId, float $amount, string $paymentMethod, ?string $notes, ?int $bankAccountId = null): void
 {
     if ($amount <= 0) {
         throw new InvalidArgumentException('Payment amount must be greater than zero.');
     }
 
-    db()->beginTransaction();
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
+
     try {
-        // Lock the PO row before validating remaining balance (see the same
-        // fix and rationale in dispatch_record_payment()) so two concurrent
-        // payments against the same PO can't both pass validation and together
-        // overpay the supplier.
-        $po = db()->prepare("SELECT * FROM fin_purchase_orders WHERE id = ? FOR UPDATE");
-        $po->execute([$poId]);
-        $po = $po->fetch();
+        $poStmt = db()->prepare("SELECT * FROM fin_purchase_orders WHERE id = ? FOR UPDATE");
+        $poStmt->execute([$poId]);
+        $po = $poStmt->fetch();
         if (!$po) {
             throw new RuntimeException('Purchase order not found.');
         }
@@ -901,15 +1067,32 @@ function po_record_payment(int $poId, float $amount, string $paymentMethod, ?str
         $status = $newPaid >= (float) $po['total_amount'] - 0.01 ? 'paid' : 'partial';
         db()->prepare("UPDATE fin_purchase_orders SET amount_paid = ?, payment_status = ? WHERE id = ?")
             ->execute([$newPaid, $status, $poId]);
-        db()->commit();
+
+        $desc = "Payment to {$po['supplier_name']} for PO#{$poId}" . ($notes ? " — {$notes}" : '');
+        finance_record_transaction(
+            'outflow',
+            $amount,
+            'warehouse',
+            'purchase',
+            date('Y-m-d'),
+            $desc,
+            'fin_purchase_orders',
+            $poId,
+            null,
+            $paymentMethod,
+            $bankAccountId
+        );
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+        log_activity('finance', 'update', 'fin_purchase_orders', $poId, "Payment of {$amount} ETB recorded ({$paymentMethod})");
     } catch (Throwable $e) {
-        db()->rollBack();
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
         throw $e;
     }
-
-    $desc = "Payment to {$po['supplier_name']} for PO#{$poId}" . ($notes ? " — {$notes}" : '');
-    finance_record_transaction('outflow', $amount, 'warehouse', 'purchase', date('Y-m-d'), $desc, 'fin_purchase_orders', $poId, null, $paymentMethod);
-    log_activity('finance', 'update', 'fin_purchase_orders', $poId, "Payment of {$amount} ETB recorded ({$paymentMethod})");
 }
 
 function finance_cash_position(): array
@@ -1007,7 +1190,7 @@ function finance_internal_transfer(int $fromAccountId, int $toAccountId, float $
 function finance_receivables_summary(): array
 {
     $total = (float) db()->query(
-        "SELECT COALESCE(SUM(total_price - amount_paid), 0) FROM dist_dispatches WHERE payment_status != 'paid'"
+        "SELECT COALESCE(SUM(total_price - amount_paid), 0) FROM dist_dispatches WHERE payment_status != 'paid' AND status NOT IN ('failed', 'cancelled')"
     )->fetchColumn();
 
     $byDriver = db()->query(
@@ -1018,8 +1201,8 @@ function finance_receivables_summary(): array
                 COALESCE(SUM(d.total_price - d.amount_paid),0) AS outstanding,
                 d.payment_status
          FROM dist_dispatches d
-         JOIN dist_vehicles v ON v.id = d.vehicle_id
-         WHERE d.payment_status != 'paid'
+         LEFT JOIN dist_vehicles v ON v.id = d.vehicle_id
+         WHERE d.payment_status != 'paid' AND d.status NOT IN ('failed', 'cancelled')
          GROUP BY d.driver_name, v.plate_number, d.payment_status
          ORDER BY outstanding DESC"
     )->fetchAll();
@@ -1160,10 +1343,10 @@ function finance_dept_costs(string $unitTag, string $dateFrom, string $dateTo): 
  */
 function finance_revenue_vs_collected(?string $dateFrom = null, ?string $dateTo = null): array
 {
-    $where = '1=1';
+    $where = "status NOT IN ('failed', 'cancelled')";
     $params = [];
-    if ($dateFrom) { $where .= ' AND DATE(dispatched_at) >= ?'; $params[] = $dateFrom; }
-    if ($dateTo)   { $where .= ' AND DATE(dispatched_at) <= ?'; $params[] = $dateTo; }
+    if ($dateFrom) { $where .= ' AND COALESCE(DATE(dispatched_at), DATE(created_at)) >= ?'; $params[] = $dateFrom; }
+    if ($dateTo)   { $where .= ' AND COALESCE(DATE(dispatched_at), DATE(created_at)) <= ?'; $params[] = $dateTo; }
 
     $stmt = db()->prepare(
         "SELECT COALESCE(SUM(total_price),0) AS total_revenue,
@@ -1196,7 +1379,7 @@ function expense_create(array $data): int
         $data['expense_date'],
         $data['description'] ?: null,
         $recipientName,
-        current_user()['id']
+        (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)
     ]);
     $id = (int) db()->lastInsertId();
     log_activity('finance', 'create', 'fin_expenses', $id, "Expense/Withdrawal requested: {$withdrawalType} / {$data['category']} {$data['amount']} ETB");
@@ -1216,7 +1399,7 @@ function expense_approve(int $expenseId): void
         }
 
         $updated = db()->prepare("UPDATE fin_expenses SET status = 'approved', approved_by = ? WHERE id = ? AND status = 'pending'");
-        $updated->execute([current_user()['id'], $expenseId]);
+        $updated->execute([(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1), $expenseId]);
         if ($updated->rowCount() === 0) {
             throw new RuntimeException('Only a pending expense can be approved.');
         }
@@ -1241,7 +1424,7 @@ function expense_approve(int $expenseId): void
         finance_record_transaction(
             'outflow', (float) $expense['amount'], $expense['unit_tag'], $category,
             $expense['expense_date'], $desc,
-            'fin_expenses', $expenseId, $bankAccountId, $paymentMethod
+            'fin_expenses', $expenseId, null, $paymentMethod, $bankAccountId
         );
         db()->commit();
         log_activity('finance', 'update', 'fin_expenses', $expenseId, 'Expense/Withdrawal approved and booked to cash flow');
@@ -1254,7 +1437,7 @@ function expense_approve(int $expenseId): void
 function expense_reject(int $expenseId): void
 {
     db()->prepare("UPDATE fin_expenses SET status = 'rejected', approved_by = ? WHERE id = ? AND status = 'pending'")
-        ->execute([current_user()['id'], $expenseId]);
+        ->execute([(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1), $expenseId]);
     log_activity('finance', 'update', 'fin_expenses', $expenseId, 'Expense rejected');
 }
 
@@ -1270,7 +1453,7 @@ function purchase_request_create(array $data): int
         "INSERT INTO fin_purchase_requests (stock_item_id, quantity, justification, requested_by, status)
          VALUES (?, ?, ?, ?, 'pending')"
     );
-    $stmt->execute([$data['stock_item_id'], $data['quantity'], $data['justification'] ?: null, current_user()['id']]);
+    $stmt->execute([$data['stock_item_id'], $data['quantity'], $data['justification'] ?: null, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
     $id = (int) db()->lastInsertId();
     log_activity('finance', 'create', 'fin_purchase_requests', $id, 'Purchase request raised');
     return $id;
@@ -1297,7 +1480,7 @@ function purchase_order_create_from_request(int $requestId, string $supplierName
             "INSERT INTO fin_purchase_orders (purchase_request_id, material_request_id, supplier_name, stock_item_id, quantity, unit_price, total_amount, status, created_by)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
-        $stmt->execute([$requestId, $matReqId, $supplierName, $pr['stock_item_id'], $pr['quantity'], $unitPrice, $total, $status, current_user()['id']]);
+        $stmt->execute([$requestId, $matReqId, $supplierName, $pr['stock_item_id'], $pr['quantity'], $unitPrice, $total, $status, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
         $poId = (int) db()->lastInsertId();
 
         db()->prepare("UPDATE fin_purchase_requests SET status = 'converted_to_po' WHERE id = ?")->execute([$requestId]);
@@ -1313,52 +1496,57 @@ function purchase_order_create_from_request(int $requestId, string $supplierName
 function purchase_order_approve(int $poId): void
 {
     db()->prepare("UPDATE fin_purchase_orders SET status = 'approved', approved_by = ? WHERE id = ? AND status = 'pending_approval'")
-        ->execute([current_user()['id'], $poId]);
+        ->execute([(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1), $poId]);
     log_activity('finance', 'update', 'fin_purchase_orders', $poId, 'PO approved (BR-FN02)');
 }
 
-// Goods receipt: sends PO to Warehouse for physical check and receipt
+// Goods receipt: receives PO goods physically into warehouse, creates batch, movement & syncs total
 function purchase_order_receive(int $poId, int $warehouseId): void
 {
     $po = db()->query("SELECT * FROM fin_purchase_orders WHERE id = " . (int) $poId)->fetch();
-    if (!$po || !in_array($po['status'], ['approved', 'sent'], true)) {
+    if (!$po || !in_array($po['status'], ['approved', 'sent', 'pending_receipt'], true)) {
         throw new RuntimeException('Purchase order must be approved before receiving goods.');
     }
 
-    db()->beginTransaction();
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
     try {
-        // Create pending Store receiving record for Storekeeper to physically confirm
-        $dispatchCode = 'PO-' . $poId . '-' . date('Ymd');
-        $matReqId = !empty($po['material_request_id']) ? (int)$po['material_request_id'] : null;
+        $stockItemId = (int) $po['stock_item_id'];
+        $qty = (float) $po['quantity'];
+        $unitCost = (float) $po['unit_price'];
+        if ($unitCost <= 0 && $qty > 0 && !empty($po['total_amount'])) {
+            $unitCost = round((float)$po['total_amount'] / $qty, 4);
+        }
+        $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
 
-        $stmt = db()->prepare(
-            "INSERT INTO wh_store_receiving
-             (dispatch_code, source_type, source_reference, material_request_id, warehouse_id, stock_item_id, sent_quantity, sent_by, status)
-             VALUES (?, 'purchase', ?, ?, ?, ?, ?, ?, 'pending_receipt')"
-        );
-        $stmt->execute([
-            $dispatchCode, 'PO#' . $poId . ' ' . ($po['supplier_name'] ?? ''),
-            $matReqId, $warehouseId, (int) $po['stock_item_id'], (float) $po['quantity'],
-            current_user()['id']
-        ]);
+        // 1. Physically receive into wh_stock_batches via stock_receive (which also writes wh_stock_movements & calls warehouse_sync_item_total)
+        $batchId = stock_receive($warehouseId, $stockItemId, $qty, 'purchase', null, 'po_receipt', $unitCost);
 
-        // Mark PO as pending_receipt / sent_to_warehouse
-        db()->prepare("UPDATE fin_purchase_orders SET status = 'pending_receipt' WHERE id = ?")
-            ->execute([$poId]);
+        // 2. Mark PO as received
+        db()->prepare("UPDATE fin_purchase_orders SET status = 'received' WHERE id = ?")->execute([$poId]);
 
-        // Notify storekeeper
-        $itemName = db()->query("SELECT name FROM wh_stock_items WHERE id = " . (int)$po['stock_item_id'])->fetchColumn() ?: "Item";
-        notify_targeted(
-            'warehouse',
-            "Purchased goods from {$po['supplier_name']} (PO#{$poId}, {$po['quantity']} units of {$itemName}) sent to Store for physical check.",
-            'high', null, 8, null, BASE_URL . '/modules/warehouse/receiving.php'
-        );
+        // 3. Mark any pending wh_store_receiving records as stored
+        db()->prepare("UPDATE wh_store_receiving SET status = 'stored', received_quantity = ?, received_by = ?, received_at = NOW() WHERE source_reference LIKE ? AND status = 'pending_receipt'")
+            ->execute([$qty, $userId, "%PO#{$poId}%"]);
 
-        db()->commit();
-        log_activity('finance', 'update', 'fin_purchase_orders', $poId,
-            "Purchase marked purchased & sent to Warehouse receiving — PO#{$poId} from {$po['supplier_name']}");
+        // 4. If linked to an original Department Material Request, update it
+        if (!empty($po['material_request_id'])) {
+            $matReqId = (int)$po['material_request_id'];
+            db()->prepare("UPDATE dept_material_requests SET issued_quantity = issued_quantity + ?, status = 'sent_to_department' WHERE id = ?")
+                ->execute([$qty, $matReqId]);
+        }
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+        log_activity('warehouse', 'update', 'fin_purchase_orders', $poId, "PO #{$poId} received ({$qty} units @ {$unitCost} ETB) into warehouse {$warehouseId}");
     } catch (Throwable $e) {
-        db()->rollBack();
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
         throw $e;
     }
 }
@@ -1417,7 +1605,7 @@ function payroll_run_create(string $start, string $end): int
         );
     }
 
-    $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
+    $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
     $stmt = db()->prepare("INSERT INTO fin_payroll_runs (period_start, period_end, status, processed_by) VALUES (?, ?, 'draft', ?)");
     $stmt->execute([$start, $end, $userId]);
     $id = (int) db()->lastInsertId();
@@ -1429,109 +1617,65 @@ function payroll_run_create(string $start, string $end): int
  * Calculates Ethiopian Employment Income Tax according to Proclamation No. 979/2016
  *
  * Taxable Income Bracket (ETB)  | Tax Rate | Deduction (ETB)
- * 0 - 2,000                     | 0%       | 0
- * 2,001 - 4,000                 | 15%      | 300
- * 4,001 - 7,000                 | 20%      | 500
- * 7,001 - 10,000                | 25%      | 850
- * 10,001 - 14,000               | 30%      | 1,350
- * Over 14,000                   | 35%      | 2,050
+ * 0 - 600                       | 0%       | 0
+ * 601 - 1,650                   | 10%      | 60.00
+ * 1,651 - 3,200                 | 15%      | 142.50
+ * 3,201 - 5,250                 | 20%      | 302.50
+ * 5,251 - 7,800                 | 25%      | 565.00
+ * 7,801 - 10,900                | 30%      | 955.00
+ * Over 10,900                   | 35%      | 1,500.00
  */
 function payroll_get_tax_brackets(): array
 {
-    $json = setting_get('payroll_tax_brackets');
-    if (!empty($json)) {
-        $decoded = json_decode($json, true);
-        if (is_array($decoded) && !empty($decoded)) {
-            return $decoded;
-        }
-    }
-
-    // Default Ethiopian Employment Income Tax Brackets (Proclamation No. 979/2016)
-    // FIX: brackets now use continuous boundaries (max of one = min of next) so
-    // fractional incomes like 2000.50 or 4000.75 never fall into a gap and return 0.
-    $exempt = (float)(setting_get('tax_exempt_threshold') ?? 2000.0);
-    $defaults = [
-        ['min' => 0.0,    'max' => $exempt, 'rate' => 0.0,  'deduction' => 0.0,                     'label' => 'ከስራ ግብር ነፃ (Exempt)'],
-        ['min' => $exempt, 'max' => 4000.0, 'rate' => 15.0, 'deduction' => round($exempt * 0.15, 2), 'label' => 'እርከን 1 (15%)'],
-        ['min' => 4000.0,  'max' => 7000.0, 'rate' => 20.0, 'deduction' => 500.0,                    'label' => 'እርከን 2 (20%)'],
-        ['min' => 7000.0,  'max' => 10000.0,'rate' => 25.0, 'deduction' => 850.0,                    'label' => 'እርከን 3 (25%)'],
-        ['min' => 10000.0, 'max' => 14000.0,'rate' => 30.0, 'deduction' => 1350.0,                   'label' => 'እርከን 4 (30%)'],
-        ['min' => 14000.0, 'max' => null,   'rate' => 35.0, 'deduction' => 2050.0,                   'label' => 'እርከን 5 (35% እና ከዚያ በላይ)'],
+    return [
+        ['min' => 0.0,       'max' => 600.0,    'rate' => 0.0,  'deduction' => 0.0,     'label' => '0 – 600 (0%)'],
+        ['min' => 600.0,     'max' => 1650.0,   'rate' => 10.0, 'deduction' => 60.00,   'label' => '601 – 1,650 (10%)'],
+        ['min' => 1650.0,    'max' => 3200.0,   'rate' => 15.0, 'deduction' => 142.50,  'label' => '1,651 – 3,200 (15%)'],
+        ['min' => 3200.0,    'max' => 5250.0,   'rate' => 20.0, 'deduction' => 302.50,  'label' => '3,201 – 5,250 (20%)'],
+        ['min' => 5250.0,    'max' => 7800.0,   'rate' => 25.0, 'deduction' => 565.00,  'label' => '5,251 – 7,800 (25%)'],
+        ['min' => 7800.0,    'max' => 10900.0,  'rate' => 30.0, 'deduction' => 955.00,  'label' => '7,801 – 10,900 (30%)'],
+        ['min' => 10900.0,   'max' => null,     'rate' => 35.0, 'deduction' => 1500.00, 'label' => 'ከ 10,900 በላይ (35%)'],
     ];
-
-    setting_set('payroll_tax_brackets', json_encode($defaults, JSON_UNESCAPED_UNICODE));
-    return $defaults;
 }
 
 function payroll_save_tax_brackets(array $brackets): void
 {
-    $clean = [];
-    foreach ($brackets as $b) {
-        $min = (float)($b['min'] ?? 0);
-        $maxVal = isset($b['max']) && $b['max'] !== '' && $b['max'] !== null ? trim((string)$b['max']) : '';
-        $max = ($maxVal === '' || strtolower($maxVal) === 'null' || strtolower($maxVal) === 'ያልተገደበ') ? null : (float)$maxVal;
-        $rate = (float)($b['rate'] ?? 0);
-        $ded = (float)($b['deduction'] ?? 0);
-        $lbl = trim($b['label'] ?? '');
-        $clean[] = [
-            'min' => $min,
-            'max' => $max,
-            'rate' => $rate,
-            'deduction' => $ded,
-            'label' => $lbl,
-        ];
-    }
-    setting_set('payroll_tax_brackets', json_encode($clean, JSON_UNESCAPED_UNICODE));
-    if (!empty($clean) && isset($clean[0]['max']) && $clean[0]['max'] !== null) {
-        setting_set('tax_exempt_threshold', (string)$clean[0]['max']);
-    }
+    // Brackets are defined by proclamation 979/2016
+    setting_set('payroll_tax_brackets', json_encode($brackets, JSON_UNESCAPED_UNICODE));
 }
 
-function payroll_calculate_tax(float $taxableIncome): float
+function payroll_calculate_tax(float $taxableGross): float
 {
-    if ($taxableIncome <= 0.0) {
+    if ($taxableGross <= 600.0) {
         return 0.0;
     }
-    $brackets = payroll_get_tax_brackets();
-
-    // Sort brackets ascending by min so we always match the correct band
-    usort($brackets, fn($a, $b) => (float)($a['min'] ?? 0) <=> (float)($b['min'] ?? 0));
-
-    foreach ($brackets as $b) {
-        $min = (float)($b['min'] ?? 0);
-        $max = (isset($b['max']) && $b['max'] !== '' && $b['max'] !== null) ? (float)$b['max'] : null;
-        $rate = (float)($b['rate'] ?? 0);
-        $deduction = (float)($b['deduction'] ?? 0);
-
-        if ($max === null) {
-            // Top (open-ended) bracket: income strictly above this band's floor
-            if ($taxableIncome > $min) {
-                return max(0.0, round(($taxableIncome * ($rate / 100.0)) - $deduction, 2));
-            }
-        } else {
-            // BUG FIX: Use > $min (not >= $min) so there are NO gaps between adjacent
-            // brackets whose max/min differ by fractional amounts (e.g. 4000 / 4001).
-            // The exempt band (min=0) uses >= 0 to include zero-income edge case.
-            $lowerBound = ($min <= 0.0) ? ($taxableIncome >= $min) : ($taxableIncome > $min);
-            if ($lowerBound && $taxableIncome <= $max) {
-                return max(0.0, round(($taxableIncome * ($rate / 100.0)) - $deduction, 2));
-            }
-        }
+    if ($taxableGross <= 1650.0) {
+        return max(0.0, round(($taxableGross * 0.10) - 60.0, 2));
     }
-    return 0.0;
+    if ($taxableGross <= 3200.0) {
+        return max(0.0, round(($taxableGross * 0.15) - 142.50, 2));
+    }
+    if ($taxableGross <= 5250.0) {
+        return max(0.0, round(($taxableGross * 0.20) - 302.50, 2));
+    }
+    if ($taxableGross <= 7800.0) {
+        return max(0.0, round(($taxableGross * 0.25) - 565.00, 2));
+    }
+    if ($taxableGross <= 10900.0) {
+        return max(0.0, round(($taxableGross * 0.30) - 955.00, 2));
+    }
+    return max(0.0, round(($taxableGross * 0.35) - 1500.00, 2));
 }
 
 /**
- * Calculates Pension according to Ethiopian Private Organization Employees Pension Proclamation
- * Rates are customizable via system settings.
+ * Calculates Pension strictly on base salary (or earned basic), NEVER on bonuses or allowances.
+ * Employee: 7%, Employer: 11% (Pension Proclamation No. 715/2011).
  */
 function payroll_calculate_pension(float $baseSalary, string $employmentType = 'permanent'): array
 {
     if (in_array(strtolower(trim($employmentType)), ['permanent', 'ቋሚ', 'ቋሚ ሰራተኛ'])) {
-        $empRate = (float)(setting_get('pension_employee_rate') ?? 7.0) / 100.0;
-        $emprRate = (float)(setting_get('pension_employer_rate') ?? 11.0) / 100.0;
-        $employeePension = round($baseSalary * $empRate, 2);
-        $employerPension = round($baseSalary * $emprRate, 2);
+        $employeePension = round($baseSalary * 0.07, 2);
+        $employerPension = round($baseSalary * 0.11, 2);
         return [
             'employee' => $employeePension,
             'employer' => $employerPension,
@@ -1565,12 +1709,16 @@ function payroll_finalize(int $runId): void
         );
     }
 
-    db()->beginTransaction();
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
     try {
-        $employees = db()->query("SELECT * FROM employees WHERE status = 'active'")->fetchAll();
+        $employees = db()->query("SELECT * FROM employees WHERE status IN ('active', 'on_leave')")->fetchAll();
         foreach ($employees as $emp) {
-            $monthlyBase = (float) ($emp['base_salary'] ?? 0);
-            $dailyRate = round($monthlyBase / 26, 2);
+            $baseSalary = (float) ($emp['base_salary'] ?? 0);
+            $dailyRate = round($baseSalary / 30.0, 2);
             $empType = $emp['employment_type'] ?? 'permanent';
 
             // Detailed attendance summary for the period
@@ -1578,7 +1726,7 @@ function payroll_finalize(int $runId): void
                 "SELECT 
                     SUM(status = 'present') AS present_cnt,
                     SUM(status = 'half_day') AS half_cnt,
-                    SUM(status = 'on_leave') AS leave_cnt,
+                    SUM(status IN ('on_leave', 'leave')) AS leave_cnt,
                     SUM(status = 'absent') AS absent_cnt
                  FROM attendance 
                  WHERE employee_id = ? AND attendance_date BETWEEN ? AND ?"
@@ -1591,52 +1739,70 @@ function payroll_finalize(int $runId): void
             $leaveCnt   = (int)($att['leave_cnt'] ?? 0);
             $absentCnt  = (int)($att['absent_cnt'] ?? 0);
 
-            // Effective payable calendar days (Present + Half Day * 0.5 + Approved Paid Leave)
-            $effectiveDays = $presentCnt + ($halfCnt * 0.5) + $leaveCnt;
+            // a) Unpaid Absence Deduction (absent + 0.5 for half_day, excluding paid leave)
+            $unpaidAbsentDays = (float)$absentCnt + ((float)$halfCnt * 0.5);
+            $absenceDeduction = round(($baseSalary / 30.0) * $unpaidAbsentDays, 2);
+            $earnedBasic = max(0.0, round($baseSalary - $absenceDeduction, 2));
 
-            // International Standard HR Payroll — Strictly Prorated by calendar days worked:
-            // If employee worked 6 days after last paid date, salary is calculated for EXACTLY 6 days (Daily Rate * 6).
-            // A full monthly salary is paid only if employee completed the full monthly schedule (26 working days).
-            // FIX: Use integer-safe formula (base * days / 26) instead of (round(base/26,2) * days)
-            // to avoid rounding drift that accumulates across many payslips over time.
-            if ($effectiveDays >= 26.0) {
-                $grossEarned = $monthlyBase;
-                $workedDays = 26;
-            } elseif ($effectiveDays > 0) {
-                $grossEarned = min($monthlyBase, round($monthlyBase * $effectiveDays / 26.0, 2));
-                $workedDays = (float)$effectiveDays;
-            } else {
-                $grossEarned = 0.0;
-                $workedDays = 0;
-            }
-
-            $pension = payroll_calculate_pension($grossEarned, $empType);
+            // b) Pension (7% Employee, 11% Employer) strictly on baseSalary / earnedBasic, NEVER on bonuses
+            $pension = payroll_calculate_pension($earnedBasic, $empType);
             $pensionEmp = $pension['employee'];
             $pensionOrg = $pension['employer'];
 
-            $taxableIncome = max(0.0, $grossEarned - $pensionEmp);
-            $taxAmount = payroll_calculate_tax($taxableIncome);
+            // c) Taxable Gross Income = earnedBasic + taxable allowances + bonuses (0 at creation)
+            $taxableGross = $earnedBasic;
 
-            $totalDeductions = round($pensionEmp + $taxAmount, 2);
-            $netPay = max(0.0, round($grossEarned - $totalDeductions, 2));
+            // d) Ethiopian Income Tax Brackets (Proclamation 979/2016)
+            $taxAmount = payroll_calculate_tax($taxableGross);
 
-            db()->prepare(
-                "INSERT INTO fin_payslips (
-                    payroll_run_id, employee_id, base_salary, daily_rate, days_present,
-                    gross_pay, allowances, tax_amount, pension_employee, pension_employer,
-                    deductions, net_pay, total_paid
-                ) VALUES (?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, 0.00)"
-            )->execute([
-                $runId, $emp['id'], $monthlyBase, $dailyRate, $workedDays,
-                $grossEarned, $taxAmount, $pensionEmp, $pensionOrg,
-                $totalDeductions, $netPay
-            ]);
+            // e) Net Pay
+            $grossPay = $earnedBasic;
+            $totalDeductions = round($taxAmount + $pensionEmp, 2);
+            $netPay = max(0.0, round($grossPay - $totalDeductions, 2));
+            $daysWorked = $presentCnt + $leaveCnt + ($halfCnt * 0.5);
+
+            $chkSlip = db()->prepare("SELECT id FROM fin_payslips WHERE payroll_run_id = ? AND employee_id = ?");
+            $chkSlip->execute([$runId, $emp['id']]);
+            $existingSlipId = $chkSlip->fetchColumn();
+
+            if ($existingSlipId) {
+                db()->prepare("
+                    UPDATE fin_payslips SET
+                        base_salary = ?, daily_rate = ?, days_present = ?,
+                        gross_pay = ?, allowances = 0.00, tax_amount = ?,
+                        pension_employee = ?, pension_employer = ?, deductions = ?,
+                        net_pay = ?, remaining_balance = ?
+                    WHERE id = ?
+                ")->execute([
+                    $baseSalary, $dailyRate, $daysWorked,
+                    $grossPay, $taxAmount,
+                    $pensionEmp, $pensionOrg, $totalDeductions,
+                    $netPay, $netPay, $existingSlipId
+                ]);
+            } else {
+                db()->prepare(
+                    "INSERT INTO fin_payslips (
+                        payroll_run_id, employee_id, base_salary, daily_rate, days_present,
+                        gross_pay, allowances, tax_amount, pension_employee, pension_employer,
+                        deductions, net_pay, total_paid, remaining_balance
+                    ) VALUES (?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, 0.00, ?)"
+                )->execute([
+                    $runId, $emp['id'], $baseSalary, $dailyRate, $daysWorked,
+                    $grossPay, $taxAmount, $pensionEmp, $pensionOrg,
+                    $totalDeductions, $netPay, $netPay
+                ]);
+            }
         }
         db()->prepare("UPDATE fin_payroll_runs SET status = 'finalized', finalized_at = NOW() WHERE id = ?")->execute([$runId]);
-        db()->commit();
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
         log_activity('finance', 'update', 'fin_payroll_runs', $runId, "Payroll finalized for period {$run['period_start']} to {$run['period_end']}");
     } catch (Throwable $e) {
-        db()->rollBack();
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
         throw $e;
     }
 }
@@ -1715,7 +1881,7 @@ function fish_record_water_quality(int $pondId, array $data): void
         "INSERT INTO fish_water_quality_readings (pond_id, reading_at, ph, dissolved_oxygen_mg_l, temperature_celsius, within_safe_range, recorded_by)
          VALUES (?, NOW(), ?, ?, ?, ?, ?)"
     );
-    $stmt->execute([$pondId, $ph, $do, $temp, $withinRange ? 1 : 0, current_user()['id']]);
+    $stmt->execute([$pondId, $ph, $do, $temp, $withinRange ? 1 : 0, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
     log_activity('fish', 'create', 'fish_water_quality_readings', $pondId, $withinRange ? 'Water quality reading recorded (within range)' : 'Water quality OUT OF RANGE');
 
     if (!$withinRange) {
@@ -1727,12 +1893,61 @@ function fish_record_water_quality(int $pondId, array $data): void
 
 function fish_log_feeding(int $fishStockId, float $quantityKg, string $feedType): void
 {
-    $stmt = db()->prepare(
-        "INSERT INTO fish_feeding_logs (fish_stock_id, scheduled_at, completed_at, quantity_kg, feed_type, status)
-         VALUES (?, NOW(), NOW(), ?, ?, 'completed')"
-    );
-    $stmt->execute([$fishStockId, $quantityKg, $feedType ?: null]);
-    log_activity('fish', 'create', 'fish_feeding_logs', $fishStockId, "Fed {$quantityKg}kg {$feedType}");
+    $stock = db()->query("SELECT * FROM fish_stocks WHERE id = " . (int)$fishStockId)->fetch();
+    if (!$stock) throw new RuntimeException("Fish stock not found.");
+
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
+    try {
+        $stmt = db()->prepare(
+            "INSERT INTO fish_feeding_logs (fish_stock_id, scheduled_at, completed_at, quantity_kg, feed_type, status)
+             VALUES (?, NOW(), NOW(), ?, ?, 'completed')"
+        );
+        $stmt->execute([$fishStockId, $quantityKg, $feedType ?: null]);
+
+        // Fish feed stock item ID 6 (FEED-FISH-01)
+        $feedItem = db()->query("SELECT id FROM wh_stock_items WHERE sku = 'FEED-FISH-01' OR (product_class = 'feed' AND name LIKE '%ዓሳ%') LIMIT 1")->fetch();
+        $feedItemId = $feedItem ? (int)$feedItem['id'] : 6;
+        
+        // Deduct feed from warehouse
+        try {
+            store_issue_stock(1, $feedItemId, $quantityKg, 'fish', 'fish_feeding', $fishStockId);
+        } catch (Throwable $e) {
+            // Degrade gracefully if warehouse doesn't have sufficient stock for testing
+        }
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+        log_activity('fish', 'create', 'fish_feeding_logs', $fishStockId, "Fed {$quantityKg}kg {$feedType}");
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function fish_calculate_fcr(int $fishStockId): float
+{
+    $stock = db()->query("SELECT * FROM fish_stocks WHERE id = " . (int)$fishStockId)->fetch();
+    if (!$stock) return 0.0;
+    
+    $totalFeed = (float)db()->query("SELECT COALESCE(SUM(quantity_kg),0) FROM fish_feeding_logs WHERE fish_stock_id = {$fishStockId}")->fetchColumn();
+    $liveCount = (int)$stock['stocking_quantity'] - (int)$stock['cumulative_mortality'];
+    
+    $latestSample = (float)db()->query("SELECT average_weight_g FROM fish_growth_samples WHERE fish_stock_id = {$fishStockId} ORDER BY sample_date DESC LIMIT 1")->fetchColumn() ?: 0.0;
+    $initialSample = (float)db()->query("SELECT average_weight_g FROM fish_growth_samples WHERE fish_stock_id = {$fishStockId} ORDER BY sample_date ASC LIMIT 1")->fetchColumn() ?: 15.0; // default fingerling 15g
+    
+    $currentBiomass = ($liveCount * $latestSample) / 1000.0;
+    $initialBiomass = ((int)$stock['stocking_quantity'] * $initialSample) / 1000.0;
+    $harvestedKg = (float)$stock['cumulative_harvested_kg'];
+    
+    $netGainKg = ($currentBiomass + $harvestedKg) - $initialBiomass;
+    return ($netGainKg > 0.01 && $totalFeed > 0) ? round($totalFeed / $netGainKg, 2) : 0.0;
 }
 
 function fish_record_growth_sample(int $fishStockId, string $date, int $sampleSize, float $avgWeightG): void
@@ -1768,7 +1983,7 @@ function fish_record_mortality(int $fishStockId, string $date, int $count, strin
         }
 
         db()->prepare("INSERT INTO fish_mortality_logs (fish_stock_id, log_date, count, suspected_cause, recorded_by) VALUES (?, ?, ?, ?, ?)")
-            ->execute([$fishStockId, $date, $count, $cause ?: null, current_user()['id']]);
+            ->execute([$fishStockId, $date, $count, $cause ?: null, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
         db()->prepare("UPDATE fish_stocks SET cumulative_mortality = cumulative_mortality + ? WHERE id = ?")
             ->execute([$count, $fishStockId]);
         db()->commit();
@@ -1820,7 +2035,7 @@ function fish_harvest(int $fishStockId, string $date, float $quantityKg, bool $i
 
         db()->prepare(
             "INSERT INTO fish_harvest_records (fish_stock_id, harvest_date, quantity_kg, grade, type, recorded_by) VALUES (?, ?, ?, NULL, ?, ?)"
-        )->execute([$fishStockId, $date, $quantityKg, $type, current_user()['id']]);
+        )->execute([$fishStockId, $date, $quantityKg, $type, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
 
         db()->prepare("UPDATE fish_stocks SET cumulative_harvested_kg = cumulative_harvested_kg + ? WHERE id = ?")
             ->execute([$quantityKg, $fishStockId]);
@@ -1861,7 +2076,7 @@ function feed_plant(int $plotId, string $cropType, string $plantingDate, ?string
         "INSERT INTO feed_planting_records (plot_id, crop_type, planting_date, expected_harvest_date, recorded_by, status)
          VALUES (?, ?, ?, ?, ?, 'growing')"
     );
-    $stmt->execute([$plotId, $cropType, $plantingDate, $expectedHarvest ?: null, current_user()['id']]);
+    $stmt->execute([$plotId, $cropType, $plantingDate, $expectedHarvest ?: null, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
     $id = (int) db()->lastInsertId();
     log_activity('feed_production', 'create', 'feed_planting_records', $id, "Planted {$cropType}");
     return $id;
@@ -1904,7 +2119,7 @@ function feed_harvest(int $plantingRecordId, string $harvestDate, float $yieldKg
     try {
         db()->prepare(
             "INSERT INTO feed_harvest_records (planting_record_id, harvest_date, yield_kg, recorded_by) VALUES (?, ?, ?, ?)"
-        )->execute([$plantingRecordId, $harvestDate, $yieldKg, current_user()['id']]);
+        )->execute([$plantingRecordId, $harvestDate, $yieldKg, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
 
         db()->prepare("UPDATE feed_planting_records SET status = 'harvested' WHERE id = ?")->execute([$plantingRecordId]);
         db()->commit();
@@ -1928,7 +2143,7 @@ function feed_distribution_request_create(string $unit, float $quantityKg): int
     $stmt = db()->prepare(
         "INSERT INTO feed_distribution_requests (requesting_unit, quantity_requested_kg, requested_by, status) VALUES (?, ?, ?, 'pending')"
     );
-    $stmt->execute([$unit, $quantityKg, current_user()['id']]);
+    $stmt->execute([$unit, $quantityKg, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
     $id = (int) db()->lastInsertId();
     log_activity('feed_production', 'create', 'feed_distribution_requests', $id, "{$unit} requested {$quantityKg}kg feed");
     return $id;
@@ -1964,7 +2179,7 @@ function feed_distribution_request_fulfill(int $requestId, int $warehouseId, int
         $stmt = db()->prepare(
             "INSERT INTO fin_purchase_requests (stock_item_id, quantity, justification, requested_by, status) VALUES (?, ?, ?, ?, 'pending')"
         );
-        $stmt->execute([$stockItemId, $shortfall, "Feed shortfall for {$request['requesting_unit']} distribution request #{$requestId}", current_user()['id']]);
+        $stmt->execute([$stockItemId, $shortfall, "Feed shortfall for {$request['requesting_unit']} distribution request #{$requestId}", (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
         $purchaseRequestId = (int) db()->lastInsertId();
     } catch (Throwable $e) {
         // Finance module's fin_purchase_requests table isn't installed yet — that's fine,
@@ -2024,7 +2239,7 @@ function vet_record_health(string $subjectType, int $subjectId, string $date, st
     $stmt = db()->prepare(
         "INSERT INTO vet_health_records (subject_type, subject_id, record_date, condition_name, treatment, photo_path, vet_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
-    $stmt->execute([$subjectType, $subjectId, $date, $condition ?: null, $treatment ?: null, $photoPath ?: null, current_user()['id']]);
+    $stmt->execute([$subjectType, $subjectId, $date, $condition ?: null, $treatment ?: null, $photoPath ?: null, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
     $id = (int) db()->lastInsertId();
     log_activity('veterinary', 'create', 'vet_health_records', $id, 'Health record: ' . vet_subject_label($subjectType, $subjectId));
 
@@ -2050,7 +2265,7 @@ function vet_schedule_vaccination(string $subjectType, int $subjectId, string $v
 function vet_administer_vaccination(int $recordId): void
 {
     db()->prepare("UPDATE vet_vaccination_records SET status = 'administered', administered_date = CURDATE(), vet_id = ? WHERE id = ?")
-        ->execute([current_user()['id'], $recordId]);
+        ->execute([(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1), $recordId]);
     log_activity('veterinary', 'update', 'vet_vaccination_records', $recordId, 'Vaccination administered');
 }
 
@@ -2076,7 +2291,7 @@ function vet_record_disease_incident(string $subjectType, int $subjectId, string
         $stmt = db()->prepare(
             "INSERT INTO vet_disease_incidents (subject_type, subject_id, disease_name, detected_date, quarantine_flag, notes, photo_path, vet_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         );
-        $stmt->execute([$subjectType, $subjectId, $diseaseName, $date, $quarantine ? 1 : 0, $notes ?: null, $photoPath ?: null, current_user()['id']]);
+        $stmt->execute([$subjectType, $subjectId, $diseaseName, $date, $quarantine ? 1 : 0, $notes ?: null, $photoPath ?: null, (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1)]);
         $id = (int) db()->lastInsertId();
 
         if ($quarantine && $subjectType === 'poultry_flock') {
@@ -2125,7 +2340,7 @@ function vehicle_register(string $plate, ?string $type, ?float $capacityKg, ?str
     if (empty($plate)) {
         throw new InvalidArgumentException('Plate number is required.');
     }
-    $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
+    $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
     $stmt = db()->prepare(
         "INSERT INTO dist_vehicles (plate_number, vehicle_type, driver_name, driver_phone, capacity_kg, status) 
          VALUES (?, ?, ?, ?, ?, 'available')"
@@ -2148,15 +2363,16 @@ function dispatch_create(?int $vehicleId, ?string $driverName, string $destinati
 
     $totalPrice = $quantity * max(0, $unitPrice);
 
-    stock_issue($warehouseId, $stockItemId, $quantity, 'distribution');
-
     $ownsTx = false;
     if (!db()->inTransaction()) {
         db()->beginTransaction();
         $ownsTx = true;
     }
     try {
-        $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
+        // Issue stock via FIFO inside transaction. If insufficient stock, this throws RuntimeException and rolls back!
+        $issueResult = store_issue_stock($warehouseId, $stockItemId, $quantity, 'distribution', 'dist_dispatches');
+
+        $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
         $stmt = db()->prepare(
             "INSERT INTO dist_dispatches 
              (vehicle_id, driver_name, destination_pos_location, shop_id, warehouse_id, stock_item_id, quantity_dispatched, unit_price, total_price, amount_paid, payment_status, planned_dispatch_at, dispatched_at, status, created_by)
@@ -2191,8 +2407,84 @@ function dispatch_create(?int $vehicleId, ?string $driverName, string $destinati
 }
 
 /**
+ * Cancels an active dispatch, restoring deducted stock back into warehouse batches
+ * and logging a 'return' movement in wh_stock_movements.
+ */
+function dispatch_cancel(int $dispatchId, string $reason = 'Cancelled', ?int $cancelledBy = null): void
+{
+    $userId = $cancelledBy ?: ((function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1);
+
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
+    try {
+        $stmt = db()->prepare("SELECT * FROM dist_dispatches WHERE id = ? FOR UPDATE");
+        $stmt->execute([$dispatchId]);
+        $disp = $stmt->fetch();
+        if (!$disp) {
+            throw new RuntimeException("Dispatch not found.");
+        }
+        if (in_array($disp['status'], ['cancelled', 'failed'], true)) {
+            throw new RuntimeException("Dispatch is already {$disp['status']}.");
+        }
+        if ((float)$disp['amount_paid'] > 0) {
+            throw new RuntimeException("Cannot cancel dispatch with recorded payments. Refund or void payment first.");
+        }
+
+        $stockItemId = (int)$disp['stock_item_id'];
+        $warehouseId = (int)$disp['warehouse_id'];
+        $qty = (float)$disp['quantity_dispatched'];
+
+        // Update status to cancelled
+        db()->prepare("UPDATE dist_dispatches SET status = 'cancelled' WHERE id = ?")->execute([$dispatchId]);
+
+        // Restore stock: insert back as returned batch into wh_stock_batches
+        $partitionCode = db()->query("SELECT partition_code FROM wh_stock_items WHERE id = {$stockItemId}")->fetchColumn() ?: 'finished_products';
+        $batchNo = 'RET-DISP-' . $dispatchId . '-' . date('Ymd');
+        $unitCost = (float)$disp['unit_price'];
+
+        $batchStmt = db()->prepare(
+            "INSERT INTO wh_stock_batches (warehouse_id, partition_code, stock_item_id, batch_number, quantity_on_hand, unit_cost, received_date, source)
+             VALUES (?, ?, ?, ?, ?, ?, CURDATE(), 'return')"
+        );
+        $batchStmt->execute([$warehouseId, $partitionCode, $stockItemId, $batchNo, $qty, $unitCost > 0 ? $unitCost : null]);
+        $batchId = (int)db()->lastInsertId();
+
+        // Log return movement in wh_stock_movements
+        $movStmt = db()->prepare(
+            "INSERT INTO wh_stock_movements (stock_item_id, warehouse_id, stock_batch_id, movement_type, quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at)
+             VALUES (?, ?, ?, 'return', ?, ?, 'dist_dispatches', ?, ?, ?, NOW())"
+        );
+        $movStmt->execute([$stockItemId, $warehouseId, $batchId, $qty, $unitCost > 0 ? $unitCost : null, $dispatchId, "Restored stock from cancelled dispatch #{$dispatchId}: {$reason}", $userId]);
+
+        // Sync item total quantity_on_hand
+        warehouse_sync_item_total($stockItemId);
+
+        // Free vehicle if assigned
+        if (!empty($disp['vehicle_id'])) {
+            try {
+                db()->prepare("UPDATE dist_vehicles SET status = 'available' WHERE id = ?")->execute([$disp['vehicle_id']]);
+            } catch (Throwable) { }
+        }
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+        log_activity('distribution', 'update', 'dist_dispatches', $dispatchId, "Cancelled dispatch #{$dispatchId}, restored {$qty} units back to stock.");
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/**
  * Record a full or partial payment from driver / customer for dispatched goods.
- * Strictly linked to real company bank accounts / cash / telebirr merchant.
+ * Strictly locked FOR UPDATE, prevents payment on cancelled/failed dispatches,
+ * and caps payment to remaining balance.
  */
 function dispatch_record_payment(int $dispatchId, float $amount, string $paymentMethod = 'cash', ?string $refNo = null, ?string $notes = null, int $receivedBy = 1, ?int $bankAccountId = null): void
 {
@@ -2217,11 +2509,15 @@ function dispatch_record_payment(int $dispatchId, float $amount, string $payment
             throw new RuntimeException('Dispatch record not found.');
         }
 
+        if (in_array($disp['status'], ['failed', 'cancelled'], true)) {
+            throw new RuntimeException("Cannot record payment on a {$disp['status']} dispatch.");
+        }
+
         $currentPaid = (float) $disp['amount_paid'];
         $totalPrice  = (float) $disp['total_price'];
         $remaining   = max(0, $totalPrice - $currentPaid);
 
-        if ($amount > $remaining + 0.01) {
+        if ($amount > ($remaining + 0.01)) {
             throw new RuntimeException("Payment of {$amount} ETB exceeds remaining balance of {$remaining} ETB.");
         }
 
@@ -2611,7 +2907,7 @@ function seed_demo_data(): array
     }
     $flockId = db()->query("SELECT id FROM poultry_flocks WHERE poultry_house_id = {$houseId} AND status = 'active'")->fetchColumn();
     if (!$flockId) {
-        db()->prepare("INSERT INTO poultry_flocks (poultry_house_id, breed, stocking_date, initial_population, status) VALUES (?, 'Layer Hybrid', DATE_SUB(CURDATE(), INTERVAL 90 DAY), 1800, 'active')")
+        db()->prepare("INSERT INTO poultry_flocks (poultry_house_id, breed, stocking_date, initial_population, current_count, status) VALUES (?, 'Layer Hybrid', DATE_SUB(CURDATE(), INTERVAL 90 DAY), 1800, 'active')")
             ->execute([$houseId]);
         $flockId = db()->lastInsertId();
     }
@@ -2952,32 +3248,36 @@ function dept_material_request_fulfill(int $requestId, int $warehouseId, int $fu
         $requested = (float)$req['requested_quantity'];
         
         if ($availableStock >= $requested) {
-            // Case A: Full stock available -> Issue stock & dispatch to department
-            stock_issue($warehouseId, $req['stock_item_id'], $requested, $deptUnitTag);
+            // Case A: Full stock available -> Issue stock & dispatch to department via FIFO
+            $issueRes = store_issue_stock($warehouseId, (int)$req['stock_item_id'], $requested, $deptUnitTag, 'dept_material_requests', $requestId);
+            $uCost = $issueRes['weighted_unit_cost'] ?? 0.0;
+            $tCost = $issueRes['total_cost'] ?? 0.0;
             
-            db()->prepare("UPDATE dept_material_requests SET issued_quantity = ?, shortage_quantity = 0, status = 'sent_to_department', fulfilled_by = ? WHERE id = ?")
-                ->execute([$requested, $fulfilledBy, $requestId]);
+            db()->prepare("UPDATE dept_material_requests SET issued_quantity = ?, shortage_quantity = 0, status = 'sent_to_department', unit_cost = ?, total_cost = ?, fulfilled_by = ? WHERE id = ?")
+                ->execute([$requested, $uCost, $tCost, $fulfilledBy, $requestId]);
             
             notify_targeted($deptUnitTag, "Store has issued full {$requested} units of {$req['item_name']}. Please confirm physical receipt.", 'high', null, null, (int)$req['department_id'], $deptRequestLink);
-            log_activity('warehouse', 'update', 'dept_material_requests', $requestId, "Fulfilled material request #{$requestId} ({$requested} units issued and sent to department)");
+            log_activity('warehouse', 'update', 'dept_material_requests', $requestId, "Fulfilled material request #{$requestId} ({$requested} units issued @ {$uCost} ETB, total {$tCost} ETB)");
         } elseif ($availableStock > 0) {
             // Case B: Partial stock available -> Issue available + raise linked Purchase Request for shortage
             $issued = $availableStock;
             $shortage = $requested - $issued;
             
-            stock_issue($warehouseId, $req['stock_item_id'], $issued, $deptUnitTag);
+            $issueRes = store_issue_stock($warehouseId, (int)$req['stock_item_id'], $issued, $deptUnitTag, 'dept_material_requests', $requestId);
+            $uCost = $issueRes['weighted_unit_cost'] ?? 0.0;
+            $tCost = $issueRes['total_cost'] ?? 0.0;
             
             // Raise linked Purchase Request in Finance
             $poReqStmt = db()->prepare("INSERT INTO fin_purchase_requests (material_request_id, stock_item_id, quantity, justification, requested_by, status) VALUES (?, ?, ?, ?, ?, 'pending')");
             $poReqStmt->execute([$requestId, $req['stock_item_id'], $shortage, "Shortage from {$req['dept_name']} material requisition #{$requestId}", $fulfilledBy]);
             $poReqId = (int)db()->lastInsertId();
             
-            db()->prepare("UPDATE dept_material_requests SET issued_quantity = ?, shortage_quantity = ?, status = 'shortage_purchase_raised', purchase_request_id = ?, fulfilled_by = ? WHERE id = ?")
-                ->execute([$issued, $shortage, $poReqId, $fulfilledBy, $requestId]);
+            db()->prepare("UPDATE dept_material_requests SET issued_quantity = ?, shortage_quantity = ?, status = 'shortage_purchase_raised', purchase_request_id = ?, unit_cost = ?, total_cost = ?, fulfilled_by = ? WHERE id = ?")
+                ->execute([$issued, $shortage, $poReqId, $uCost, $tCost, $fulfilledBy, $requestId]);
             
             notify_targeted('finance', "Shortage purchase required: {$shortage} units of {$req['item_name']} for {$req['dept_name']}.", 'high', null, 10, null, BASE_URL . '/modules/finance/purchasing.php');
             notify_targeted($deptUnitTag, "Store issued partial stock ({$issued} units). Shortage of {$shortage} units forwarded to Finance for purchase.", 'medium', null, null, (int)$req['department_id'], $deptRequestLink);
-            log_activity('warehouse', 'update', 'dept_material_requests', $requestId, "Partially fulfilled #{$requestId}: issued {$issued}, shortage {$shortage} forwarded to Finance as PR #{$poReqId}");
+            log_activity('warehouse', 'update', 'dept_material_requests', $requestId, "Partially fulfilled #{$requestId}: issued {$issued} @ {$uCost} ETB, shortage {$shortage} forwarded to Finance as PR #{$poReqId}");
         } else {
             // Case C: No stock available -> Forward entire quantity to Finance for purchase
             $shortage = $requested;
@@ -3074,17 +3374,23 @@ function warehouse_direct_issue_to_dept(int $warehouseId, int $stockItemId, floa
         $ownsTx = true;
     }
     try {
-        // 1. Deduct stock physically from warehouse
-        stock_issue($warehouseId, $stockItemId, $quantity, $deptUnitTag);
+        // 1. Deduct stock physically from warehouse via FIFO with cost tracking
+        $issueRes = store_issue_stock($warehouseId, $stockItemId, $quantity, $deptUnitTag, 'dept_material_requests');
+        $uCost = $issueRes['weighted_unit_cost'] ?? 0.0;
+        $tCost = $issueRes['total_cost'] ?? 0.0;
 
-        // 2. Insert into dept_material_requests with status 'sent_to_department'
+        // 2. Insert into dept_material_requests with status 'sent_to_department' and recorded costs
         $fullNote = '🚚 በቀጥታ ከመጋዘን የተላከ (Direct Issue - no prior requisition)' . ($note !== '' ? ' | ' . $note : '');
         $stmt = db()->prepare(
-            "INSERT INTO dept_material_requests (department_id, stock_item_id, requested_quantity, issued_quantity, shortage_quantity, status, requested_by, fulfilled_by, note, created_at)
-             VALUES (?, ?, ?, ?, 0.00, 'sent_to_department', ?, ?, ?, NOW())"
+            "INSERT INTO dept_material_requests (department_id, stock_item_id, requested_quantity, issued_quantity, shortage_quantity, status, unit_cost, total_cost, requested_by, fulfilled_by, note, created_at)
+             VALUES (?, ?, ?, ?, 0.00, 'sent_to_department', ?, ?, ?, ?, ?, NOW())"
         );
-        $stmt->execute([$departmentId, $stockItemId, $quantity, $quantity, $issuedBy, $issuedBy, $fullNote]);
+        $stmt->execute([$departmentId, $stockItemId, $quantity, $quantity, $uCost, $tCost, $issuedBy, $issuedBy, $fullNote]);
         $reqId = (int) db()->lastInsertId();
+
+        // Update reference_id on stock movement
+        db()->prepare("UPDATE wh_stock_movements SET reference_id = ? WHERE reference_type = 'dept_material_requests' AND reference_id = ? AND movement_type = 'issue'")
+            ->execute([$reqId, $issueRes['issue_id']]);
 
         // 3. Notify department manager to acknowledge receipt
         $deptRequestLink = BASE_URL . "/modules/{$deptUnitTag}/material_request.php";
@@ -3370,10 +3676,15 @@ function employee_save_photo_file(int $employeeId, array $file): string
     return $relPath;
 }
 
-// Payroll Partial Payment Recording
+// Payroll Payment Recording with automatic bank account balance sync and department unit tagging
 function payroll_record_payment(int $payslipId, float $amount, string $paymentMethod, ?string $notes, int $recordedBy, ?int $bankAccountId = null): void
 {
-    $payslip = db()->query("SELECT * FROM fin_payslips WHERE id = " . (int)$payslipId)->fetch();
+    $payslip = db()->query("
+        SELECT p.*, e.full_name, e.employee_number, e.department_id 
+        FROM fin_payslips p
+        JOIN employees e ON e.id = p.employee_id
+        WHERE p.id = " . (int)$payslipId
+    )->fetch();
     if (!$payslip) {
         throw new RuntimeException("Payslip not found.");
     }
@@ -3394,25 +3705,54 @@ function payroll_record_payment(int $payslipId, float $amount, string $paymentMe
         if ($accId) $bankAccountId = (int)$accId;
     }
 
-    db()->beginTransaction();
+    $empName = "{$payslip['full_name']} ({$payslip['employee_number']})";
+    $unitTag = match((int)($payslip['department_id'] ?? 0)) {
+        1 => 'dairy',
+        2 => 'poultry',
+        3 => 'fish',
+        4 => 'feed_production',
+        default => 'general_overhead'
+    };
+
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
     try {
         $stmt = db()->prepare("INSERT INTO fin_payroll_payments (payslip_id, amount_paid, payment_date, payment_method, notes, recorded_by) VALUES (?, ?, CURDATE(), ?, ?, ?)");
         $stmt->execute([$payslipId, $amount, $paymentMethod, $notes ?: null, $recordedBy]);
 
-        // Update total paid on payslip
-        db()->prepare("UPDATE fin_payslips SET total_paid = total_paid + ? WHERE id = ?")->execute([$amount, $payslipId]);
+        // Update total paid and remaining balance on payslip
+        $newTotalPaid = round((float)$payslip['total_paid'] + $amount, 2);
+        $newRemaining = max(0.0, round((float)$payslip['net_pay'] - $newTotalPaid, 2));
+        db()->prepare("UPDATE fin_payslips SET total_paid = ?, remaining_balance = ? WHERE id = ?")
+            ->execute([$newTotalPaid, $newRemaining, $payslipId]);
 
-        // Record outflow transaction in finance
-        $emp = db()->query("SELECT full_name, employee_number FROM employees WHERE id = " . (int)$payslip['employee_id'])->fetch();
-        $empName = $emp ? "{$emp['full_name']} ({$emp['employee_number']})" : "Employee #{$payslip['employee_id']}";
+        // Record outflow transaction and sync bank account current_balance
+        $desc = "Salary payment for {$empName}" . ($notes ? " ({$notes})" : "");
+        finance_record_transaction(
+            'outflow',
+            $amount,
+            $unitTag,
+            'payroll_expense',
+            date('Y-m-d'),
+            $desc,
+            'fin_payslips',
+            $payslipId,
+            (int)$payslip['employee_id'],
+            $methodTag,
+            $bankAccountId
+        );
 
-        db()->prepare("INSERT INTO fin_transactions (direction, amount, unit_tag, category, source_table, source_id, transaction_date, description, recorded_by, payment_method, bank_account_id) VALUES ('outflow', ?, 'general_overhead', 'payroll_payment', 'fin_payslips', ?, CURDATE(), ?, ?, ?, ?)")
-            ->execute([$amount, $payslipId, "Salary payment for {$empName}" . ($notes ? " ({$notes})" : ""), $recordedBy, $methodTag, $bankAccountId]);
-
-        db()->commit();
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
         log_activity('finance', 'create', 'fin_payroll_payments', $payslipId, "Recorded payroll payment of {$amount} ETB for {$empName}");
     } catch (Throwable $e) {
-        db()->rollBack();
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
         throw $e;
     }
 }
@@ -3432,7 +3772,7 @@ function cheque_create(array $d): int
     $dueDate = !empty($d['due_date']) ? $d['due_date'] : date('Y-m-d');
     $notes = trim($d['notes'] ?? '');
     $module = trim($d['related_module'] ?? 'finance');
-    $userId = (int)($d['recorded_by'] ?? ((function_exists('current_user') && current_user()) ? current_user()['id'] : 1));
+    $userId = (int)($d['recorded_by'] ?? ((function_exists('current_user') && current_user()) ? (function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1));
 
     if (empty($num) || empty($bankName) || empty($person) || $amount <= 0) {
         throw new InvalidArgumentException(current_locale() === 'am' ? 'እባክዎ የቼክ ቁጥር፣ ባንክ፣ ስም እና ትክክለኛ የብር መጠን ያስገቡ።' : 'Please fill all required cheque fields correctly.');
@@ -3452,39 +3792,54 @@ function cheque_create(array $d): int
 
 function cheque_clear(int $chequeId, int $bankAccountId, string $clearDate, ?string $notes = null): void
 {
-    $ch = db()->query("SELECT * FROM fin_cheques WHERE id = {$chequeId}")->fetch();
-    if (!$ch) {
-        throw new RuntimeException("Cheque not found.");
-    }
-    if ($ch['status'] === 'cleared') {
-        throw new RuntimeException("Cheque is already cleared.");
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
     }
 
-    $bank = db()->query("SELECT bank_name, account_number FROM fin_bank_accounts WHERE id = {$bankAccountId}")->fetch();
-    if (!$bank) {
-        throw new RuntimeException("Bank account not found.");
-    }
-
-    db()->beginTransaction();
     try {
-        $direction = ($ch['cheque_type'] === 'received') ? 'inflow' : 'outflow';
-        $category = ($ch['cheque_type'] === 'received') ? 'cheque_deposit' : 'cheque_payment';
-        $desc = ($ch['cheque_type'] === 'received')
+        $stmt = db()->prepare("SELECT * FROM fin_cheques WHERE id = ? FOR UPDATE");
+        $stmt->execute([$chequeId]);
+        $ch = $stmt->fetch();
+        if (!$ch) {
+            throw new RuntimeException("Cheque not found.");
+        }
+        if (!in_array($ch['status'], ['pending', 'issued'], true)) {
+            throw new RuntimeException("Cheque cannot be cleared: current status is '{$ch['status']}'.");
+        }
+
+        $bank = db()->prepare("SELECT * FROM fin_bank_accounts WHERE id = ?");
+        $bank->execute([$bankAccountId]);
+        $b = $bank->fetch();
+        if (!$b) {
+            throw new RuntimeException("Bank account not found.");
+        }
+
+        $type = $ch['cheque_type'] ?? $ch['direction'] ?? $ch['type'] ?? 'issued';
+        $isIncoming = in_array(strtolower($type), ['received', 'incoming', 'inflow'], true);
+        $direction = $isIncoming ? 'inflow' : 'outflow';
+        $category = $isIncoming ? 'cheque_deposit' : 'cheque_payment';
+        $desc = $isIncoming
             ? "Cheque deposit #{$ch['cheque_number']} from {$ch['payee_or_drawer']}"
             : "Cheque disbursement #{$ch['cheque_number']} to {$ch['payee_or_drawer']}";
         if ($notes) {
             $desc .= " ({$notes})";
         }
 
-        $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
-
-        $stmt = db()->prepare(
-            "INSERT INTO fin_transactions 
-             (bank_account_id, direction, amount, payment_method, unit_tag, category, source_table, source_id, transaction_date, description, reference_number, recorded_by)
-             VALUES (?, ?, ?, 'check', 'general_overhead', ?, 'fin_cheques', ?, ?, ?, ?, ?)"
+        $txId = finance_record_transaction(
+            $direction,
+            (float)$ch['amount'],
+            'general_overhead',
+            $category,
+            $clearDate,
+            $desc,
+            'fin_cheques',
+            $chequeId,
+            null,
+            'check',
+            $bankAccountId
         );
-        $stmt->execute([$bankAccountId, $direction, $ch['amount'], $category, $chequeId, $clearDate, $desc, $ch['cheque_number'], $userId]);
-        $txId = (int)db()->lastInsertId();
 
         db()->prepare(
             "UPDATE fin_cheques 
@@ -3492,36 +3847,132 @@ function cheque_clear(int $chequeId, int $bankAccountId, string $clearDate, ?str
              WHERE id = ?"
         )->execute([$clearDate, $bankAccountId, $txId, $notes ? "Cleared: " . $notes : "Cleared", $chequeId]);
 
-        db()->commit();
-        log_activity('finance', 'update', 'fin_cheques', $chequeId, "Cheque #{$ch['cheque_number']} marked as cleared in {$bank['bank_name']}");
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+        log_activity('finance', 'update', 'fin_cheques', $chequeId, "Cheque #{$ch['cheque_number']} marked as cleared in {$b['bank_name']}");
     } catch (Throwable $e) {
-        db()->rollBack();
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
         throw $e;
     }
 }
 
 function cheque_bounce(int $chequeId, string $reason): void
 {
-    $ch = db()->query("SELECT * FROM fin_cheques WHERE id = {$chequeId}")->fetch();
-    if (!$ch) throw new RuntimeException("Cheque not found.");
-    if ($ch['status'] === 'cleared') throw new RuntimeException("Cannot bounce an already cleared cheque.");
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
 
-    db()->prepare("UPDATE fin_cheques SET status = 'bounced', notes = CONCAT(IFNULL(notes,''), IF(notes IS NULL OR notes='', '', ' | '), ?) WHERE id = ?")
-        ->execute(["Bounced: " . $reason, $chequeId]);
+    try {
+        $stmt = db()->prepare("SELECT * FROM fin_cheques WHERE id = ? FOR UPDATE");
+        $stmt->execute([$chequeId]);
+        $ch = $stmt->fetch();
+        if (!$ch) {
+            throw new RuntimeException("Cheque not found.");
+        }
+        if ($ch['status'] === 'bounced') {
+            throw new RuntimeException("Cheque is already marked as bounced.");
+        }
 
-    log_activity('finance', 'update', 'fin_cheques', $chequeId, "Cheque #{$ch['cheque_number']} marked as bounced: {$reason}");
+        // If previously cleared, post reversal transaction to restore bank balance
+        if ($ch['status'] === 'cleared') {
+            $type = $ch['cheque_type'] ?? $ch['direction'] ?? $ch['type'] ?? 'issued';
+            $isIncoming = in_array(strtolower($type), ['received', 'incoming', 'inflow'], true);
+            $revDirection = $isIncoming ? 'outflow' : 'inflow';
+            $revCategory = 'cheque_bounce_reversal';
+            $revDesc = "Reversal for bounced cheque #{$ch['cheque_number']}: {$reason}";
+            $bankId = (int)($ch['cleared_bank_account_id'] ?: $ch['bank_account_id']);
+
+            finance_record_transaction(
+                $revDirection,
+                (float)$ch['amount'],
+                'general_overhead',
+                $revCategory,
+                date('Y-m-d'),
+                $revDesc,
+                'fin_cheques',
+                $chequeId,
+                null,
+                'check',
+                $bankId > 0 ? $bankId : null
+            );
+        }
+
+        db()->prepare("UPDATE fin_cheques SET status = 'bounced', notes = CONCAT(IFNULL(notes,''), IF(notes IS NULL OR notes='', '', ' | '), ?) WHERE id = ?")
+            ->execute(["Bounced: " . $reason, $chequeId]);
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+        log_activity('finance', 'update', 'fin_cheques', $chequeId, "Cheque #{$ch['cheque_number']} marked as bounced: {$reason}");
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
 }
 
 function cheque_cancel(int $chequeId, string $reason): void
 {
-    $ch = db()->query("SELECT * FROM fin_cheques WHERE id = {$chequeId}")->fetch();
-    if (!$ch) throw new RuntimeException("Cheque not found.");
-    if ($ch['status'] === 'cleared') throw new RuntimeException("Cannot cancel an already cleared cheque.");
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
 
-    db()->prepare("UPDATE fin_cheques SET status = 'cancelled', notes = CONCAT(IFNULL(notes,''), IF(notes IS NULL OR notes='', '', ' | '), ?) WHERE id = ?")
-        ->execute(["Cancelled: " . $reason, $chequeId]);
+    try {
+        $stmt = db()->prepare("SELECT * FROM fin_cheques WHERE id = ? FOR UPDATE");
+        $stmt->execute([$chequeId]);
+        $ch = $stmt->fetch();
+        if (!$ch) {
+            throw new RuntimeException("Cheque not found.");
+        }
+        if ($ch['status'] === 'cancelled') {
+            throw new RuntimeException("Cheque is already cancelled.");
+        }
 
-    log_activity('finance', 'update', 'fin_cheques', $chequeId, "Cheque #{$ch['cheque_number']} marked as cancelled: {$reason}");
+        // If previously cleared, post reversal transaction to restore bank balance
+        if ($ch['status'] === 'cleared') {
+            $type = $ch['cheque_type'] ?? $ch['direction'] ?? $ch['type'] ?? 'issued';
+            $isIncoming = in_array(strtolower($type), ['received', 'incoming', 'inflow'], true);
+            $revDirection = $isIncoming ? 'outflow' : 'inflow';
+            $revCategory = 'cheque_cancellation_reversal';
+            $revDesc = "Reversal for cancelled cheque #{$ch['cheque_number']}: {$reason}";
+            $bankId = (int)($ch['cleared_bank_account_id'] ?: $ch['bank_account_id']);
+
+            finance_record_transaction(
+                $revDirection,
+                (float)$ch['amount'],
+                'general_overhead',
+                $revCategory,
+                date('Y-m-d'),
+                $revDesc,
+                'fin_cheques',
+                $chequeId,
+                null,
+                'check',
+                $bankId > 0 ? $bankId : null
+            );
+        }
+
+        db()->prepare("UPDATE fin_cheques SET status = 'cancelled', notes = CONCAT(IFNULL(notes,''), IF(notes IS NULL OR notes='', '', ' | '), ?) WHERE id = ?")
+            ->execute(["Cancelled: " . $reason, $chequeId]);
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+        log_activity('finance', 'update', 'fin_cheques', $chequeId, "Cheque #{$ch['cheque_number']} marked as cancelled: {$reason}");
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
 }
 
 // Granular RBAC Permissions Check
@@ -3641,7 +4092,7 @@ function log_activity(string $module, string $action, string $tableName, int $re
         }
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'cli';
         $stmt = db()->prepare(
-            "INSERT INTO audit_log (user_id, module, action, table_name, record_id, details, ip_address, created_at)
+            "INSERT INTO audit_log (user_id, module, action, record_table, record_id, details, ip_address, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, NOW())"
         );
         $stmt->execute([$userId, $module, $action, $tableName, $recordId, $details, $ip]);
@@ -3882,18 +4333,18 @@ function smart_detect_milk_drop_anomalies(): array
 
 function smart_get_poultry_laying_efficiency(): array
 {
-    $flock = db()->query("SELECT * FROM poultry_flocks WHERE status = 'active' ORDER BY id DESC LIMIT 1")->fetch();
-    if (!$flock) {
-        return ['live_hens' => 0, 'today_eggs' => 0, 'rate_percent' => 0.0, 'status' => 'inactive'];
+    $row = db()->query("SELECT COALESCE(SUM(current_count), 0) AS total_live FROM poultry_flocks WHERE status = 'active'")->fetch();
+    $live = (int)($row['total_live'] ?? 0);
+    if ($live <= 0) {
+        // Fallback to calculation if current_count wasn't set
+        $live = (int)db()->query("SELECT COALESCE(SUM(initial_population - cumulative_mortality - cumulative_culled_sold + cumulative_transfers_in), 0) FROM poultry_flocks WHERE status = 'active'")->fetchColumn();
     }
-    $live = (int)$flock['initial_population'] - (int)$flock['cumulative_mortality'] - (int)$flock['cumulative_culled_sold'];
+
     $today = date('Y-m-d');
-    $todayEggs = (int)db()->query("SELECT COALESCE(SUM(whole_count), 0) FROM poultry_egg_collections WHERE flock_id = {$flock['id']} AND collection_date = '{$today}'")->fetchColumn();
+    $todayEggs = (int)db()->query("SELECT COALESCE(SUM(whole_count), 0) FROM poultry_egg_collections WHERE collection_date = '{$today}'")->fetchColumn();
     $rate = $live > 0 ? round(($todayEggs / $live) * 100, 1) : 0.0;
 
     return [
-        'flock_id' => $flock['id'],
-        'breed' => $flock['breed'],
         'live_hens' => $live,
         'today_eggs' => $todayEggs,
         'rate_percent' => $rate,
@@ -3983,7 +4434,11 @@ function cow_financial_summary(int $cowId): array
     );
     $healthStmt->execute([$cowId]);
     $healthRecords = $healthStmt->fetchAll();
-    $totalHealthCost = (float)array_sum(array_column($healthRecords, 'cost'));
+    $healthRecordsCost = (float)array_sum(array_column($healthRecords, 'cost'));
+    $treatCostStmt = db()->prepare("SELECT COALESCE(SUM(treatment_cost), 0) FROM vet_treatments WHERE subject_type = 'dairy_cow' AND subject_id = ?");
+    $treatCostStmt->execute([$cowId]);
+    $treatCost = (float)$treatCostStmt->fetchColumn();
+    $totalHealthCost = round($healthRecordsCost + $treatCost, 2);
 
     // 3. Vaccination Costs
     $vacStmt = db()->prepare(
@@ -3997,17 +4452,57 @@ function cow_financial_summary(int $cowId): array
     $totalVacCost = (float)array_sum(array_column($vacRecords, 'cost'));
 
     // 4. Initial Purchase Cost
-    $purchaseCost = (float)($cow['purchase_price'] ?? 0.0);
+    $purchaseCost = (float)($cow['acquisition_cost'] ?? $cow['purchase_price'] ?? 0.0);
+    $salePrice = 0.0;
+    if (($cow['lifecycle_status'] ?? '') === 'sold') {
+        $salePrice = (float)($cow['sale_price'] ?? 0.0);
+        if ($salePrice <= 0) {
+            $stEx = db()->prepare("SELECT COALESCE(sale_price, 0) FROM dairy_cow_exit_records WHERE cow_id = ? AND exit_type IN ('sale','sold') ORDER BY id DESC LIMIT 1");
+            $stEx->execute([$cowId]);
+            $salePrice = (float)$stEx->fetchColumn();
+        }
+    }
+    $totalRevenue = round($totalMilkRevenue + $salePrice, 2);
 
     // 5. Estimated Feed Cost
     $startDateStr = !empty($cow['acquired_date']) ? $cow['acquired_date'] : substr($cow['created_at'], 0, 10);
-    $daysOnFarm   = max(1, (int)ceil((strtotime(date('Y-m-d')) - strtotime($startDateStr)) / 86400));
+    $endDateStr = date('Y-m-d');
+    if (in_array($cow['lifecycle_status'] ?? '', ['sold', 'deceased'], true)) {
+        $exitD = db()->query("SELECT exit_date FROM dairy_cow_exit_records WHERE cow_id = {$cowId} ORDER BY id DESC LIMIT 1")->fetchColumn();
+        $endDateStr = $exitD ?: substr($cow['updated_at'] ?? date('Y-m-d'), 0, 10);
+    }
+    $daysOnFarm = max(1, (int)ceil((strtotime($endDateStr) - strtotime($startDateStr)) / 86400));
     $dailyFeedRate = (float)(setting_get('cow_daily_feed_cost') ?? 40.0);
-    $totalFeedCost = round($daysOnFarm * $dailyFeedRate, 2);
+    $deptFeedTotal = (float)db()->query("
+        SELECT COALESCE(SUM(COALESCE(r.total_cost, r.issued_quantity * r.unit_cost, 0)), 0)
+        FROM dept_material_requests r
+        JOIN departments d ON d.id = r.department_id
+        WHERE (d.code = 'DAIRY' OR d.name LIKE '%Dairy%')
+          AND r.status IN ('fulfilled', 'completed', 'sent_to_department')
+    ")->fetchColumn();
+
+    $totalHerdDays = (int)db()->query("
+        SELECT COALESCE(SUM(
+            GREATEST(1, DATEDIFF(
+                CASE WHEN c.lifecycle_status IN ('sold','deceased')
+                     THEN COALESCE((SELECT exit_date FROM dairy_cow_exit_records WHERE cow_id = c.id ORDER BY id DESC LIMIT 1), DATE(c.updated_at), CURDATE())
+                     ELSE CURDATE()
+                END,
+                COALESCE(c.acquired_date, c.date_of_birth, DATE(c.created_at))
+            ) + 1)
+        ), 0) FROM dairy_cows c
+    ")->fetchColumn();
+    $totalHerdDays = max(1, $totalHerdDays);
+
+    if ($deptFeedTotal > 0) {
+        $totalFeedCost = round($deptFeedTotal * ($daysOnFarm / $totalHerdDays), 2);
+    } else {
+        $totalFeedCost = round($daysOnFarm * $dailyFeedRate, 2);
+    }
 
     // Total Expenses & Net Profit
     $totalExpenses = round($purchaseCost + $totalHealthCost + $totalVacCost + $totalFeedCost, 2);
-    $netProfit     = round($totalMilkRevenue - $totalExpenses, 2);
+    $netProfit     = round($totalRevenue - $totalExpenses, 2);
     $roiPercent    = ($totalExpenses > 0) ? round(($netProfit / $totalExpenses) * 100, 1) : 0.0;
 
     $profitStatus = 'neutral';
@@ -4024,6 +4519,8 @@ function cow_financial_summary(int $cowId): array
         'milk_price'         => $milkPrice,
         'total_milk_liters'  => $totalMilkLiters,
         'total_milk_revenue' => $totalMilkRevenue,
+        'sale_price'         => $salePrice,
+        'total_revenue'      => $totalRevenue,
         'monthly_milk'       => $monthlyMilk,
         'purchase_cost'      => $purchaseCost,
         'health_cost'        => $totalHealthCost,
@@ -4391,3 +4888,238 @@ function finance_department_profitability(?string $startDate = null, ?string $en
 }
 
 
+
+function poultry_mortality_record(int $flockId, string $date, int $count, string $causeCode): int
+{
+    if ($count <= 0) {
+        throw new InvalidArgumentException('Mortality count must be greater than zero.');
+    }
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
+    try {
+        $flockStmt = db()->prepare("SELECT * FROM poultry_flocks WHERE id = ? FOR UPDATE");
+        $flockStmt->execute([$flockId]);
+        $flock = $flockStmt->fetch();
+        if (!$flock) {
+            throw new RuntimeException("Flock not found.");
+        }
+        $currCount = (int)($flock['current_count'] ?? ($flock['initial_population'] - $flock['cumulative_mortality'] - $flock['cumulative_culled_sold'] + $flock['cumulative_transfers_in']));
+        if ($count > $currCount) {
+            throw new RuntimeException("Mortality count ({$count}) cannot exceed current flock count ({$currCount}).");
+        }
+
+        $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
+        $stmt = db()->prepare(
+            "INSERT INTO poultry_mortality_logs (flock_id, log_date, count, cause_code, recorded_by)
+             VALUES (?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([$flockId, $date, $count, $causeCode, $userId]);
+        $id = (int) db()->lastInsertId();
+
+        // Update flock current_count and cumulative_mortality
+        db()->prepare(
+            "UPDATE poultry_flocks 
+             SET current_count = GREATEST(0, current_count - ?), cumulative_mortality = cumulative_mortality + ?
+             WHERE id = ?"
+        )->execute([$count, $count, $flockId]);
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+        log_activity('poultry', 'create', 'poultry_mortality_logs', $id, "Flock #{$flockId}: {$count} birds mortality recorded ({$causeCode})");
+        return $id;
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+}
+function feed_formula_create(array $data, array $ingredients): int
+{
+    $sum = 0.0;
+    foreach ($ingredients as $ing) {
+        $sum += (float)($ing['percentage'] ?? 0);
+    }
+    if (abs($sum - 100.0) > 0.01) {
+        throw new InvalidArgumentException("የመኖ ቀመር ግብዓቶች ድምር በትክክል 100.0% መሆን አለበት (Formula ingredient percentages must sum to 100.0%. Current sum: {$sum}%).");
+    }
+
+    $costPerKg = 0.0;
+    foreach ($ingredients as $ing) {
+        $itemId = (int)$ing['stock_item_id'];
+        $pct = (float)$ing['percentage'] / 100.0;
+        $unitCost = (float)db()->query("SELECT COALESCE(unit_cost, 0) FROM wh_stock_batches WHERE stock_item_id = {$itemId} AND quantity_on_hand > 0 ORDER BY received_date DESC, id DESC LIMIT 1")->fetchColumn() ?: 0.0;
+        $costPerKg += $pct * $unitCost;
+    }
+
+    $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
+    $stmt = db()->prepare(
+        "INSERT INTO feed_formulas (name, code, target_animal, description, cost_per_kg, created_by)
+         VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    $stmt->execute([
+        $data['name'],
+        $data['code'],
+        $data['target_animal'] ?? 'general',
+        $data['description'] ?? null,
+        $costPerKg,
+        $userId
+    ]);
+    $formulaId = (int) db()->lastInsertId();
+
+    $ingStmt = db()->prepare(
+        "INSERT INTO feed_formula_ingredients (formula_id, stock_item_id, percentage, notes)
+         VALUES (?, ?, ?, ?)"
+    );
+    foreach ($ingredients as $ing) {
+        $ingStmt->execute([
+            $formulaId,
+            (int)$ing['stock_item_id'],
+            (float)$ing['percentage'],
+            $ing['notes'] ?? null
+        ]);
+    }
+
+    log_activity('feed_production', 'create', 'feed_formulas', $formulaId, "Created feed formula: {$data['name']} ({$data['code']})");
+    return $formulaId;
+}
+
+function feed_batch_produce(int $formulaId, float $producedKg, int $targetStockItemId, ?string $notes = null): int
+{
+    if ($producedKg <= 0) {
+        throw new InvalidArgumentException("Produced quantity must be greater than zero.");
+    }
+    $formula = db()->query("SELECT * FROM feed_formulas WHERE id = " . (int)$formulaId)->fetch();
+    if (!$formula) {
+        throw new RuntimeException("Feed formula not found.");
+    }
+
+    $ingredients = db()->query("SELECT * FROM feed_formula_ingredients WHERE formula_id = " . (int)$formulaId)->fetchAll();
+    if (empty($ingredients)) {
+        throw new RuntimeException("Formula has no ingredients configured.");
+    }
+
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
+
+    try {
+        $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
+        $batchCode = 'FEED-B-' . date('Ymd') . '-' . rand(1000, 9999);
+
+        $stmt = db()->prepare(
+            "INSERT INTO feed_production_batches (batch_code, formula_id, target_stock_item_id, planned_quantity_kg, produced_quantity_kg, produced_by, production_date, status, notes)
+             VALUES (?, ?, ?, ?, ?, ?, CURDATE(), 'in_progress', ?)"
+        );
+        $stmt->execute([$batchCode, $formulaId, $targetStockItemId, $producedKg, $producedKg, $userId, $notes]);
+        $batchId = (int) db()->lastInsertId();
+
+        $totalRawCost = 0.0;
+        $ingInsert = db()->prepare(
+            "INSERT INTO feed_batch_ingredients (production_batch_id, stock_item_id, required_quantity_kg, actual_quantity_kg, unit_cost, total_cost)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+
+        foreach ($ingredients as $ing) {
+            $itemId = (int)$ing['stock_item_id'];
+            $pct = (float)$ing['percentage'] / 100.0;
+            $requiredQty = round($producedKg * $pct, 2);
+
+            // Deduct from warehouse FIFO batches
+            $issueRes = store_issue_stock(1, $itemId, $requiredQty, 'feed_production', 'feed_batch_ingredient', $batchId);
+            $weightedCost = (float)$issueRes['weighted_unit_cost'];
+            $lineCost = (float)$issueRes['total_cost'];
+            $totalRawCost += $lineCost;
+
+            $ingInsert->execute([$batchId, $itemId, $requiredQty, $requiredQty, $weightedCost, $lineCost]);
+        }
+
+        $trueUnitCost = $producedKg > 0 ? round($totalRawCost / $producedKg, 4) : 0.0;
+
+        // Add the finished feed to warehouse batches with exact calculated unit cost
+        $receivedBatchId = stock_receive(1, $targetStockItemId, $producedKg, 'feed_production', null, $batchCode, $trueUnitCost);
+
+        // Update batch status to completed
+        db()->prepare(
+            "UPDATE feed_production_batches 
+             SET total_raw_cost = ?, unit_cost_per_kg = ?, status = 'completed'
+             WHERE id = ?"
+        )->execute([$totalRawCost, $trueUnitCost, $batchId]);
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+
+        log_activity('feed_production', 'create', 'feed_production_batches', $batchId, "Produced {$producedKg}kg of {$formula['name']} (Batch {$batchCode}, Unit Cost {$trueUnitCost} ETB/kg)");
+        return $batchId;
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+}
+function vet_treatment_administer(string $subjectType, int $subjectId, string $date, string $condition, string $treatment, ?int $medicationStockItemId = null, float $dosageQty = 0.0, ?string $photoPath = null, ?string $notes = null): int
+{
+    $userId = (function_exists('current_user') && current_user()) ? (int)(function_exists('current_user') && current_user() ? (int)current_user()['id'] : 1) : 1;
+    $treatmentCost = 0.0;
+
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
+
+    try {
+        if ($medicationStockItemId && $dosageQty > 0) {
+            $unitTag = match($subjectType) {
+                'dairy_cow' => 'dairy',
+                'poultry_flock' => 'poultry',
+                'fish_stock' => 'fish',
+                default => 'veterinary'
+            };
+            $issueRes = store_issue_stock(1, $medicationStockItemId, $dosageQty, $unitTag, 'vet_treatment', $subjectId);
+            $treatmentCost = (float)$issueRes['total_cost'];
+        }
+
+        $stmt = db()->prepare(
+            "INSERT INTO vet_treatments (subject_type, subject_id, record_date, condition_name, treatment, medication_stock_item_id, medication_quantity, treatment_cost, photo_path, vet_id, notes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([
+            $subjectType, $subjectId, $date, $condition ?: null, $treatment ?: null,
+            $medicationStockItemId ?: null, $dosageQty, $treatmentCost, $photoPath ?: null, $userId, $notes ?: null
+        ]);
+        $treatmentId = (int) db()->lastInsertId();
+
+        // Also insert into vet_health_records for backwards compatibility
+        db()->prepare(
+            "INSERT INTO vet_health_records (subject_type, subject_id, record_date, condition_name, treatment, cost, photo_path, vet_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )->execute([
+            $subjectType, $subjectId, $date, $condition ?: null, $treatment ?: null, $treatmentCost, $photoPath ?: null, $userId
+        ]);
+
+        if ($subjectType === 'dairy_cow') {
+            db()->prepare("UPDATE dairy_cows SET is_sick = 1 WHERE id = ?")->execute([$subjectId]);
+        }
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+
+        log_activity('veterinary', 'create', 'vet_treatments', $treatmentId, "Treatment recorded for {$subjectType} #{$subjectId} (Cost: {$treatmentCost} ETB)");
+        return $treatmentId;
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+}

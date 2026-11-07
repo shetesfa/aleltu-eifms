@@ -25,13 +25,14 @@ function has_role($allowedRoles): bool
     if (!$user) {
         return false;
     }
-    if ($user['role'] === 'super_admin') {
+    $userRole = $user['role'] ?? $user['role_name'] ?? '';
+    if ($userRole === 'super_admin') {
         return true;
     }
     if (is_string($allowedRoles)) {
         $allowedRoles = [$allowedRoles];
     }
-    return in_array($user['role'], $allowedRoles, true);
+    return in_array($userRole, $allowedRoles, true);
 }
 
 // Simple role-based access check (mirrors SAD section 13's role list).
@@ -86,7 +87,7 @@ function csrf_verify(): void
 function attempt_login(string $username, string $password): string
 {
     $stmt = db()->prepare(
-        "SELECT u.id, u.name, u.email, u.password, u.role_id, u.is_active, u.locale, u.theme, u.two_factor_enabled, u.two_factor_secret, r.name AS role
+        "SELECT u.id, u.name, u.email, u.password, u.role_id, u.is_active, u.locale, u.theme, u.two_factor_enabled, u.two_factor_secret, r.name AS role, r.name AS role_name
          FROM users u JOIN roles r ON r.id = u.role_id
          WHERE u.name = ? OR u.email = ?
          LIMIT 1"
@@ -117,6 +118,7 @@ function attempt_login(string $username, string $password): string
     }
 
     unset($row['password'], $row['two_factor_enabled'], $row['two_factor_secret']);
+    session_regenerate_id(true);
     $_SESSION['user'] = $row;
     db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$row['id']]);
     if (function_exists('log_activity')) {
@@ -139,7 +141,7 @@ function complete_2fa_login(string $code): bool
     }
 
     $stmt = db()->prepare(
-        "SELECT u.id, u.name, u.email, u.role_id, u.locale, u.theme, u.two_factor_secret, r.name AS role
+        "SELECT u.id, u.name, u.email, u.role_id, u.locale, u.theme, u.two_factor_secret, r.name AS role, r.name AS role_name
          FROM users u JOIN roles r ON r.id = u.role_id
          WHERE u.id = ? AND u.is_active = 1"
     );
@@ -151,6 +153,7 @@ function complete_2fa_login(string $code): bool
     }
 
     unset($_SESSION['pending_2fa_user_id'], $row['two_factor_secret']);
+    session_regenerate_id(true);
     $_SESSION['user'] = $row;
     db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$row['id']]);
     if (function_exists('log_activity')) {
@@ -176,7 +179,7 @@ function complete_2fa_recovery_login(string $recoveryCode): bool
     }
 
     $stmt = db()->prepare(
-        "SELECT u.id, u.name, u.email, u.role_id, u.locale, u.theme, r.name AS role
+        "SELECT u.id, u.name, u.email, u.role_id, u.locale, u.theme, r.name AS role, r.name AS role_name
          FROM users u JOIN roles r ON r.id = u.role_id
          WHERE u.id = ? AND u.is_active = 1"
     );
@@ -188,6 +191,7 @@ function complete_2fa_recovery_login(string $recoveryCode): bool
     }
 
     unset($_SESSION['pending_2fa_user_id']);
+    session_regenerate_id(true);
     $_SESSION['user'] = $row;
     db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$row['id']]);
     if (function_exists('log_activity')) {
@@ -200,6 +204,14 @@ function logout(): void
 {
     if (current_user() && function_exists('log_activity')) {
         log_activity('auth', 'logout', 'users', (int) current_user()['id'], 'User logged out');
+    }
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
     }
     session_destroy();
 }

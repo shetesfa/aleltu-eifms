@@ -10,15 +10,28 @@ require_role(['super_admin']);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
     require_permission('system', 'admin');
+
+    $sessionTimeout = (int)($_POST['session_timeout_min'] ?? 60);
+    if ($sessionTimeout < 5) {
+        $sessionTimeout = 5;
+    }
+
+    $payrollTaxRate = (float)($_POST['payroll_tax_rate'] ?? 0);
+    if ($payrollTaxRate < 0) {
+        $payrollTaxRate = 0.0;
+    } elseif ($payrollTaxRate > 100) {
+        $payrollTaxRate = 100.0;
+    }
+
     $settings = [
         'company_name'        => trim($_POST['company_name'] ?? 'ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት'),
         'company_location'    => trim($_POST['company_location'] ?? ''),
         'default_locale'      => $_POST['default_locale'] ?? 'en',
         'default_theme'       => $_POST['default_theme'] ?? 'light',
-        'low_stock_threshold' => (int)($_POST['low_stock_threshold'] ?? 10),
-        'payroll_tax_rate'    => (float)($_POST['payroll_tax_rate'] ?? 0),
+        'low_stock_threshold' => max(0, (int)($_POST['low_stock_threshold'] ?? 10)),
+        'payroll_tax_rate'    => $payrollTaxRate,
         'fiscal_year_start'   => $_POST['fiscal_year_start'] ?? '01-01',
-        'session_timeout_min' => (int)($_POST['session_timeout_min'] ?? 60),
+        'session_timeout_min' => $sessionTimeout,
     ];
     foreach ($settings as $k => $v) {
         setting_set($k, (string)$v);

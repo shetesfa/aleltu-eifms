@@ -1,6 +1,6 @@
 <?php
 /** GET /api/v1/dashboard — role-scoped KPIs */
-require_once __DIR__ . '/../../../includes/functions.php';
+require_once dirname(__DIR__, 3) . '/includes/functions.php';
 $user = api_require_auth();
 $role = $user['role'] ?? '';
 
@@ -9,31 +9,41 @@ $data = ['role' => $role, 'generated_at' => date('c')];
 // Always include unread notifications count
 $userId = (int)$user['id'];
 $roleId = (int)($user['role_id'] ?? 0);
-$isBroad = in_array($role, ['super_admin','general_manager']);
+$isBroad = in_array($role, ['super_admin', 'general_manager'], true);
 if ($isBroad) {
-    $data['unread_notifications'] = (int)db()->query("SELECT COUNT(*) FROM notifications WHERE is_read=0")->fetchColumn();
+    $data['unread_notifications'] = (int)db()->query("SELECT COUNT(*) FROM notifications WHERE is_read = 0")->fetchColumn();
 } else {
-    $s = db()->prepare("SELECT COUNT(*) FROM notifications WHERE is_read=0 AND (target_user_id=? OR target_role_id=? OR (target_user_id IS NULL AND target_role_id IS NULL AND target_department_id IS NULL))");
-    $s->execute([$userId,$roleId]); $data['unread_notifications'] = (int)$s->fetchColumn();
+    $s = db()->prepare("
+        SELECT COUNT(*) FROM notifications 
+        WHERE is_read = 0 
+          AND (target_user_id = ? OR target_role_id = ? OR (target_user_id IS NULL AND target_role_id IS NULL AND target_department_id IS NULL))
+    ");
+    $s->execute([$userId, $roleId]);
+    $data['unread_notifications'] = (int)$s->fetchColumn();
 }
 
 switch ($role) {
     case 'super_admin':
     case 'general_manager':
         $data['kpis'] = [
-            'active_cows'    => (int)db()->query("SELECT COUNT(*) FROM dairy_cows WHERE lifecycle_status='active'")->fetchColumn(),
-            'todays_milk_L'  => (float)db()->query("SELECT COALESCE(SUM(e.yield_liters),0) FROM dairy_milk_yield_entries e JOIN dairy_milking_sessions s ON s.id=e.milking_session_id WHERE s.session_date=CURDATE()")->fetchColumn(),
-            'active_flocks'  => (int)db()->query("SELECT COUNT(*) FROM poultry_flocks WHERE status='active'")->fetchColumn(),
-            'active_ponds'   => (int)db()->query("SELECT COUNT(*) FROM fish_ponds WHERE status='active'")->fetchColumn(),
-            'low_stock_items'=> (int)db()->query("SELECT COUNT(*) FROM wh_stock_items WHERE reorder_level>0")->fetchColumn(),
-            'pending_po'     => (int)db()->query("SELECT COUNT(*) FROM fin_purchase_orders WHERE status='approved'")->fetchColumn(),
+            'active_cows'     => (int)db()->query("SELECT COUNT(*) FROM dairy_cows WHERE lifecycle_status NOT IN ('sold','deceased')")->fetchColumn(),
+            'todays_milk_L'   => (float)db()->query("SELECT COALESCE(SUM(e.yield_liters),0) FROM dairy_milk_yield_entries e JOIN dairy_milking_sessions s ON s.id=e.milking_session_id WHERE s.session_date=CURDATE()")->fetchColumn(),
+            'active_flocks'   => (int)db()->query("SELECT COUNT(*) FROM poultry_flocks WHERE status='active'")->fetchColumn(),
+            'active_ponds'    => (int)db()->query("SELECT COUNT(*) FROM fish_ponds WHERE status <> 'empty'")->fetchColumn(),
+            'low_stock_items' => (int)db()->query("
+                SELECT COUNT(*) FROM wh_stock_items i
+                LEFT JOIN wh_minimum_stock_rules r ON r.stock_item_id = i.id
+                WHERE COALESCE(r.minimum_threshold, 0) > 0 
+                  AND COALESCE((SELECT SUM(b.quantity_on_hand) FROM wh_stock_batches b WHERE b.stock_item_id = i.id), 0) < r.minimum_threshold
+            ")->fetchColumn(),
+            'pending_po'      => (int)db()->query("SELECT COUNT(*) FROM fin_purchase_orders WHERE status='approved'")->fetchColumn(),
             'active_employees'=> (int)db()->query("SELECT COUNT(*) FROM employees WHERE status='active'")->fetchColumn(),
-            'monthly_expenses'=> (float)db()->query("SELECT COALESCE(SUM(amount),0) FROM fin_transactions WHERE direction='outflow' AND MONTH(transaction_date)=MONTH(CURDATE())")->fetchColumn(),
+            'monthly_expenses'=> (float)db()->query("SELECT COALESCE(SUM(amount),0) FROM fin_transactions WHERE direction='outflow' AND MONTH(transaction_date)=MONTH(CURDATE()) AND YEAR(transaction_date)=YEAR(CURDATE())")->fetchColumn(),
         ];
         break;
     case 'dairy_manager':
         $data['kpis'] = [
-            'active_cows'   => (int)db()->query("SELECT COUNT(*) FROM dairy_cows WHERE lifecycle_status='active'")->fetchColumn(),
+            'active_cows'   => (int)db()->query("SELECT COUNT(*) FROM dairy_cows WHERE lifecycle_status NOT IN ('sold','deceased')")->fetchColumn(),
             'todays_milk_L' => (float)db()->query("SELECT COALESCE(SUM(e.yield_liters),0) FROM dairy_milk_yield_entries e JOIN dairy_milking_sessions s ON s.id=e.milking_session_id WHERE s.session_date=CURDATE()")->fetchColumn(),
             'pregnant_cows' => (int)db()->query("SELECT COUNT(*) FROM dairy_cows WHERE lifecycle_status='pregnant'")->fetchColumn(),
         ];
@@ -42,14 +52,14 @@ switch ($role) {
         $data['kpis'] = [
             'active_flocks'    => (int)db()->query("SELECT COUNT(*) FROM poultry_flocks WHERE status='active'")->fetchColumn(),
             'todays_eggs'      => (int)db()->query("SELECT COALESCE(SUM(whole_count),0) FROM poultry_egg_collections WHERE collection_date=CURDATE()")->fetchColumn(),
-            'monthly_mortality'=> (int)db()->query("SELECT COALESCE(SUM(count),0) FROM poultry_mortality_logs WHERE MONTH(log_date)=MONTH(CURDATE())")->fetchColumn(),
+            'monthly_mortality'=> (int)db()->query("SELECT COALESCE(SUM(count),0) FROM poultry_mortality_logs WHERE MONTH(log_date)=MONTH(CURDATE()) AND YEAR(log_date)=YEAR(CURDATE())")->fetchColumn(),
         ];
         break;
     case 'fish_manager':
         $data['kpis'] = [
-            'active_ponds'     => (int)db()->query("SELECT COUNT(*) FROM fish_ponds WHERE status='active'")->fetchColumn(),
-            'total_fish'       => (int)db()->query("SELECT COALESCE(SUM(current_count),0) FROM fish_stocks WHERE status='active'")->fetchColumn(),
-            'monthly_harvest_kg'=> (float)db()->query("SELECT COALESCE(SUM(quantity_kg),0) FROM fish_harvest_records WHERE MONTH(harvest_date)=MONTH(CURDATE())")->fetchColumn(),
+            'active_ponds'      => (int)db()->query("SELECT COUNT(*) FROM fish_ponds WHERE status <> 'empty'")->fetchColumn(),
+            'total_fish'        => (int)db()->query("SELECT COALESCE(SUM(stocking_quantity - cumulative_mortality),0) FROM fish_stocks WHERE status='active'")->fetchColumn(),
+            'monthly_harvest_kg'=> (float)db()->query("SELECT COALESCE(SUM(quantity_kg),0) FROM fish_harvest_records WHERE MONTH(harvest_date)=MONTH(CURDATE()) AND YEAR(harvest_date)=YEAR(CURDATE())")->fetchColumn(),
         ];
         break;
     case 'warehouse_keeper':
@@ -60,9 +70,9 @@ switch ($role) {
         break;
     case 'finance_officer':
         $data['kpis'] = [
-            'monthly_expenses' => (float)db()->query("SELECT COALESCE(SUM(amount),0) FROM fin_transactions WHERE direction='outflow' AND MONTH(transaction_date)=MONTH(CURDATE())")->fetchColumn(),
+            'monthly_expenses' => (float)db()->query("SELECT COALESCE(SUM(amount),0) FROM fin_transactions WHERE direction='outflow' AND MONTH(transaction_date)=MONTH(CURDATE()) AND YEAR(transaction_date)=YEAR(CURDATE())")->fetchColumn(),
             'pending_po'       => (int)db()->query("SELECT COUNT(*) FROM fin_purchase_orders WHERE status='approved'")->fetchColumn(),
-            'payroll_unpaid'   => (float)db()->query("SELECT COALESCE(SUM(net_pay-total_paid),0) FROM fin_payslips p JOIN fin_payroll_runs r ON r.id=p.payroll_run_id WHERE p.total_paid<p.net_pay AND r.status='finalized'")->fetchColumn(),
+            'payroll_unpaid'   => (float)db()->query("SELECT COALESCE(SUM(net_pay - COALESCE(total_paid, 0)), 0) FROM fin_payslips p JOIN fin_payroll_runs r ON r.id = p.payroll_run_id WHERE COALESCE(p.total_paid, 0) < p.net_pay AND r.status='finalized'")->fetchColumn(),
         ];
         break;
     default:

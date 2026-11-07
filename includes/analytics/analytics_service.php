@@ -362,7 +362,7 @@ function an_collect(PDO $pdo, string $from, string $to): array
     // D3 payroll (finalized runs; period assigned by period_end)
     $st = $pdo->prepare(
         "SELECT pr.period_end AS dt, COALESCE(dep.business_unit, 'unassigned') AS bu,
-                SUM(ps.net_pay + ps.deductions) AS gross, COUNT(*) AS n
+                SUM(ps.net_pay + ps.deductions + COALESCE(ps.pension_employer, 0)) AS gross, COUNT(*) AS n
            FROM fin_payslips ps
            JOIN fin_payroll_runs pr ON pr.id = ps.payroll_run_id AND pr.status = 'finalized'
            JOIN employees e ON e.id = ps.employee_id
@@ -404,21 +404,52 @@ function an_collect(PDO $pdo, string $from, string $to): array
     // D5 write-offs (decrease adjustments), valued at the batch cost when known
     $st = $pdo->prepare(
         "SELECT DATE(a.created_at) AS dt,
+                COALESCE(m.business_unit, 'shared') AS bu,
                 SUM(ROUND(a.quantity * COALESCE(b.unit_cost, 0), 2)) AS val,
                 SUM(COALESCE(b.unit_cost, 0) = 0) AS unpriced_n
            FROM wh_stock_adjustments a
            LEFT JOIN wh_stock_batches b ON b.id = a.stock_batch_id
+           LEFT JOIN wh_stock_items i ON i.id = b.stock_item_id
+           LEFT JOIN rpt_item_unit_map m ON m.stock_item_id = i.id
           WHERE a.adjustment_type = 'decrease' AND a.created_at >= :f AND a.created_at < :t
-          GROUP BY dt"
+          GROUP BY dt, bu"
     );
     $st->execute([':f' => $from, ':t' => $next]);
     foreach ($st->fetchAll() as $r) {
         $c = an_cents($r['val']);
-        $acc->add($r['dt'], AN_SHARED, 'exp_writeoff', $c);
-        $acc->add($r['dt'], AN_SHARED, 'expenses', $c);
-        an_dq($dq, 'writeoff_unpriced', 'warn', AN_SHARED, (int)$r['unpriced_n']);
+        $unit = an_unit_for_tag($r['bu'] ?? 'shared');
+        $acc->add($r['dt'], $unit, 'exp_writeoff', $c);
+        $acc->add($r['dt'], $unit, 'expenses', $c);
+        an_dq($dq, 'writeoff_unpriced', 'warn', $unit, (int)$r['unpriced_n']);
     }
 
+    // Also attribute inventory write-downs from wh_stock_movements (movement_type = 'adjustment' and quantity < 0)
+    $stMov = $pdo->prepare(
+        "SELECT DATE(m.created_at) AS dt,
+                COALESCE(u.business_unit, 'shared') AS bu,
+                SUM(ROUND(ABS(m.quantity) * COALESCE(b.unit_cost, 0), 2)) AS val,
+                SUM(COALESCE(b.unit_cost, 0) = 0) AS unpriced_n
+           FROM wh_stock_movements m
+           LEFT JOIN wh_stock_batches b ON b.id = m.stock_batch_id
+           LEFT JOIN wh_stock_items i ON i.id = m.stock_item_id
+           LEFT JOIN rpt_item_unit_map u ON u.stock_item_id = i.id
+          WHERE m.movement_type = 'adjustment' AND m.quantity < 0
+            AND m.created_at >= :f AND m.created_at < :t
+            AND NOT EXISTS (SELECT 1 FROM wh_stock_adjustments a WHERE a.stock_batch_id = m.stock_batch_id AND DATE(a.created_at) = DATE(m.created_at))
+          GROUP BY dt, bu"
+    );
+    $stMov->execute([':f' => $from, ':t' => $next]);
+    foreach ($stMov->fetchAll() as $r) {
+        $c = an_cents($r['val']);
+        $unit = an_unit_for_tag($r['bu'] ?? 'shared');
+        $acc->add($r['dt'], $unit, 'exp_writeoff', $c);
+        $acc->add($r['dt'], $unit, 'expenses', $c);
+        if ((int)$r['unpriced_n'] > 0) {
+            an_dq($dq, 'writeoff_unpriced', 'warn', $unit, (int)$r['unpriced_n']);
+        }
+    }
+
+    
     /* ---------- E. PHYSICAL PRODUCTION ---------- */
     $st = $pdo->prepare(
         "SELECT s.session_date AS dt, SUM(e.yield_liters) AS l,
@@ -749,4 +780,26 @@ function an_overview(PDO $pdo, string $from, string $to): array
     $assembled['ledger_vs_payments'] = $collected['ledger_vs_payments'];
     $assembled['range'] = ['from' => $from, 'to' => $to];
     return $assembled;
+}
+
+/**
+ * Calculates weighted FCR (Feed Conversion Ratio) as SUM(feed_kg) / SUM(weight_gain_kg).
+ * Avoids averaging sub-ratios across multiple periods, batches, or flocks.
+ *
+ * @param array<array{feed_kg: float, weight_gain_kg: float}> $records
+ * @return float|null FCR ratio rounded to 2 decimal places, or null if insufficient weight gain
+ */
+function an_calculate_weighted_fcr(array $records): ?float
+{
+    $totalFeed = 0.0;
+    $totalGain = 0.0;
+    foreach ($records as $r) {
+        $feed = (float)($r['feed_kg'] ?? 0.0);
+        $gain = (float)($r['weight_gain_kg'] ?? ($r['gain_kg'] ?? 0.0));
+        if ($feed > 0 && $gain > 0) {
+            $totalFeed += $feed;
+            $totalGain += $gain;
+        }
+    }
+    return ($totalGain > 0.001) ? round($totalFeed / $totalGain, 2) : null;
 }

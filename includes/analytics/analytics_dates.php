@@ -112,6 +112,10 @@ function an_preset_range(string $preset, DateTimeImmutable $now): array
             return ['from' => AN_LIFETIME_START, 'to' => $today];
         case 'current_month':
         default:
+            if (function_exists('is_ethiopian_mode') && is_ethiopian_mode()) {
+                $mRange = EthiopianDate::ethMonthRange($ey, $em);
+                return ['from' => $mRange['from'], 'to' => $mRange['to']];
+            }
             return ['from' => an_eth_to_iso($ey, $em, 1), 'to' => $today];
     }
 }

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth.php';
-require_role(['super_admin', 'general_manager', 'dairy_manager', 'finance_officer', 'hr_officer', 'warehouse_keeper', 'poultry_manager', 'fish_manager', 'feed_production_manager', 'veterinary_officer']);
+require_role(['super_admin', 'general_manager', 'dairy_manager', 'finance_officer', 'hr_officer', 'warehouse_keeper', 'poultry_manager', 'fish_manager', 'feed_production_manager', 'veterinary_officer', 'distribution_officer']);
 
 $mod  = $_GET['module'] ?? 'dairy';
 

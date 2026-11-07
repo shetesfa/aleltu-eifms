@@ -24,12 +24,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash(current_locale() === 'am' ? '✓ መገኘት ተመዝግቧል።' : 'Attendance updated.');
         } elseif (isset($_POST['mark_all_present'])) {
             $attDate = $_POST['attendance_date'];
-            $activeEmps = db()->query("SELECT id FROM employees WHERE status = 'active'")->fetchAll();
+            $activeEmps = db()->query("SELECT id FROM employees WHERE status IN ('active', 'on_leave')")->fetchAll();
+            $marked = 0;
             foreach ($activeEmps as $ae) {
-                attendance_mark((int)$ae['id'], $attDate, 'present');
+                $empId = (int)$ae['id'];
+                // Check if already on leave for this date (attendance record or approved leave request)
+                $chk = db()->prepare("SELECT status FROM attendance WHERE employee_id = ? AND attendance_date = ?");
+                $chk->execute([$empId, $attDate]);
+                $currStatus = $chk->fetchColumn();
+                if ($currStatus === 'leave' || $currStatus === 'on_leave') {
+                    continue; // Do NOT overwrite leave!
+                }
+                $hasLeave = (int)db()->query("
+                    SELECT COUNT(*) FROM leave_requests 
+                    WHERE employee_id = {$empId} AND status = 'approved' AND '{$attDate}' BETWEEN start_date AND end_date
+                ")->fetchColumn();
+                if ($hasLeave > 0) {
+                    continue; // Do NOT overwrite leave!
+                }
+                attendance_mark($empId, $attDate, 'present');
+                $marked++;
             }
-            log_activity('attendance', 'create', 'attendance', 0, "Marked ALL active staff as PRESENT for {$attDate}");
-            flash(current_locale() === 'am' ? '✓ ሁሉም ንቁ ሰራተኞች ዛሬ "ተገኝተዋል" ተብለው ተመዝግበዋል!' : 'All active staff marked as Present.');
+            log_activity('attendance', 'create', 'attendance', 0, "Marked {$marked} staff as PRESENT for {$attDate} (skipped on-leave)");
+            flash(current_locale() === 'am' ? "✓ {$marked} ሰራተኞች ዛሬ 'ተገኝተዋል' ተብለው ተመዝግበዋል (ፈቃድ ላይ ያሉ ሳይቀየሩ ታልፈዋል)!" : "Marked {$marked} staff as Present (skipped those on leave).");
         }
         header("Location: " . BASE_URL . "/modules/employees/attendance.php?date=" . urlencode($date) . "&view=" . urlencode($viewMode) . "&dept_id={$deptFilter}&cal_month={$calMonth}&cal_year={$calYear}");
         exit;
@@ -82,11 +99,11 @@ $unmarkedCount= 0;
 
 foreach ($employees as $emp) {
     match($emp['marked_status']) {
-        'present'  => $presentCount++,
-        'absent'   => $absentCount++,
-        'half_day' => $halfDayCount++,
-        'on_leave' => $onLeaveCount++,
-        default    => $unmarkedCount++
+        'present'           => $presentCount++,
+        'absent'            => $absentCount++,
+        'half_day'          => $halfDayCount++,
+        'on_leave', 'leave' => $onLeaveCount++,
+        default             => $unmarkedCount++
     };
 }
 $attRate = $totalStaff > 0 ? (($presentCount + ($halfDayCount * 0.5)) / $totalStaff) * 100 : 0;
@@ -266,18 +283,18 @@ if ($viewMode === 'matrix') {
                 <?php foreach ($employees as $emp):
                     $st = $emp['marked_status'];
                     $stBadge = match($st) {
-                        'present'  => 'badge milking',
-                        'absent'   => 'badge sold',
-                        'half_day' => 'badge dry',
-                        'on_leave' => 'badge active',
-                        default    => 'badge'
+                        'present'           => 'badge milking',
+                        'absent'            => 'badge sold',
+                        'half_day'          => 'badge dry',
+                        'on_leave', 'leave' => 'badge active',
+                        default             => 'badge'
                     };
                     $stLabel = match($st) {
-                        'present'  => (current_locale()==='am'?'🟢 ተገኝቷል':'🟢 Present'),
-                        'absent'   => (current_locale()==='am'?'🔴 ቀሪ':'🔴 Absent'),
-                        'half_day' => (current_locale()==='am'?'🟡 ግማሽ ቀን':'🟡 Half Day'),
-                        'on_leave' => (current_locale()==='am'?'🏖️ ፈቃድ':'🏖️ On Leave'),
-                        default    => (current_locale()==='am'?'⏳ አልተመዘገበም':'⏳ Unmarked')
+                        'present'           => (current_locale()==='am'?'🟢 ተገኝቷል':'🟢 Present'),
+                        'absent'            => (current_locale()==='am'?'🔴 ቀሪ':'🔴 Absent'),
+                        'half_day'          => (current_locale()==='am'?'🟡 ግማሽ ቀን':'🟡 Half Day'),
+                        'on_leave', 'leave' => (current_locale()==='am'?'🏖️ ፈቃድ':'🏖️ On Leave'),
+                        default             => (current_locale()==='am'?'⏳ አልተመዘገበም':'⏳ Unmarked')
                     };
                 ?>
                 <tr>
@@ -318,8 +335,8 @@ if ($viewMode === 'matrix') {
                                     style="padding:4px 8px;font-size:12px;<?= $st==='half_day'?'background:#e65100;border-color:#e65100':'' ?>" title="Half Day">
                                 🟡 <?= current_locale()==='am'?'ግማሽ':'H' ?>
                             </button>
-                            <button class="btn <?= $st==='on_leave'?'':'secondary' ?>" type="submit" name="status" value="on_leave" 
-                                    style="padding:4px 8px;font-size:12px;<?= $st==='on_leave'?'background:#1565c0;border-color:#1565c0':'' ?>" title="On Leave">
+                            <button class="btn <?= ($st==='on_leave'||$st==='leave')?'':'secondary' ?>" type="submit" name="status" value="on_leave" 
+                                    style="padding:4px 8px;font-size:12px;<?= ($st==='on_leave'||$st==='leave')?'background:#1565c0;border-color:#1565c0':'' ?>" title="On Leave">
                                 🏖️ <?= current_locale()==='am'?'ፈቃድ':'L' ?>
                             </button>
                         </form>
@@ -377,7 +394,7 @@ if ($viewMode === 'matrix') {
                     if ($st === 'present') { $pCount++; $mark = 'P'; $cellClass = 'att-p'; }
                     elseif ($st === 'absent') { $aCount++; $mark = 'A'; $cellClass = 'att-a'; }
                     elseif ($st === 'half_day') { $hCount++; $mark = 'H'; $cellClass = 'att-h'; }
-                    elseif ($st === 'on_leave') { $mark = 'L'; $cellClass = 'att-l'; }
+                    elseif ($st === 'on_leave' || $st === 'leave') { $mark = 'L'; $cellClass = 'att-l'; }
                     else { $mark = '—'; $cellClass = 'att-blank'; }
                 ?>
                     <td class="att-cell <?= $cellClass ?>"

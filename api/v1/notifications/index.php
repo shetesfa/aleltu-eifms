@@ -1,15 +1,25 @@
 <?php
-require_once __DIR__ . '/../../../includes/functions.php';
+/**
+ * GET /api/v1/notifications — retrieve notifications for the logged-in user
+ */
+require_once dirname(__DIR__, 3) . '/includes/functions.php';
 $user   = api_require_auth();
 $userId = (int)$user['id'];
 $roleId = (int)($user['role_id'] ?? 0);
-$isBroad = in_array($user['role'] ?? '', ['super_admin','general_manager']);
+$isBroad = in_array($user['role'] ?? '', ['super_admin', 'general_manager'], true);
 
 if ($isBroad) {
     $stmt = db()->prepare("SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50");
     $stmt->execute();
 } else {
-    $stmt = db()->prepare("SELECT * FROM notifications WHERE target_user_id=? OR target_role_id=? OR (target_user_id IS NULL AND target_role_id IS NULL AND target_department_id IS NULL) ORDER BY created_at DESC LIMIT 50");
-    $stmt->execute([$userId,$roleId]);
+    $stmt = db()->prepare("
+        SELECT * FROM notifications 
+        WHERE target_user_id = ? 
+           OR target_role_id = ? 
+           OR (target_user_id IS NULL AND target_role_id IS NULL AND target_department_id IS NULL) 
+        ORDER BY created_at DESC 
+        LIMIT 50
+    ");
+    $stmt->execute([$userId, $roleId]);
 }
-api_json(['notifications'=>$stmt->fetchAll()]);
+api_json(['notifications' => $stmt->fetchAll()]);

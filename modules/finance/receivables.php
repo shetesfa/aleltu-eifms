@@ -15,19 +15,19 @@ $byCustomer = db()->query(
             COALESCE(SUM(amount_paid), 0) AS paid,
             COALESCE(SUM(total_price - amount_paid), 0) AS outstanding
      FROM dist_dispatches
-     WHERE payment_status != 'paid'
+     WHERE payment_status != 'paid' AND status NOT IN ('failed', 'cancelled')
      GROUP BY destination_pos_location
      ORDER BY outstanding DESC"
 )->fetchAll();
 
-// Full list of unpaid dispatches
+// Full list of unpaid dispatches (including walk-in/counter sales without vehicle)
 $dispatches = db()->query(
     "SELECT d.*, v.plate_number, i.name AS item_name, i.unit, u.name AS created_by_name
      FROM dist_dispatches d
-     JOIN dist_vehicles v ON v.id = d.vehicle_id
+     LEFT JOIN dist_vehicles v ON v.id = d.vehicle_id
      JOIN wh_stock_items i ON i.id = d.stock_item_id
      JOIN users u ON u.id = d.created_by
-     WHERE d.payment_status != 'paid'
+     WHERE d.payment_status != 'paid' AND d.status NOT IN ('failed', 'cancelled')
      ORDER BY (d.total_price - d.amount_paid) DESC, d.created_at DESC"
 )->fetchAll();
 ?>

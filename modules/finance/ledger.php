@@ -11,7 +11,9 @@ $accountId = (int)($_GET['account_id'] ?? 0);
 // Resolve bank/mobile/cash account info
 $bankAccount = null;
 if ($accountId > 0) {
-    $bankAccount = db()->query("SELECT * FROM fin_bank_accounts WHERE id = {$accountId}")->fetch();
+    $stmt = db()->prepare("SELECT * FROM fin_bank_accounts WHERE id = ?");
+    $stmt->execute([$accountId]);
+    $bankAccount = $stmt->fetch();
 } elseif ($methodFilter === 'telebirr') {
     $bankAccount = db()->query("SELECT * FROM fin_bank_accounts WHERE account_type = 'mobile' OR bank_name LIKE '%telebirr%' ORDER BY id ASC LIMIT 1")->fetch();
 } elseif ($methodFilter === 'cash') {
@@ -27,11 +29,19 @@ if ($bankAccount) {
     $openingBalance = (float)db()->query("SELECT COALESCE(SUM(opening_balance), 0) FROM fin_bank_accounts")->fetchColumn();
 }
 
-$transactions = finance_transactions_list($unitFilter ?: null, $methodFilter ?: null, 300);
+$transactions = finance_transactions_list($unitFilter ?: null, $methodFilter ?: null, 300, $accountId ?: null);
 
 $totalIn = 0; $totalOut = 0;
 foreach ($transactions as $t) {
-    if ($t['direction'] === 'inflow') $totalIn += (float) $t['amount']; else $totalOut += (float) $t['amount'];
+    // Skip opening balance transaction to prevent double counting with $openingBalance
+    if (($t['category'] ?? '') === 'opening_balance' && $openingBalance > 0) {
+        continue;
+    }
+    if ($t['direction'] === 'inflow') {
+        $totalIn += (float) $t['amount'];
+    } else {
+        $totalOut += (float) $t['amount'];
+    }
 }
 $currentBalance = $openingBalance + $totalIn - $totalOut;
 

@@ -44,17 +44,16 @@ const EthCalendar = (function () {
 
     function fromGregorian(gy, gm, gd) {
         const jdn = gregorianToJdn(gy, gm, gd);
-        let r = (jdn - ETHIOPIC_EPOCH) % 1461;
-        if (r < 0) r += 1461;
-        const n = (r % 365) + 365 * Math.floor(r / 1460);
-        const ey = 4 * Math.floor((jdn - ETHIOPIC_EPOCH) / 1461) + Math.floor(r / 365) - Math.floor(r / 1460);
-        const em = Math.floor(n / 30) + 1;
-        const ed = (n % 30) + 1;
+        const r = jdn - ETHIOPIC_EPOCH;
+        const ey = Math.floor((4 * r + 1463) / 1461);
+        const dayOfYear = r - (365 * (ey - 1) + Math.floor(ey / 4));
+        const em = Math.floor(dayOfYear / 30) + 1;
+        const ed = (dayOfYear % 30) + 1;
         return [ey, em, ed];
     }
 
     function toGregorian(ey, em, ed) {
-        const jdn = ETHIOPIC_EPOCH + 365 * ey + Math.floor(ey / 4) + 30 * (em - 1) + ed - 1;
+        const jdn = ETHIOPIC_EPOCH + 365 * (ey - 1) + Math.floor(ey / 4) + 30 * (em - 1) + (ed - 1);
         return jdnToGregorian(jdn);
     }
 

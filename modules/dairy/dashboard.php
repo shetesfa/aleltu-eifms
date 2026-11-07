@@ -6,7 +6,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
 // Dairy KPIs
 $totalCows = (int) db()->query("SELECT COUNT(*) FROM dairy_cows WHERE lifecycle_status NOT IN ('sold','deceased')")->fetchColumn();
-$lactatingCows = (int) db()->query("SELECT COUNT(*) FROM dairy_cows WHERE lifecycle_status = 'lactating'")->fetchColumn();
+$lactatingCows = (int) db()->query("SELECT COUNT(*) FROM dairy_cows WHERE lifecycle_status = 'milking'")->fetchColumn();
 $pregnantCows = (int) db()->query("SELECT COUNT(*) FROM dairy_cows WHERE lifecycle_status = 'pregnant'")->fetchColumn();
 $sickCows = (int) db()->query("SELECT COUNT(*) FROM dairy_cows WHERE is_sick = 1")->fetchColumn();
 
@@ -15,6 +15,8 @@ $todayMilk = (float) db()->query(
      JOIN dairy_milking_sessions s ON s.id = e.milking_session_id
      WHERE s.session_date = CURDATE()"
 )->fetchColumn();
+
+$avgYieldPerCow = $lactatingCows > 0 ? round($todayMilk / $lactatingCows, 2) : 0.0;
 
 // Recent Milking Sessions
 $recentSessions = db()->query(
