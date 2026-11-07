@@ -67,9 +67,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  VALUES (?, 'poultry', ?, ?, ?, ?, ?, 'verified_received')"
             )->execute([$dispatchCode, $desc, $whId, $eggItemId, $whole, $userId]);
         }
-        $total = max(0, $whole - $broken);
-        log_activity('poultry', 'create', 'poultry_egg_collections', $collectionId, "Flock #{$flockId}: {$total} eggs (whole:{$whole}, cracked:{$cracked}, broken:{$broken})");
-        flash('✓ ' . (current_locale() === 'am' ? "የዛሬ እንቁላል ({$total}) ተመዝግቧል!" : "Egg collection recorded! Total: {$total} eggs."));
+        $totalCollected = $whole + $cracked + $broken;
+        log_activity('poultry', 'create', 'poultry_egg_collections', $collectionId, "Flock #{$flockId}: {$whole} whole, {$cracked} cracked, {$broken} broken (Total: {$totalCollected})");
+        flash('✓ ' . (current_locale() === 'am' ? "የዕንቁላል ምዝገባ ተሳክቷል! ሙሉ፦ {$whole}፣ የተሰነጠቀ፦ {$cracked}፣ የተሰበረ፦ {$broken}" : "Egg collection recorded! Whole: {$whole}, Cracked: {$cracked}, Broken: {$broken}"));
         header('Location: ' . BASE_URL . '/modules/poultry/egg_entry.php');
         exit;
     } catch (Throwable $e) {
