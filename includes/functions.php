@@ -682,34 +682,119 @@ function poultry_egg_collection_record(int $flockId, string $date, int $round, i
     $id = (int) db()->lastInsertId();
     log_activity('poultry', 'create', 'poultry_egg_collections', $id, "Egg round #{$round} logged: {$whole} whole, {$cracked} cracked, {$broken} broken");
 
-    // Automatically receive good eggs into warehouse batches and sync total
-    if ($whole > 0) {
-        $eggItem = db()->query("SELECT id FROM wh_stock_items WHERE sku = 'EGG-TABLE-01' OR name LIKE '%ዕንቁላል%' OR name LIKE '%Egg%' LIMIT 1")->fetch();
-        $eggItemId = $eggItem ? (int)$eggItem['id'] : 2;
-        stock_receive(1, $eggItemId, (float)$whole, 'poultry', null, 'egg_round_' . $id, 0.0);
+    // Note: Daily aggregated transfer to warehouse is handled via poultry_daily_egg_transfer() (Option B, matching Dairy flow)
 
-        $dispatchCode = 'EGG-' . $id . '-' . date('Ymd') . '-' . rand(1000, 9999);
-        $dbStmt = db()->prepare(
-            "INSERT INTO wh_store_receiving
-             (dispatch_code, source_type, source_reference, warehouse_id, stock_item_id, sent_quantity, sent_by, status)
-             VALUES (?, 'poultry', ?, 1, ?, ?, ?, 'verified_received')"
-        );
-        $dbStmt->execute([
-            $dispatchCode,
-            "Daily Eggs (Flock #{$flockId}, Round #{$round}, {$date})",
-            $eggItemId,
-            $whole,
-            $userId
-        ]);
+    return $id;
+}
 
-        notify_targeted(
-            'warehouse',
-            "Daily egg collection ({$whole} whole eggs, Round #{$round}) added to Warehouse inventory.",
-            'medium', null, 8, null, BASE_URL . '/modules/warehouse/stock.php'
+
+/**
+ * BR-P02 (Option B): Daily aggregated egg transfer to warehouse.
+ * Collects eggs during the day, then transfers total good/whole eggs to Warehouse in one batch.
+ */
+function poultry_daily_egg_status(string $date): array
+{
+    $row = db()->prepare(
+        "SELECT 
+            COALESCE(SUM(whole_count), 0) AS total_whole,
+            COALESCE(SUM(CASE WHEN transferred_at IS NULL THEN whole_count ELSE 0 END), 0) AS pending_whole,
+            COALESCE(SUM(CASE WHEN transferred_at IS NOT NULL THEN whole_count ELSE 0 END), 0) AS transferred_whole,
+            COALESCE(SUM(cracked_count), 0) AS total_cracked,
+            COALESCE(SUM(broken_count), 0) AS total_broken,
+            COUNT(id) AS rounds_count
+         FROM poultry_egg_collections 
+         WHERE collection_date = ?"
+    );
+    $row->execute([$date]);
+    $res = $row->fetch(PDO::FETCH_ASSOC);
+
+    $totalWhole = (int)($res['total_whole'] ?? 0);
+    $pendingWhole = (int)($res['pending_whole'] ?? 0);
+    $transferredWhole = (int)($res['transferred_whole'] ?? 0);
+
+    return [
+        'total_whole'          => $totalWhole,
+        'pending_whole'        => $pendingWhole,
+        'transferred_whole'    => $transferredWhole,
+        'total_cracked'        => (int)($res['total_cracked'] ?? 0),
+        'total_broken'         => (int)($res['total_broken'] ?? 0),
+        'rounds_count'         => (int)($res['rounds_count'] ?? 0),
+        'is_fully_transferred' => ($totalWhole > 0 && $pendingWhole === 0)
+    ];
+}
+
+function poultry_daily_egg_transfer(string $date, int $warehouseId = 1, string $notes = ''): array
+{
+    $status = poultry_daily_egg_status($date);
+    $pendingWhole = $status['pending_whole'];
+
+    if ($pendingWhole <= 0) {
+        throw new RuntimeException(
+            current_locale() === 'am'
+                ? 'ወደ መጋዘን የሚላክ ያልተላለፈ ጤናማ ዕንቁላል የለም (ወይም አስቀድሞ ተላልፏል)።'
+                : 'No pending whole eggs found to transfer for this date (or already transferred).'
         );
     }
 
-    return $id;
+    $eggItem = db()->query("SELECT id FROM wh_stock_items WHERE sku = 'EGG-TABLE-01' OR name LIKE '%ዕንቁላል%' OR name LIKE '%Egg%' LIMIT 1")->fetch();
+    $eggItemId = $eggItem ? (int)$eggItem['id'] : 2;
+    $userId = (function_exists('current_user') && current_user()) ? (int)current_user()['id'] : 1;
+
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
+    try {
+        // 1. Receive into warehouse stock batch and sync total
+        stock_receive($warehouseId, $eggItemId, (float)$pendingWhole, 'poultry', null, 'egg_daily_transfer_' . str_replace('-', '', $date), 0.0);
+
+        // 2. Insert store receiving tracking entry
+        $dispatchCode = 'EGG-DAY-' . date('Ymd', strtotime($date)) . '-' . rand(100, 999);
+        $desc = "Daily Eggs Transfer ({$date}): {$pendingWhole} whole eggs across {$status['rounds_count']} rounds" . ($notes ? " - {$notes}" : "");
+        $stmt = db()->prepare(
+            "INSERT INTO wh_store_receiving
+             (dispatch_code, source_type, source_reference, warehouse_id, stock_item_id, sent_quantity, received_quantity, status, sent_by, received_by, received_at)
+             VALUES (?, 'poultry', ?, ?, ?, ?, ?, 'stored', ?, ?, NOW())"
+        );
+        $stmt->execute([
+            $dispatchCode,
+            $desc,
+            $warehouseId,
+            $eggItemId,
+            $pendingWhole,
+            $pendingWhole,
+            $userId,
+            $userId
+        ]);
+
+        // 3. Mark collections for this date as transferred
+        db()->prepare("UPDATE poultry_egg_collections SET transferred_at = NOW() WHERE collection_date = ? AND transferred_at IS NULL")
+            ->execute([$date]);
+
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+
+        notify_targeted(
+            'warehouse',
+            "Daily egg yield from Poultry ({$pendingWhole} whole eggs for {$date}) added to Warehouse inventory.",
+            'high', null, 8, null, BASE_URL . '/modules/warehouse/stock.php'
+        );
+
+        log_activity('poultry', 'transfer_to_store', 'poultry_egg_collections', 0, "Transferred {$pendingWhole} eggs to Warehouse #{$warehouseId} ({$dispatchCode})");
+
+        return [
+            'total_whole'   => $pendingWhole,
+            'rounds_count'  => $status['rounds_count'],
+            'dispatch_code' => $dispatchCode
+        ];
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
 }
 
 /* ===================== EMPLOYEE MANAGEMENT (SAD section 5.8) ===================== */
