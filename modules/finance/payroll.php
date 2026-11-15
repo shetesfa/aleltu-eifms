@@ -57,14 +57,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $earnedBasic = (float)$ps['base_salary'];
             }
 
+            // Pension strictly on baseSalary / earnedBasic, NEVER on bonuses or allowances
+            $pensionEmployee = (float)$ps['pension_employee'];
+
+            // Taxable income = earned basic + allowances LESS the employee
+            // pension (pension is tax-exempt under Proclamation 979/2016).
+            // The old code taxed the pension too (audit 2026-11-15).
             $newAllowances = round($prevAllowances + $bonusAmount, 2);
-            $taxableGross = round($earnedBasic + $newAllowances, 2);
+            $taxableGross = max(0.0, round($earnedBasic + $newAllowances - $pensionEmployee, 2));
 
             // Recalculate tax using Proclamation 979/2016 brackets
             $newTax = payroll_calculate_tax($taxableGross);
-
-            // Pension strictly on baseSalary / earnedBasic, NEVER on bonuses or allowances
-            $pensionEmployee = (float)$ps['pension_employee'];
 
             $newGross = round($earnedBasic + $newAllowances, 2);
             $newTotalDeductions = round($pensionEmployee + $newTax, 2);
@@ -121,9 +124,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $earnedBasic = (float)$ps['gross_pay'] - $prevAllowances;
                     if ($earnedBasic <= 0) $earnedBasic = (float)$ps['base_salary'];
 
-                    $taxableGross = $earnedBasic + $prevAllowances;
-                    $newTax = payroll_calculate_tax($taxableGross);
                     $pensionEmp = (float)$ps['pension_employee'];
+                    // Taxable income excludes the employee pension
+                    // (tax-exempt under Proclamation 979/2016).
+                    $taxableGross = max(0.0, $earnedBasic + $prevAllowances - $pensionEmp);
+                    $newTax = payroll_calculate_tax($taxableGross);
                     $newGross = $earnedBasic + $prevAllowances;
                     $newDed = round($pensionEmp + $newTax, 2);
                     $newNet = max(0.0, round($newGross - $newDed, 2));
@@ -843,16 +848,19 @@ function reindexTaxBracketRows() {
 }
 
 function resetTaxBracketsDefault() {
-    if (!confirm('ወደ መደበኛው የኢትዮጵያ የግብር ህግ (ከ 0-2,000 ነፃ፣ 2,001-4,000 15%፣ 4,001-7,000 20%፣ 7,001-10,000 25%፣ 10,001-14,000 30%፣ 14,001+ 35%) መመለስ ይፈልጋሉ?')) {
+    if (!confirm('ወደ መደበኛው የኢትዮጵያ የግብር ህግ (አዋጅ ቁጥር 979/2016) መመለስ ይፈልጋሉ? (0-600 ነፃ፣ 601-1,650 10%፣ 1,651-3,200 15%፣ 3,201-5,250 20%፣ 5,251-7,800 25%፣ 7,801-10,900 30%፣ 10,901+ 35%)')) {
         return;
     }
+    // Proclamation 979/2016 brackets — identical to payroll_get_tax_brackets().
+    // The old defaults here were the pre-2016 schedule (audit 2026-11-15).
     const defaults = [
-        {label: 'ከስራ ግብር ነፃ (Exempt)', min: 0, max: '2000', rate: 0, deduction: 0},
-        {label: 'እርከን 1 (15%)', min: 2001, max: '4000', rate: 15, deduction: 300},
-        {label: 'እርከን 2 (20%)', min: 4001, max: '7000', rate: 20, deduction: 500},
-        {label: 'እርከን 3 (25%)', min: 7001, max: '10000', rate: 25, deduction: 850},
-        {label: 'እርከን 4 (30%)', min: 10001, max: '14000', rate: 30, deduction: 1350},
-        {label: 'እርከን 5 (35% እና ከዚያ በላይ)', min: 14001, max: '', rate: 35, deduction: 2050}
+        {label: 'ከስራ ግብር ነፃ (Exempt)', min: 0, max: '600', rate: 0, deduction: 0},
+        {label: 'እርከን 1 (10%)', min: 600, max: '1650', rate: 10, deduction: 60},
+        {label: 'እርከን 2 (15%)', min: 1650, max: '3200', rate: 15, deduction: 142.5},
+        {label: 'እርከን 3 (20%)', min: 3200, max: '5250', rate: 20, deduction: 302.5},
+        {label: 'እርከን 4 (25%)', min: 5250, max: '7800', rate: 25, deduction: 565},
+        {label: 'እርከን 5 (30%)', min: 7800, max: '10900', rate: 30, deduction: 955},
+        {label: 'እርከን 6 (35% እና ከዚያ በላይ)', min: 10900, max: '', rate: 35, deduction: 1500}
     ];
     const tbody = document.getElementById('taxBracketsTbody');
     tbody.innerHTML = '';
