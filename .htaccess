@@ -32,4 +32,3 @@ RewriteRule ^scratch/ - [F,L]
 
 # Block migration/utility scripts from public access after deployment
 RewriteRule ^run_final_migration\.php$ - [F,L]
-RewriteRule ^system_check\.php$ - [F,L]

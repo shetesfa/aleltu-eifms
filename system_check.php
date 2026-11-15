@@ -1,5 +1,12 @@
 <?php
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/auth.php';
+
+// Super-admin only (audit 2026-11-15): this page prints the DB structure,
+// table row counts and config paths, so it must never be public. The
+// .htaccess rule that blocked it for everyone was removed at the same
+// time — blocking it entirely was hiding the diagnostics from admins.
+require_role(['super_admin']);
 
 $functions = [
     'notify_role', 'leave_decide', 'leave_request', 'attendance_mark',
