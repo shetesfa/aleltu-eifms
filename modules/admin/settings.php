@@ -16,21 +16,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sessionTimeout = 5;
     }
 
-    $payrollTaxRate = (float)($_POST['payroll_tax_rate'] ?? 0);
-    if ($payrollTaxRate < 0) {
-        $payrollTaxRate = 0.0;
-    } elseif ($payrollTaxRate > 100) {
-        $payrollTaxRate = 100.0;
-    }
-
     $settings = [
         'company_name'        => trim($_POST['company_name'] ?? 'ተክሉ ጌታቸው የከብት እርባታ እና የወተት ተዋጽኦ ማቀነባበሪያ ድርጅት'),
         'company_location'    => trim($_POST['company_location'] ?? ''),
         'default_locale'      => $_POST['default_locale'] ?? 'en',
         'default_theme'       => $_POST['default_theme'] ?? 'light',
         'low_stock_threshold' => max(0, (int)($_POST['low_stock_threshold'] ?? 10)),
-        'payroll_tax_rate'    => $payrollTaxRate,
-        'fiscal_year_start'   => $_POST['fiscal_year_start'] ?? '01-01',
         'session_timeout_min' => $sessionTimeout,
     ];
     foreach ($settings as $k => $v) {
@@ -50,8 +41,6 @@ $company_location = setting_get('company_location') ?? '';
 $default_locale   = setting_get('default_locale')   ?? 'en';
 $default_theme    = setting_get('default_theme')     ?? 'light';
 $low_stock        = setting_get('low_stock_threshold') ?? '10';
-$tax_rate         = setting_get('payroll_tax_rate')   ?? '0';
-$fiscal_start     = setting_get('fiscal_year_start')  ?? '01-01';
 $session_timeout  = setting_get('session_timeout_min') ?? '60';
 
 // System info
@@ -115,13 +104,9 @@ $empCount  = db()->query("SELECT COUNT(*) FROM employees WHERE status='active'")
                 <input type="number" name="low_stock_threshold" value="<?= h($low_stock) ?>" min="0">
                 <small class="text-muted"><?= current_locale() === 'am' ? 'ከዚህ መጠን በታች የሆኑ ዕቃዎች ዝቅተኛ ክምችት ማስጠንቀቂያ ያሳያሉ።' : 'Items below this quantity trigger a low-stock alert.' ?></small>
             </div>
-            <div class="form-group"><label><?= current_locale() === 'am' ? 'የደመወዝ ግብር ተመን (%)' : 'Payroll Tax Rate (%)' ?></label>
-                <input type="number" step="0.01" name="payroll_tax_rate" value="<?= h($tax_rate) ?>" min="0" max="100">
-                <small class="text-muted"><?= current_locale() === 'am' ? 'ከደመወዝ የሚቀነስ የገቢ ግብር (0 = አውቶማቲክ ቅናሽ የለም)' : 'Income tax deducted from net pay (0 = no automatic deduction).' ?></small>
-            </div>
-            <div class="form-group"><label><?= current_locale() === 'am' ? 'የበጀት ዓመት መጀመሪያ (ወር-ቀን)' : 'Fiscal Year Start (MM-DD)' ?></label>
-                <input type="text" name="fiscal_year_start" value="<?= h($fiscal_start) ?>" placeholder="ለምሳሌ፡ 07-08 ለኢትዮጵያ በጀት ዓመት">
-            </div>
+            <p class="text-muted" style="font-size:12px;margin-bottom:0">
+                <?= current_locale() === 'am' ? 'ማስታወሻ፦ የስራ ግብር የሚሰላው በአዋጅ ቁጥር 979/2016 እርከኖች መሠረት ብቻ ነው፤ የበጀት ዓመቱ ደግሞ የኢትዮጵያ አቆጣጠርን ይከተላል (መስከረም 1)። እነዚህ እዚህ አይቀየሩም።' : 'Note: income tax is always calculated from the Proclamation 979/2016 statutory brackets, and the fiscal year follows the Ethiopian calendar (Meskerem 1). Neither is configurable here.' ?>
+            </p>
             <button class="btn" type="submit"><?= h(t('common.save', 'Save Settings')) ?></button>
         </form>
     </div>
