@@ -84,7 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
 
         <div class="demo-notice">
-            <span>🔑 <strong><?= current_locale() === 'am' ? 'የሙከራ መግቢያ' : 'Default Login' ?>:</strong> <?= current_locale() === 'am' ? 'የተጠቃሚ ስም' : 'Username' ?>: admin / Demo@2026</span>
+            <span>🔑 <strong><?= current_locale() === 'am' ? 'የሙከራ መግቢያ' : 'Demo Login' ?>:</strong> <?= current_locale() === 'am' ? 'የተጠቃሚ ስም' : 'Username' ?>: admin</span>
+            <span><?= current_locale() === 'am' ? 'የይለፍ ቃል ከስርዓተ-አስተዳዳሪ (admin) ይጠይቁ' : 'Ask the system administrator for the password' ?></span>
         </div>
     </div>
 </div>
