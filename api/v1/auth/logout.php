@@ -2,5 +2,5 @@
 /** POST /api/v1/auth/logout — invalidate token */
 require_once dirname(__DIR__, 3) . '/includes/functions.php';
 $user = api_require_auth();
-db()->prepare("UPDATE users SET api_token = NULL WHERE id = ?")->execute([$user['id']]);
+db()->prepare("UPDATE users SET api_token = NULL, api_token_expires_at = NULL WHERE id = ?")->execute([$user['id']]);
 api_json(['message' => 'Logged out successfully']);
