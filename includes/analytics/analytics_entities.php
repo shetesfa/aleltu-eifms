@@ -403,7 +403,10 @@ function an_cow_detail(PDO $pdo, int $id, string $from, string $to): ?array
         $salePrice = (float)($cow['sale_price'] ?? 0.0);
         if ($salePrice <= 0 && !empty($exits)) {
             foreach ($exits as $ex) {
-                if (($ex['exit_type'] ?? '') === 'sale' || ($ex['exit_type'] ?? '') === 'sold') {
+                // exit_type enum is ('death','sale') — 'sold' can never
+                // match (audit 2026-11-15). The cow's own lifecycle_status
+                // legitimately uses 'sold'; the exit record uses 'sale'.
+                if (($ex['exit_type'] ?? '') === 'sale') {
                     $salePrice = (float)($ex['sale_price'] ?? 0.0);
                     break;
                 }

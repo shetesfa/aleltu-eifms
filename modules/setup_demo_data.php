@@ -49,7 +49,7 @@ $demoAccounts = [
 
 <div class="card">
     <h3><?= current_locale() === 'am' ? 'የሙከራ መግቢያ መለያዎች (Test Logins)' : 'Test Logins' ?></h3>
-    <p class="text-muted"><?= current_locale() === 'am' ? 'የሁሉም የሙከራ አካውንቶች የይለፍ ቃል: ' : 'All demo accounts share the same password: ' ?><strong>Demo@2026</strong></p>
+    <p class="text-muted"><?= current_locale() === 'am' ? 'የሙከራ አካውንቶች የይለፍ ቃል ከስርዓተ-አስተዳዳሪ (admin) ይጠይቁ' : 'Ask the system administrator for the demo accounts password' ?></p>
     <table>
         <tr>
             <th><?= h(t('users.email', 'Email')) ?></th>

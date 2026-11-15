@@ -31,7 +31,7 @@ this newer version:**
    now that it exists (`feed_production_manager`, `veterinary_officer`, or
    `distribution_officer`).
 
-**Login:** `admin@aleltufarm.com` / `ChangeMe!2026` — change this for real use
+**Login:** `admin@aleltufarm.com` / `[ask the system administrator — generated at install, change on first login]` — change this for real use
 (edit the `users` table, or add a "change password" page later).
 
 ## Two-Factor Authentication
@@ -55,12 +55,12 @@ Turning it off is the same 🔐 icon → Disable.
 
 The database starts nearly empty — just the default admin login and a couple of warehouses. To actually explore the system instead of staring at empty tables:
 
-1. Log in as `admin@aleltufarm.com` / `ChangeMe!2026`
+1. Log in as `admin@aleltufarm.com` / `[ask the system administrator]`
 2. In the sidebar, under **System**, click **🌱 Demo Data Setup** (only `super_admin` sees this link)
 3. Click **Generate Demo Data**
 
 This creates, in one click:
-- **11 test logins, one per role** (all use password `Demo@2026`) — full list and what to try with each is shown right on that page after you run it
+- **11 test logins, one per role** (all use password `[ask the system administrator]`) — full list and what to try with each is shown right on that page after you run it
 - 5 dairy cows with 5 days of realistic milking history
 - A poultry house with an active flock and 5 days of egg collection
 - A stocked fish pond
@@ -216,7 +216,7 @@ index.php               Dashboard
 - **Locale/theme preference** — tested directly: switching to Amharic or dark mode persists to the database and survives navigating to a completely different page, not just a session flag
 - **Reports & Analytics** — tested directly: with zero data, charts render an honest empty state (0-height bars, or "No data yet" where there's nothing to plot at all); with real milking/expense/cash-flow data entered, the exact same numbers appear correctly in the chart tooltips. Also confirmed the page is restricted to `general_manager`/`super_admin` only, same as Audit Log.
 - **CSV export** — tested directly across all four export points: correct HTTP headers (`Content-Disposition`, filename with today's date), and the actual downloaded file contains the real database rows — confirmed with a live expense (2500 ETB, Vet Supplies), a finalized payslip (2 days present, 5000 ETB net pay), and an audit log entry with correct actor attribution.
-- **Demo data generator** — tested directly: ran it twice in a row and confirmed the second run created zero duplicate rows across users, cows, milking sessions, and notifications (true idempotency, not just "doesn't crash"). Confirmed one of the 11 seeded logins (`dairy@aleltufarm.com` / `Demo@2026`) actually authenticates, sees real cow data, and is still correctly blocked from Finance. Confirmed the deliberately-below-threshold stock rule fired a real notification that shows up in the bell icon immediately after seeding.
+- **Demo data generator** — tested directly: ran it twice in a row and confirmed the second run created zero duplicate rows across users, cows, milking sessions, and notifications (true idempotency, not just "doesn't crash"). Confirmed one of the 11 seeded logins (`dairy@aleltufarm.com` / `[ask the system administrator]`) actually authenticates, sees real cow data, and is still correctly blocked from Finance. Confirmed the deliberately-below-threshold stock rule fired a real notification that shows up in the bell icon immediately after seeding.
 - **Two-Factor Authentication** — the TOTP algorithm was checked against both official RFC 6238 test vectors before anything else was built on top of it (exact match on both). Then tested end-to-end: enabled 2FA on a real account using a code generated the same way a phone app would (from the exact secret string shown on the setup page); confirmed password-alone no longer completes login and redirects to a code challenge instead; confirmed a wrong code is rejected and the dashboard stays inaccessible; confirmed the correct code completes login; confirmed disabling clears both the flag and the secret from the database.
 - **FR-DI04** — a delivery confirmation with a different quantity than what was dispatched is automatically flagged as a variance and raises a High-priority alert (tested: 50L dispatched, 48L delivered → correctly flagged)
 - **FR-D03** — milking session totals are always summed live, never hand-entered

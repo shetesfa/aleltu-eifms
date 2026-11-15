@@ -50,7 +50,9 @@ CREATE TABLE IF NOT EXISTS dept_material_requests (
     requested_quantity DECIMAL(12,2) NOT NULL,
     issued_quantity DECIMAL(12,2) NOT NULL DEFAULT 0,
     shortage_quantity DECIMAL(12,2) NOT NULL DEFAULT 0,
-    status ENUM('pending','partially_issued','fulfilled','shortage_purchase_raised','rejected') NOT NULL DEFAULT 'pending',
+    unit_cost DECIMAL(14,4) NOT NULL DEFAULT 0,
+    total_cost DECIMAL(14,2) NOT NULL DEFAULT 0,
+    status ENUM('pending','partially_issued','fulfilled','shortage_purchase_raised','sent_to_department','completed','rejected') NOT NULL DEFAULT 'pending',
     purchase_request_id INT NULL,
     requested_by INT NOT NULL,
     fulfilled_by INT NULL,
@@ -68,10 +70,15 @@ ALTER TABLE notifications
     ADD COLUMN target_department_id INT NULL AFTER target_role_id;
 
 -- 5. Payroll Partial Payments Ledger
+-- NOTE (audit 2026-11-15, Batch 2): remaining_balance must be a PLAIN
+-- column, not GENERATED: payroll_finalize(), add-bonus, recalculate and
+-- payroll_record_payment() all write it explicitly, and MariaDB rejects
+-- writes to a generated column. IF NOT EXISTS keeps this migration
+-- idempotent now that schema.sql/003 also define these columns.
 ALTER TABLE fin_payslips
-    ADD COLUMN daily_rate DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER base_salary,
-    ADD COLUMN total_paid DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER net_pay,
-    ADD COLUMN remaining_balance DECIMAL(12,2) GENERATED ALWAYS AS (net_pay - total_paid) STORED AFTER total_paid;
+    ADD COLUMN IF NOT EXISTS daily_rate DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER base_salary,
+    ADD COLUMN IF NOT EXISTS total_paid DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER net_pay,
+    ADD COLUMN IF NOT EXISTS remaining_balance DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_paid;
 
 CREATE TABLE IF NOT EXISTS fin_payroll_payments (
     id INT AUTO_INCREMENT PRIMARY KEY,

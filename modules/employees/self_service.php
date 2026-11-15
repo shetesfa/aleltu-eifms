@@ -27,21 +27,12 @@ $empStmt = db()->prepare(
 $empStmt->execute([$userId]);
 $emp = $empStmt->fetch();
 
-// Smart auto-link or fallback auto-create so self-service ALWAYS works seamlessly
-if (!$emp && !empty($me['id'])) {
-    $find = db()->prepare("SELECT id FROM employees WHERE user_id IS NULL AND (LOWER(full_name) = LOWER(?) OR id = ?)");
-    $find->execute([$me['name'], $userId]);
-    $matchId = $find->fetchColumn();
-    if ($matchId) {
-        db()->prepare("UPDATE employees SET user_id = ? WHERE id = ?")->execute([$userId, (int)$matchId]);
-    } else {
-        $empNum = 'EMP-ST' . str_pad((string)$userId, 3, '0', STR_PAD_LEFT);
-        $ins = db()->prepare("INSERT INTO employees (user_id, department_id, employee_number, full_name, job_title, hire_date, status) VALUES (?, 1, ?, ?, 'Farm Staff Member', CURDATE(), 'active')");
-        $ins->execute([$userId, $empNum, $me['name']]);
-    }
-    $empStmt->execute([$userId]);
-    $emp = $empStmt->fetch();
-}
+// Link rule (audit 2026-11-15): an employee record is shown ONLY when it
+// is linked to this user via user_id. The old `OR id = ?` fallback
+// re-linked the WRONG employee (user id was confused with employee id —
+// HR saw estifanos's record), and the auto-create INSERT then hid the
+// problem by inventing a record. If nothing is linked, the page below
+// shows 'profile not linked, contact HR' and stops — no guessing.
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $emp) {
     csrf_verify();

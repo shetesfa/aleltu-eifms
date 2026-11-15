@@ -8,7 +8,9 @@
  */
 
 const EthCalendar = (function () {
-    const ETHIOPIC_EPOCH = 1723856;
+    // Ethiopian epoch (JDN). Must match includes/ethiopian_calendar.php.
+    // Verified: 2026-09-11 = Meskerem 1, 2019; 2026-11-15 = Hidar 6, 2019.
+    const ETHIOPIC_EPOCH = 1724221;
 
     const MONTHS = [
         '',

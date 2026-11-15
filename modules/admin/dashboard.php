@@ -129,7 +129,7 @@ require_once __DIR__ . '/../../includes/header.php';
         <h3 style="margin:0;color:#37474f;font-size:17px">
             🛡️ ድጋፍ ሰጪ የስራ ክፍሎች እና የአስተዳደር ወጪዎች (Operational Support Centers)
         </h3>
-        <small class="text-muted">እነዚህ ክፍሎች የፋብሪካው ደጋፊ ክፍሎች (Cost Centers) በመሆናቸው ገቢ የላቸውም፤ ወጪያቸው ብቻ በግልጽ ተለይቶ ይታያል</small>
+        <small class="text-muted">ድጋፍ ሰጪ ክፍሎች ገቢና ወጪያቸው እዚህ ይታያሉ፤ የተጣራ ትርፋቸው ከዋና ክፍሎች ጋር ሲደመር አጠቃላይ የተጣራ ትርፍ ይገኛል</small>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:14px">
@@ -141,9 +141,10 @@ require_once __DIR__ . '/../../includes/header.php';
                     <strong><?= $d['icon'] ?> <?= h($d['name_am']) ?></strong>
                     <span class="badge" style="background:#f5f5f5;color:#555">ድጋፍ ሰጪ</span>
                 </div>
-                <div style="font-size:12px;color:var(--text-muted)">የወጣ ጠቅላላ ወጪ፦</div>
-                <div style="font-size:18px;font-weight:800;color:#c62828;margin-top:2px">
-                    <?= number_format($d['expense'], 2) ?> ETB
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;background:var(--bg);padding:8px;border-radius:6px;margin-bottom:8px">
+                    <div><span class="text-muted">ገቢ:</span><br><strong style="color:#2e7d32"><?= number_format($d['revenue'], 2) ?></strong></div>
+                    <div><span class="text-muted">ወጪ:</span><br><strong style="color:#c62828"><?= number_format($d['expense'], 2) ?></strong></div>
+                    <div style="grid-column:1 / -1;border-top:1px dashed var(--border);padding-top:4px"><span class="text-muted">የተጣራ ትርፍ (Net Profit):</span><br><strong style="color:<?= $d['net_profit'] >= 0 ? '#2e7d32' : '#c62828' ?>;font-size:15px"><?= ($d['net_profit'] > 0 ? '+' : '') . number_format($d['net_profit'], 2) ?> ETB</strong></div>
                 </div>
                 <button type="button" class="btn secondary" style="width:100%;font-size:11px;padding:4px;margin-top:8px" onclick="openDeptModal('<?= $dKey ?>')">
                     📄 የወጪ ዝርዝሮችን ይመልከቱ
@@ -151,6 +152,22 @@ require_once __DIR__ . '/../../includes/header.php';
             </div>
         <?php endforeach; ?>
     </div>
+        <?php
+        // Reconciliation (audit 2026-11-15): the old page showed only the 4
+        // profit-centre cards while the headline total summed 8 departments,
+        // leaving a 69,100 ETB gap that looked like a calculation error.
+        $profitNet = 0.0; $supportNet = 0.0;
+        foreach ($deptProf['departments'] as $dd) {
+            if (!empty($dd['is_profit_center'])) { $profitNet += (float)$dd['net_profit']; }
+            else { $supportNet += (float)$dd['net_profit']; }
+        }
+        ?>
+        <div style="margin-top:16px;padding:10px 14px;background:var(--bg);border-radius:8px;font-size:13px">
+            <strong>ድምር ማጣቀሻ (Reconciliation):</strong>
+            ዋና ክፍሎች የተጣራ ትርፍ <?= number_format($profitNet, 2) ?> ETB
+            + ድጋፍ ሰጪ ክፍሎች የተጣራ ትርፍ <?= number_format($supportNet, 2) ?> ETB
+            = <strong>አጠቃላይ የተጣራ ትርፍ <?= number_format($deptProf['total_net_profit'], 2) ?> ETB</strong>
+        </div>
 </div>
 
 <!-- ═══ DEPARTMENT DETAIL BREAKDOWN MODAL ═══ -->

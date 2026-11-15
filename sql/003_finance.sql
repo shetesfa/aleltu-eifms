@@ -12,9 +12,11 @@ SET FOREIGN_KEY_CHECKS = 0;
 CREATE TABLE IF NOT EXISTS fin_bank_accounts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     bank_name VARCHAR(100) NOT NULL DEFAULT 'Oromia Bank',
+    account_type ENUM('bank','cash','mobile') NOT NULL DEFAULT 'bank',
     account_name VARCHAR(150) NOT NULL,
     account_number VARCHAR(50) NOT NULL,
     opening_balance DECIMAL(14,2) NOT NULL DEFAULT 0,
+    current_balance DECIMAL(14,2) NOT NULL DEFAULT 0.00,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -113,11 +115,45 @@ CREATE TABLE IF NOT EXISTS fin_payslips (
     payroll_run_id INT NOT NULL,
     employee_id INT NOT NULL,
     base_salary DECIMAL(12,2) NOT NULL,
+    daily_rate DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     days_present INT NOT NULL DEFAULT 0,
+    gross_pay DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    allowances DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    tax_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    pension_employee DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    pension_employer DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    deductions DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     net_pay DECIMAL(12,2) NOT NULL,
+    total_paid DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    remaining_balance DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     UNIQUE KEY uniq_payslip (payroll_run_id, employee_id),
     FOREIGN KEY (payroll_run_id) REFERENCES fin_payroll_runs(id) ON DELETE CASCADE,
     FOREIGN KEY (employee_id) REFERENCES employees(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS fin_cheques (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cheque_type ENUM('issued','received') NOT NULL,
+    cheque_number VARCHAR(60) NOT NULL,
+    bank_name VARCHAR(100) NOT NULL,
+    bank_account_id INT NULL,
+    payee_or_drawer VARCHAR(150) NOT NULL,
+    amount DECIMAL(14,2) NOT NULL,
+    issue_date DATE NOT NULL,
+    due_date DATE NOT NULL,
+    status ENUM('pending','cleared','bounced','cancelled') NOT NULL DEFAULT 'pending',
+    cleared_date DATE NULL,
+    cleared_bank_account_id INT NULL,
+    transaction_id INT NULL,
+    related_module VARCHAR(50) NULL,
+    notes TEXT NULL,
+    recorded_by INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_type (cheque_type),
+    INDEX idx_status (status),
+    INDEX idx_due_date (due_date),
+    INDEX idx_cheque_num (cheque_number)
 ) ENGINE=InnoDB;
 
 INSERT INTO fin_bank_accounts (bank_name, account_name, account_number, opening_balance) VALUES

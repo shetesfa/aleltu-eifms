@@ -36,7 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // List all active ponds with their stocks
 $ponds = db()->query(
-    "SELECT p.*, s.id AS stock_id, s.species, s.stocking_quantity
+    "SELECT p.*, s.id AS stock_id, s.species, s.stocking_quantity,
+            COALESCE(s.stocking_quantity - s.cumulative_mortality, 0) AS quantity_stocked
      FROM fish_ponds p
      LEFT JOIN fish_stocks s ON s.pond_id = p.id AND s.status = 'active'
      WHERE p.status != 'empty'

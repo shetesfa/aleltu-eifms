@@ -26,6 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($result === 'needs_2fa') {
         header('Location: ' . BASE_URL . '/modules/auth/two_factor_challenge.php');
         exit;
+    } elseif ($result === 'locked') {
+        $error = current_locale() === 'am' ? 'በጣም ብዙ የተሳሳቱ ሙከራዎች — አካውንቱ ለ 15 ደቂቃ ተቆልፏል። እባክዎ ቆይተው እንደገና ይሞክሩ።' : 'Too many failed login attempts — this account is locked for 15 minutes. Please try again later.';
     } elseif ($result === 'inactive') {
         $error = 'Your employee account is currently inactive. Please contact management.';
     } else {
@@ -84,7 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
 
         <div class="demo-notice">
-            <span>🔑 <strong><?= current_locale() === 'am' ? 'የሙከራ መግቢያ' : 'Default Login' ?>:</strong> <?= current_locale() === 'am' ? 'የተጠቃሚ ስም' : 'Username' ?>: admin / Demo@2026</span>
+            <span>🔑 <strong><?= current_locale() === 'am' ? 'የሙከራ መግቢያ' : 'Demo Login' ?>:</strong> <?= current_locale() === 'am' ? 'የተጠቃሚ ስም' : 'Username' ?>: admin</span>
+            <span><?= current_locale() === 'am' ? 'የይለፍ ቃል ከስርዓተ-አስተዳዳሪ (admin) ይጠይቁ' : 'Ask the system administrator for the password' ?></span>
         </div>
     </div>
 </div>

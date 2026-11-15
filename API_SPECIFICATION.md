@@ -2,6 +2,15 @@
 
 This document defines the REST API communication schemas to support integration with future Flutter mobile applications.
 
+## CORS
+
+`Access-Control-Allow-Origin` is **not** `*`. The API echoes the request
+`Origin` only when it is listed in the `api_allowed_origins` setting
+(comma-separated origins, e.g. `https://app.example.com`). Default
+(setting empty): same-origin only — browsers block cross-origin calls.
+Native mobile apps are unaffected by CORS; a future Flutter-web
+deployment must add its origin to that setting.
+
 ---
 
 ## 1. Response Structure

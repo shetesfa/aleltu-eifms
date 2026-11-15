@@ -95,7 +95,18 @@ function attempt_login(string $username, string $password): string
     $stmt->execute([$username, $username]);
     $row = $stmt->fetch();
 
-    if (!$row || !password_verify($password, $row['password'])) {
+    if (!$row) {
+        return 'invalid';
+    }
+
+    // Brute-force lockout (audit 2026-11-15, Batch 2): 5 failed attempts
+    // lock the account for 15 minutes. Checked BEFORE password_verify so
+    // a locked account cannot be probed.
+    if (login_is_locked($row)) {
+        return 'locked';
+    }
+    if (!password_verify($password, $row['password'])) {
+        login_record_failed_attempt((int)$row['id']);
         return 'invalid';
     }
 
@@ -120,6 +131,7 @@ function attempt_login(string $username, string $password): string
     unset($row['password'], $row['two_factor_enabled'], $row['two_factor_secret']);
     session_regenerate_id(true);
     $_SESSION['user'] = $row;
+    login_reset_failed_attempts((int)$row['id']);
     db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$row['id']]);
     if (function_exists('log_activity')) {
         log_activity('auth', 'login', 'users', (int) $row['id'], 'User logged in');
@@ -149,12 +161,16 @@ function complete_2fa_login(string $code): bool
     $row = $stmt->fetch();
 
     if (!$row || !totp_verify_code($row['two_factor_secret'], $code)) {
+        // A wrong 2FA code counts toward the same lockout as a wrong
+        // password: without it, TOTP codes could be guessed without limit.
+        login_record_failed_attempt((int)$pendingId);
         return false;
     }
 
     unset($_SESSION['pending_2fa_user_id'], $row['two_factor_secret']);
     session_regenerate_id(true);
     $_SESSION['user'] = $row;
+    login_reset_failed_attempts((int)$row['id']);
     db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$row['id']]);
     if (function_exists('log_activity')) {
         log_activity('auth', 'login', 'users', (int) $row['id'], 'User logged in (2FA)');
@@ -193,6 +209,7 @@ function complete_2fa_recovery_login(string $recoveryCode): bool
     unset($_SESSION['pending_2fa_user_id']);
     session_regenerate_id(true);
     $_SESSION['user'] = $row;
+    login_reset_failed_attempts((int)$row['id']);
     db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$row['id']]);
     if (function_exists('log_activity')) {
         log_activity('auth', 'login', 'users', (int) $row['id'], 'User logged in (2FA Recovery Code)');

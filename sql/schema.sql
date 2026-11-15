@@ -29,6 +29,10 @@ CREATE TABLE users (
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,          -- password_hash() output
+    api_token VARCHAR(64) NULL,
+    api_token_expires_at DATETIME NULL,
+    failed_login_attempts INT NOT NULL DEFAULT 0,
+    locked_until DATETIME NULL,
     role_id INT NOT NULL,
     department_id INT NULL,
     locale VARCHAR(5) NOT NULL DEFAULT 'en',  -- en | am  (FR-X04)
@@ -239,22 +243,47 @@ CREATE TABLE wh_stock_items (
     sku VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(150) NOT NULL,
     product_class ENUM('milk','feed','medicine','equipment','spare_parts','general') NOT NULL,
+    department_scope VARCHAR(20) NULL,
+    partition_code ENUM('finished_products','feed_nutrition','materials_supplies') NOT NULL DEFAULT 'finished_products',
     unit VARCHAR(20) NOT NULL,
-    is_perishable TINYINT(1) NOT NULL DEFAULT 0
+    is_perishable TINYINT(1) NOT NULL DEFAULT 0,
+    quantity_on_hand DECIMAL(12,2) NOT NULL DEFAULT 0.00
 ) ENGINE=InnoDB;
 
 CREATE TABLE wh_stock_batches (
     id INT AUTO_INCREMENT PRIMARY KEY,
     warehouse_id INT NOT NULL,
+    partition_code ENUM('finished_products','feed_nutrition','materials_supplies') NOT NULL DEFAULT 'finished_products',
     stock_item_id INT NOT NULL,
     batch_number VARCHAR(80) NULL,
     quantity_on_hand DECIMAL(12,2) NOT NULL DEFAULT 0,   -- BR-W01: only ever changed via receive/issue/adjust logic
+    unit_cost DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
     received_date DATE NULL,
     expiry_date DATE NULL,                                -- used for FEFO ordering (FR-WH07)
     source VARCHAR(30) NULL,
     FOREIGN KEY (warehouse_id) REFERENCES wh_warehouses(id),
     FOREIGN KEY (stock_item_id) REFERENCES wh_stock_items(id),
     INDEX idx_fefo (warehouse_id, stock_item_id, expiry_date)
+) ENGINE=InnoDB;
+
+-- Unified stock movements ledger (see sql/014). Written by stock_receive()
+-- and store_issue_stock(); read by the income statement COGS query.
+CREATE TABLE wh_stock_movements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    stock_item_id INT NOT NULL,
+    warehouse_id INT NOT NULL,
+    stock_batch_id INT NULL,
+    movement_type VARCHAR(20) NOT NULL,
+    quantity DECIMAL(14,2) NOT NULL,
+    unit_cost DECIMAL(14,4) NULL,
+    reference_type VARCHAR(50) NULL,
+    reference_id INT NULL,
+    notes TEXT NULL,
+    created_by INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_item (stock_item_id),
+    INDEX idx_batch (stock_batch_id),
+    INDEX idx_created (created_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE wh_stock_receipts (
@@ -313,6 +342,7 @@ CREATE TABLE poultry_flocks (
     breed VARCHAR(100) NOT NULL,
     stocking_date DATE NOT NULL,
     initial_population INT NOT NULL,
+    current_count INT NOT NULL DEFAULT 0,
     cumulative_mortality INT NOT NULL DEFAULT 0,
     cumulative_culled_sold INT NOT NULL DEFAULT 0,
     cumulative_transfers_in INT NOT NULL DEFAULT 0,
@@ -329,6 +359,7 @@ CREATE TABLE poultry_egg_collections (
     cracked_count INT NOT NULL DEFAULT 0,
     broken_count INT NOT NULL DEFAULT 0,
     recorded_by INT NOT NULL,
+    transferred_at DATETIME NULL,
     FOREIGN KEY (flock_id) REFERENCES poultry_flocks(id) ON DELETE CASCADE,
     FOREIGN KEY (recorded_by) REFERENCES users(id)
 ) ENGINE=InnoDB;
@@ -434,6 +465,8 @@ CREATE TABLE vet_health_records (
     record_date DATE NOT NULL,
     condition_name VARCHAR(150) NULL,
     treatment TEXT NULL,
+    cost DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    photo_path VARCHAR(255) NULL,
     vet_id INT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vet_id) REFERENCES users(id),
@@ -495,6 +528,8 @@ CREATE TABLE attendance (
     check_in_at DATETIME NULL,
     check_out_at DATETIME NULL,
     status ENUM('present','absent','on_leave','half_day') NOT NULL DEFAULT 'present',
+    notes TEXT NULL,
+    recorded_by INT NULL,
     UNIQUE KEY uniq_att (employee_id, attendance_date),
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -579,9 +614,11 @@ CREATE TABLE dist_dispatches (
 CREATE TABLE fin_bank_accounts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     bank_name VARCHAR(100) NOT NULL DEFAULT 'Oromia Bank',
+    account_type ENUM('bank','cash','mobile') NOT NULL DEFAULT 'bank',
     account_name VARCHAR(150) NOT NULL,
     account_number VARCHAR(50) NOT NULL,
     opening_balance DECIMAL(14,2) NOT NULL DEFAULT 0,
+    current_balance DECIMAL(14,2) NOT NULL DEFAULT 0.00,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -677,8 +714,17 @@ CREATE TABLE fin_payslips (
     payroll_run_id INT NOT NULL,
     employee_id INT NOT NULL,
     base_salary DECIMAL(12,2) NOT NULL,
+    daily_rate DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     days_present INT NOT NULL DEFAULT 0,
+    gross_pay DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    allowances DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    tax_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    pension_employee DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    pension_employer DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    deductions DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     net_pay DECIMAL(12,2) NOT NULL,
+    total_paid DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    remaining_balance DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     UNIQUE KEY uniq_payslip (payroll_run_id, employee_id),
     FOREIGN KEY (payroll_run_id) REFERENCES fin_payroll_runs(id) ON DELETE CASCADE,
     FOREIGN KEY (employee_id) REFERENCES employees(id)
@@ -710,16 +756,22 @@ INSERT INTO roles (name, description) VALUES
 ('field_worker', 'Mobile/quick data entry only');
 
 INSERT INTO departments (name, code, business_unit) VALUES
-('Management', 'MGMT', 'management'),
-('Dairy Farm', 'DAIRY', 'dairy'),
-('Poultry Farm', 'POULTRY', 'poultry'),
-('Fish Farm', 'FISH', 'fish'),
-('Warehouse', 'WH', 'warehouse');
+('Management & Administration', 'MGMT', 'management'),
+('Dairy Operations', 'DAIRY', 'dairy'),
+('Poultry Operations', 'POULTRY', 'poultry'),
+('Fish Operations', 'FISH', 'fish'),
+('Feed Production & Agronomy', 'FEED', 'feed_production'),
+('Veterinary & Animal Health', 'VET', 'veterinary'),
+('Warehouse & Logistics', 'WH', 'warehouse'),
+('Finance & Accounting', 'FIN', 'finance'),
+('Human Resources', 'HR', 'hr');
 
--- Default login: admin@aleltufarm.com / ChangeMe!2026
--- (password below is a real password_hash('ChangeMe!2026', PASSWORD_DEFAULT) output — verified to work)
+-- Default seed admin (fresh installs only). The password is NOT
+-- documented here: it was generated for this seed and stored in
+-- the private password file (Aleltu_Passwords_2026-11-15.md).
+-- Change it immediately after the first login.
 INSERT INTO users (name, email, password, role_id, department_id) VALUES
-('System Administrator', 'admin@aleltufarm.com', '$2y$10$l0cVnRR6iTaVwhFd8yA8WerT.zjLmZbm0ittgMw3t3WM6KujQgPpW', 1, 1);
+('System Administrator', 'admin@aleltufarm.com', '$2b$10$uFbwi/ASt1LQ6CrznoSDBe1LfbA9ckmSXT4iGxU2Jh3TtqE5QIrNi', 1, 1);
 
 INSERT INTO wh_warehouses (name, product_class, location) VALUES
 ('Milk Cold Store', 'milk', 'Main Site'),

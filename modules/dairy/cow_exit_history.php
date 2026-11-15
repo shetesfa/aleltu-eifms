@@ -37,8 +37,8 @@ $exits = db()->query(
                     <td><?= h($e['sex']) ?></td>
                     <td><?= eth_date($e['exit_date']) ?></td>
                     <td>
-                        <span class="badge <?= $e['exit_reason'] === 'sold' ? 'milking' : 'sold' ?>">
-                            <?= h(ucfirst($e['exit_reason'])) ?>
+                        <span class="badge <?= $e['exit_type'] === 'sale' ? 'milking' : 'sold' ?>">
+                            <?= h(ucfirst($e['exit_type'])) ?>
                         </span>
                         <?php if ($e['notes']): ?>
                             <br><small class="text-muted"><?= h($e['notes']) ?></small>

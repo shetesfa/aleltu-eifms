@@ -5,7 +5,10 @@
  */
 
 class EthiopianDate {
-    const ETHIOPIC_EPOCH = 1723856;
+    // Ethiopian epoch (JDN). Verified: 2026-09-11 = Meskerem 1, 2019 and
+    // 2026-11-15 = Hidar 6, 2019. The previous epoch value was exactly
+    // 365 days too low and made every date show +1 year (audit 2026-11-15).
+    const ETHIOPIC_EPOCH = 1724221;
 
     public static array $months = [
         1 => 'መስከረም',
