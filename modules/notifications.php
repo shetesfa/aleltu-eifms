@@ -122,6 +122,7 @@ $unreadCount = (int) $cntStmt->fetchColumn();
                     </span>
                 </td>
                 <td><strong><?= h(ucwords(str_replace('_', ' ', $n['module']))) ?></strong></td>
+                <td style="font-size:12px"><?= h($n['message']) ?></td>
                 <td style="font-size:12px;white-space:nowrap">
                     <div><?= eth_datetime($n['created_at']) ?></div>
                     <small class="text-muted" style="font-size:10px"><?= h($n['created_at']) ?></small>
