@@ -33,5 +33,5 @@ This document provides system prerequisites and deployment instructions for host
 1.  Navigate to the login page (e.g., `http://localhost/aleltu-eifms/`).
 2.  Log in using the default system administrator credentials:
     *   **Email**: `admin@aleltufarm.com`
-    *   **Password**: `ChangeMe!2026`
+    *   **Password**: `[ask the system administrator — generated at install]`
 3.  Go to **🌱 Demo Data Setup** in the sidebar. Click **Generate Demo Data** to seed sample records and create testing accounts for different operational roles.
