@@ -240,7 +240,8 @@ CREATE TABLE wh_stock_items (
     name VARCHAR(150) NOT NULL,
     product_class ENUM('milk','feed','medicine','equipment','spare_parts','general') NOT NULL,
     unit VARCHAR(20) NOT NULL,
-    is_perishable TINYINT(1) NOT NULL DEFAULT 0
+    is_perishable TINYINT(1) NOT NULL DEFAULT 0,
+    quantity_on_hand DECIMAL(12,2) NOT NULL DEFAULT 0.00
 ) ENGINE=InnoDB;
 
 CREATE TABLE wh_stock_batches (
@@ -255,6 +256,26 @@ CREATE TABLE wh_stock_batches (
     FOREIGN KEY (warehouse_id) REFERENCES wh_warehouses(id),
     FOREIGN KEY (stock_item_id) REFERENCES wh_stock_items(id),
     INDEX idx_fefo (warehouse_id, stock_item_id, expiry_date)
+) ENGINE=InnoDB;
+
+-- Unified stock movements ledger (see sql/014). Written by stock_receive()
+-- and store_issue_stock(); read by the income statement COGS query.
+CREATE TABLE wh_stock_movements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    stock_item_id INT NOT NULL,
+    warehouse_id INT NOT NULL,
+    stock_batch_id INT NULL,
+    movement_type VARCHAR(20) NOT NULL,
+    quantity DECIMAL(14,2) NOT NULL,
+    unit_cost DECIMAL(14,4) NULL,
+    reference_type VARCHAR(50) NULL,
+    reference_id INT NULL,
+    notes TEXT NULL,
+    created_by INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_item (stock_item_id),
+    INDEX idx_batch (stock_batch_id),
+    INDEX idx_created (created_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE wh_stock_receipts (
@@ -313,6 +334,7 @@ CREATE TABLE poultry_flocks (
     breed VARCHAR(100) NOT NULL,
     stocking_date DATE NOT NULL,
     initial_population INT NOT NULL,
+    current_count INT NOT NULL DEFAULT 0,
     cumulative_mortality INT NOT NULL DEFAULT 0,
     cumulative_culled_sold INT NOT NULL DEFAULT 0,
     cumulative_transfers_in INT NOT NULL DEFAULT 0,
@@ -329,6 +351,7 @@ CREATE TABLE poultry_egg_collections (
     cracked_count INT NOT NULL DEFAULT 0,
     broken_count INT NOT NULL DEFAULT 0,
     recorded_by INT NOT NULL,
+    transferred_at DATETIME NULL,
     FOREIGN KEY (flock_id) REFERENCES poultry_flocks(id) ON DELETE CASCADE,
     FOREIGN KEY (recorded_by) REFERENCES users(id)
 ) ENGINE=InnoDB;
@@ -434,6 +457,8 @@ CREATE TABLE vet_health_records (
     record_date DATE NOT NULL,
     condition_name VARCHAR(150) NULL,
     treatment TEXT NULL,
+    cost DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    photo_path VARCHAR(255) NULL,
     vet_id INT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vet_id) REFERENCES users(id),
@@ -495,6 +520,8 @@ CREATE TABLE attendance (
     check_in_at DATETIME NULL,
     check_out_at DATETIME NULL,
     status ENUM('present','absent','on_leave','half_day') NOT NULL DEFAULT 'present',
+    notes TEXT NULL,
+    recorded_by INT NULL,
     UNIQUE KEY uniq_att (employee_id, attendance_date),
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -579,9 +606,11 @@ CREATE TABLE dist_dispatches (
 CREATE TABLE fin_bank_accounts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     bank_name VARCHAR(100) NOT NULL DEFAULT 'Oromia Bank',
+    account_type ENUM('bank','cash','mobile') NOT NULL DEFAULT 'bank',
     account_name VARCHAR(150) NOT NULL,
     account_number VARCHAR(50) NOT NULL,
     opening_balance DECIMAL(14,2) NOT NULL DEFAULT 0,
+    current_balance DECIMAL(14,2) NOT NULL DEFAULT 0.00,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 

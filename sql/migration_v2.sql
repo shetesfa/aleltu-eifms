@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS dept_material_requests (
     requested_quantity DECIMAL(12,2) NOT NULL,
     issued_quantity DECIMAL(12,2) NOT NULL DEFAULT 0,
     shortage_quantity DECIMAL(12,2) NOT NULL DEFAULT 0,
+    unit_cost DECIMAL(14,4) NOT NULL DEFAULT 0,
+    total_cost DECIMAL(14,2) NOT NULL DEFAULT 0,
     status ENUM('pending','partially_issued','fulfilled','shortage_purchase_raised','rejected') NOT NULL DEFAULT 'pending',
     purchase_request_id INT NULL,
     requested_by INT NOT NULL,

@@ -23,9 +23,28 @@ CREATE TABLE IF NOT EXISTS vet_health_records (
     record_date DATE NOT NULL,
     condition_name VARCHAR(150) NULL,
     treatment TEXT NULL,
+    cost DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    photo_path VARCHAR(255) NULL,
     vet_id INT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vet_id) REFERENCES users(id),
+    INDEX idx_subject (subject_type, subject_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS vet_treatments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    subject_type VARCHAR(30) NOT NULL,
+    subject_id INT NOT NULL,
+    record_date DATE NOT NULL,
+    condition_name VARCHAR(150) NULL,
+    treatment TEXT NULL,
+    medication_stock_item_id INT NULL,
+    medication_quantity DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    treatment_cost DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    photo_path VARCHAR(255) NULL,
+    vet_id INT NOT NULL,
+    notes TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_subject (subject_type, subject_id)
 ) ENGINE=InnoDB;
 
