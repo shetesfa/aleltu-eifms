@@ -3,6 +3,10 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../config/pos.php';
 require_once __DIR__ . '/ethiopian_calendar.php';
 
+// Server timezone: Addis Ababa. The app had no timezone set anywhere,
+// so every date/time ran on the host's UTC clock (audit 2026-11-15).
+date_default_timezone_set('Africa/Addis_Ababa');
+
 function h(?string $s): string { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 function e(?string $s): string { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 function flash(string $msg, string $type = 'success'): void { $_SESSION['flash'][] = ['msg' => $msg, 'type' => $type]; }
@@ -266,6 +270,17 @@ function milking_close_and_transfer(int $sessionId, int $warehouseId, int $milkI
     // Master Prompt 5.4: Net warehouse milk = Gross milk production - Calf milk consumption - Other
     $netTransfer = max(0.0, $grossTotal - $calfLiters - $otherLiters);
 
+    // One transaction for the whole transfer: if stock_receive() or the
+    // receiving-row INSERT fails, the session close rolls back too, so
+    // the page can never again claim 'transferred' while nothing moved
+    // (audit 2026-11-15: the session was stamped closed and stock was
+    // committed BEFORE the failing receiving INSERT).
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
+    try {
     // Record calf and other allocations on the session
     db()->prepare("UPDATE dairy_milking_sessions SET closed_at = NOW(), calf_liters = ?, other_liters = ?, notes = ? WHERE id = ?")
         ->execute([$calfLiters, $otherLiters, $notes ?: null, $sessionId]);
@@ -282,7 +297,7 @@ function milking_close_and_transfer(int $sessionId, int $warehouseId, int $milkI
         $stmt = db()->prepare(
             "INSERT INTO wh_store_receiving
              (dispatch_code, source_type, source_reference, warehouse_id, stock_item_id, sent_quantity, sent_by, status)
-             VALUES (?, 'dairy', ?, ?, ?, ?, ?, 'verified_received')"
+             VALUES (?, 'dairy', ?, ?, ?, ?, ?, 'pending_receipt')"
         );
         $stmt->execute([
             $dispatchCode,
@@ -292,7 +307,22 @@ function milking_close_and_transfer(int $sessionId, int $warehouseId, int $milkI
             $netTransfer,
             $userId
         ]);
+    }
 
+    // Commit here, OUTSIDE the $netTransfer > 0 block: the session close
+    // above must commit even when nothing is transferred (net 0), or the
+    // open transaction would be rolled back when the request ends.
+    if ($ownsTx && db()->inTransaction()) {
+        db()->commit();
+    }
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+
+    if ($netTransfer > 0) {
         notify_targeted(
             'warehouse',
             "Daily milk yield from Dairy ({$netTransfer} Liters net of {$grossTotal}L gross, {$sessionType} session) added to Warehouse inventory.",
@@ -1834,33 +1864,38 @@ function payroll_finalize(int $runId): void
             $pensionEmp = $pension['employee'];
             $pensionOrg = $pension['employer'];
 
-            // c) Taxable Gross Income = earnedBasic + taxable allowances + bonuses (0 at creation)
-            $taxableGross = $earnedBasic;
+            // c) Taxable Gross Income = earnedBasic + preserved allowances,
+            //    less the 7% employee pension (pension is tax-exempt under
+            //    Proclamation 979/2016). Allowances added via the add-bonus
+            //    flow survive Finalize (audit 2026-11-15: they were wiped).
+            $chkSlipEarly = db()->prepare("SELECT id, allowances FROM fin_payslips WHERE payroll_run_id = ? AND employee_id = ?");
+            $chkSlipEarly->execute([$runId, $emp['id']]);
+            $existingSlip = $chkSlipEarly->fetch();
+            $existingAllowances = $existingSlip ? (float)($existingSlip['allowances'] ?? 0) : 0.0;
+            $taxableGross = max(0.0, round($earnedBasic + $existingAllowances - $pensionEmp, 2));
 
             // d) Ethiopian Income Tax Brackets (Proclamation 979/2016)
             $taxAmount = payroll_calculate_tax($taxableGross);
 
             // e) Net Pay
-            $grossPay = $earnedBasic;
+            $grossPay = round($earnedBasic + $existingAllowances, 2);
             $totalDeductions = round($taxAmount + $pensionEmp, 2);
             $netPay = max(0.0, round($grossPay - $totalDeductions, 2));
             $daysWorked = $presentCnt + $leaveCnt + ($halfCnt * 0.5);
 
-            $chkSlip = db()->prepare("SELECT id FROM fin_payslips WHERE payroll_run_id = ? AND employee_id = ?");
-            $chkSlip->execute([$runId, $emp['id']]);
-            $existingSlipId = $chkSlip->fetchColumn();
+            $existingSlipId = $existingSlip ? (int)$existingSlip['id'] : null;
 
             if ($existingSlipId) {
                 db()->prepare("
                     UPDATE fin_payslips SET
                         base_salary = ?, daily_rate = ?, days_present = ?,
-                        gross_pay = ?, allowances = 0.00, tax_amount = ?,
+                        gross_pay = ?, allowances = ?, tax_amount = ?,
                         pension_employee = ?, pension_employer = ?, deductions = ?,
                         net_pay = ?, remaining_balance = ?
                     WHERE id = ?
                 ")->execute([
                     $baseSalary, $dailyRate, $daysWorked,
-                    $grossPay, $taxAmount,
+                    $grossPay, $existingAllowances, $taxAmount,
                     $pensionEmp, $pensionOrg, $totalDeductions,
                     $netPay, $netPay, $existingSlipId
                 ]);
@@ -1870,10 +1905,10 @@ function payroll_finalize(int $runId): void
                         payroll_run_id, employee_id, base_salary, daily_rate, days_present,
                         gross_pay, allowances, tax_amount, pension_employee, pension_employer,
                         deductions, net_pay, total_paid, remaining_balance
-                    ) VALUES (?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?, 0.00, ?)"
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, ?)"
                 )->execute([
                     $runId, $emp['id'], $baseSalary, $dailyRate, $daysWorked,
-                    $grossPay, $taxAmount, $pensionEmp, $pensionOrg,
+                    $grossPay, $existingAllowances, $taxAmount, $pensionEmp, $pensionOrg,
                     $totalDeductions, $netPay, $netPay
                 ]);
             }
@@ -4165,16 +4200,19 @@ function notify_role(string $roleSlug, string $title, string $message, string $u
 // ─── Audit Log ─────────────────────────────────────────────────────────────
 /**
  * Record an audit trail entry.
- * Table: audit_log (id, user_id, module, action, table_name, record_id, details, ip, created_at)
+ * Table: audit_log (id, user_id, module, action, record_table, record_id, details, ip_address, created_at)
  * If the table doesn't exist yet, silently skips — never crashes the caller.
  */
 function log_activity(string $module, string $action, string $tableName, int $recordId = 0, string $details = ''): void
 {
     try {
-        $userId = 0;
-        if (session_status() !== PHP_SESSION_NONE || isset($_SESSION['user_id'])) {
-            $userId = (int)($_SESSION['user_id'] ?? 0);
-        }
+        // Login stores the user in the 'user' session key (see
+        // includes/auth.php: current_user()); a 'user_id' session key is
+        // never set, so every audit row used to insert user_id=0, violate
+        // the users FK and be silently swallowed by the catch below — the
+        // Audit Log was always empty.
+        $cu = (function_exists('current_user') ? current_user() : null);
+        $userId = (int)($cu['id'] ?? 0);
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'cli';
         $stmt = db()->prepare(
             "INSERT INTO audit_log (user_id, module, action, record_table, record_id, details, ip_address, created_at)
@@ -4542,7 +4580,7 @@ function cow_financial_summary(int $cowId): array
     if (($cow['lifecycle_status'] ?? '') === 'sold') {
         $salePrice = (float)($cow['sale_price'] ?? 0.0);
         if ($salePrice <= 0) {
-            $stEx = db()->prepare("SELECT COALESCE(sale_price, 0) FROM dairy_cow_exit_records WHERE cow_id = ? AND exit_type IN ('sale','sold') ORDER BY id DESC LIMIT 1");
+            $stEx = db()->prepare("SELECT COALESCE(sale_price, 0) FROM dairy_cow_exit_records WHERE cow_id = ? AND exit_type = 'sale' ORDER BY id DESC LIMIT 1");
             $stEx->execute([$cowId]);
             $salePrice = (float)$stEx->fetchColumn();
         }
