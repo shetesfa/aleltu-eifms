@@ -29,6 +29,10 @@ CREATE TABLE users (
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,          -- password_hash() output
+    api_token VARCHAR(64) NULL,
+    api_token_expires_at DATETIME NULL,
+    failed_login_attempts INT NOT NULL DEFAULT 0,
+    locked_until DATETIME NULL,
     role_id INT NOT NULL,
     department_id INT NULL,
     locale VARCHAR(5) NOT NULL DEFAULT 'en',  -- en | am  (FR-X04)
@@ -239,6 +243,8 @@ CREATE TABLE wh_stock_items (
     sku VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(150) NOT NULL,
     product_class ENUM('milk','feed','medicine','equipment','spare_parts','general') NOT NULL,
+    department_scope VARCHAR(20) NULL,
+    partition_code ENUM('finished_products','feed_nutrition','materials_supplies') NOT NULL DEFAULT 'finished_products',
     unit VARCHAR(20) NOT NULL,
     is_perishable TINYINT(1) NOT NULL DEFAULT 0,
     quantity_on_hand DECIMAL(12,2) NOT NULL DEFAULT 0.00
@@ -247,9 +253,11 @@ CREATE TABLE wh_stock_items (
 CREATE TABLE wh_stock_batches (
     id INT AUTO_INCREMENT PRIMARY KEY,
     warehouse_id INT NOT NULL,
+    partition_code ENUM('finished_products','feed_nutrition','materials_supplies') NOT NULL DEFAULT 'finished_products',
     stock_item_id INT NOT NULL,
     batch_number VARCHAR(80) NULL,
     quantity_on_hand DECIMAL(12,2) NOT NULL DEFAULT 0,   -- BR-W01: only ever changed via receive/issue/adjust logic
+    unit_cost DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
     received_date DATE NULL,
     expiry_date DATE NULL,                                -- used for FEFO ordering (FR-WH07)
     source VARCHAR(30) NULL,
@@ -706,8 +714,17 @@ CREATE TABLE fin_payslips (
     payroll_run_id INT NOT NULL,
     employee_id INT NOT NULL,
     base_salary DECIMAL(12,2) NOT NULL,
+    daily_rate DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     days_present INT NOT NULL DEFAULT 0,
+    gross_pay DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    allowances DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    tax_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    pension_employee DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    pension_employer DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    deductions DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     net_pay DECIMAL(12,2) NOT NULL,
+    total_paid DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    remaining_balance DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     UNIQUE KEY uniq_payslip (payroll_run_id, employee_id),
     FOREIGN KEY (payroll_run_id) REFERENCES fin_payroll_runs(id) ON DELETE CASCADE,
     FOREIGN KEY (employee_id) REFERENCES employees(id)
@@ -739,16 +756,22 @@ INSERT INTO roles (name, description) VALUES
 ('field_worker', 'Mobile/quick data entry only');
 
 INSERT INTO departments (name, code, business_unit) VALUES
-('Management', 'MGMT', 'management'),
-('Dairy Farm', 'DAIRY', 'dairy'),
-('Poultry Farm', 'POULTRY', 'poultry'),
-('Fish Farm', 'FISH', 'fish'),
-('Warehouse', 'WH', 'warehouse');
+('Management & Administration', 'MGMT', 'management'),
+('Dairy Operations', 'DAIRY', 'dairy'),
+('Poultry Operations', 'POULTRY', 'poultry'),
+('Fish Operations', 'FISH', 'fish'),
+('Feed Production & Agronomy', 'FEED', 'feed_production'),
+('Veterinary & Animal Health', 'VET', 'veterinary'),
+('Warehouse & Logistics', 'WH', 'warehouse'),
+('Finance & Accounting', 'FIN', 'finance'),
+('Human Resources', 'HR', 'hr');
 
--- Default login: admin@aleltufarm.com / ChangeMe!2026
--- (password below is a real password_hash('ChangeMe!2026', PASSWORD_DEFAULT) output — verified to work)
+-- Default seed admin (fresh installs only). The password is NOT
+-- documented here: it was generated for this seed and stored in
+-- the private password file (Aleltu_Passwords_2026-11-15.md).
+-- Change it immediately after the first login.
 INSERT INTO users (name, email, password, role_id, department_id) VALUES
-('System Administrator', 'admin@aleltufarm.com', '$2y$10$l0cVnRR6iTaVwhFd8yA8WerT.zjLmZbm0ittgMw3t3WM6KujQgPpW', 1, 1);
+('System Administrator', 'admin@aleltufarm.com', '$2b$10$uFbwi/ASt1LQ6CrznoSDBe1LfbA9ckmSXT4iGxU2Jh3TtqE5QIrNi', 1, 1);
 
 INSERT INTO wh_warehouses (name, product_class, location) VALUES
 ('Milk Cold Store', 'milk', 'Main Site'),

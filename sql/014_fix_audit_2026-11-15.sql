@@ -32,9 +32,11 @@
 --   * fin_cheques (new table) ..................... [cheques on a fresh
 --     install; the live DB already has this table, so this is a no-op there]
 --
--- Known limitation, NOT fixed here: sql/schema.sql's wh_stock_items still
--- lacks department_scope / partition_code and wh_stock_batches still lacks
--- unit_cost (the live dump has them). Those are Batch 2 fresh-install parity.
+-- Batch 2 (2026-11-15) adds: users lockout/token-expiry columns,
+-- wh_stock_items partition_code/department_scope,
+-- wh_stock_batches partition_code/unit_cost, the dept_material_requests
+-- status enum values, and the fin_payslips columns (including converting
+-- the GENERATED remaining_balance to a plain column the code can write).
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
@@ -213,5 +215,54 @@ CREATE TABLE IF NOT EXISTS `fin_cheques` (
     INDEX `idx_due_date` (`due_date`),
     INDEX `idx_cheque_num` (`cheque_number`)
 ) ENGINE=InnoDB;
+
+
+-- ============================================================
+-- Batch 2 (2026-11-15) — remaining audit fixes
+-- ============================================================
+
+-- 12. Login lockout + API token expiry (users table).
+ALTER TABLE `users`
+    ADD COLUMN IF NOT EXISTS `api_token` VARCHAR(64) NULL,
+    ADD COLUMN IF NOT EXISTS `api_token_expires_at` DATETIME NULL,
+    ADD COLUMN IF NOT EXISTS `failed_login_attempts` INT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS `locked_until` DATETIME NULL;
+
+-- 13. Warehouse item/partition columns (the live dump has them; fresh
+--    installs from schema.sql did not). stock_receive() writes
+--    partition_code and unit_cost into wh_stock_batches, so both are
+--    required for a fresh install to receive stock at all.
+ALTER TABLE `wh_stock_items`
+    ADD COLUMN IF NOT EXISTS `department_scope` VARCHAR(20) NULL,
+    ADD COLUMN IF NOT EXISTS `partition_code` ENUM('finished_products','feed_nutrition','materials_supplies') NOT NULL DEFAULT 'finished_products';
+ALTER TABLE `wh_stock_batches`
+    ADD COLUMN IF NOT EXISTS `partition_code` ENUM('finished_products','feed_nutrition','materials_supplies') NOT NULL DEFAULT 'finished_products',
+    ADD COLUMN IF NOT EXISTS `unit_cost` DECIMAL(14,4) NOT NULL DEFAULT 0.0000;
+
+-- 14. Department material request status enum: add the two values the
+--    live dump already has and the code writes ('sent_to_department' on
+--    confirm-receipt, 'completed' on fulfil). MODIFY is idempotent.
+ALTER TABLE `dept_material_requests`
+    MODIFY `status` ENUM('pending','partially_issued','fulfilled','shortage_purchase_raised','sent_to_department','completed','rejected') NOT NULL DEFAULT 'pending';
+
+-- 15. fin_payslips: every column the payroll code writes.
+--    NOTE: remaining_balance must be a PLAIN column, not GENERATED:
+--    payroll_finalize(), add-bonus, recalculate and payroll_record_payment()
+--    all write it explicitly, and MariaDB rejects writes to a generated
+--    column — on DBs built from migration_v2 (or the live dump) those
+--    writes fatal. MODIFY converts a generated column to plain; on a
+--    plain column it is a no-op.
+ALTER TABLE `fin_payslips`
+    ADD COLUMN IF NOT EXISTS `daily_rate` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS `gross_pay` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS `allowances` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS `tax_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS `pension_employee` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS `pension_employer` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS `deductions` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS `total_paid` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS `remaining_balance` DECIMAL(12,2) NOT NULL DEFAULT 0.00;
+ALTER TABLE `fin_payslips`
+    MODIFY `remaining_balance` DECIMAL(12,2) NOT NULL DEFAULT 0.00;
 
 SET FOREIGN_KEY_CHECKS = 1;
