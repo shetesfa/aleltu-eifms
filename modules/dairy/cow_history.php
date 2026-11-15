@@ -91,7 +91,7 @@ switch ($tab) {
         $summaries = [
             'Total Breeding Events' => $totalRows,
             'AI Events'             => (int) db()->query("SELECT COUNT(*) FROM dairy_breeding_records WHERE cow_id = {$cowId} AND method = 'artificial_insemination'")->fetchColumn(),
-            'Natural Matings'       => (int) db()->query("SELECT COUNT(*) FROM dairy_breeding_records WHERE cow_id = {$cowId} AND method = 'natural_bull'")->fetchColumn(),
+            'Natural Matings'       => (int) db()->query("SELECT COUNT(*) FROM dairy_breeding_records WHERE cow_id = {$cowId} AND method = 'natural'")->fetchColumn(),
             'Successful Calvings'   => (int) db()->query("SELECT COUNT(*) FROM dairy_calving_records WHERE dam_id = {$cowId} AND outcome IN ('single_live','twins_live')")->fetchColumn(),
         ];
         break;
