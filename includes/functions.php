@@ -1941,6 +1941,24 @@ function setting_set(string $key, string $value): void
         ->execute([$key, $value]);
 }
 
+/**
+ * Reads a site setting for code that runs before a full page context
+ * exists (locale/theme). Returns null when the settings table or the key
+ * is missing instead of throwing, so a fresh/migrating install never
+ * breaks. Result is cached per request.
+ */
+function site_setting(string $key): ?string
+{
+    static $cache = [];
+    if (array_key_exists($key, $cache)) return $cache[$key];
+    try {
+        $cache[$key] = setting_get($key);
+    } catch (Throwable) {
+        $cache[$key] = null;
+    }
+    return $cache[$key];
+}
+
 /* ===================== FISH FARM (SAD section 5.3) ===================== */
 
 function pond_register(string $name, ?float $areaSqM): int
@@ -2876,7 +2894,11 @@ const SUPPORTED_LOCALES = ['en' => 'English', 'am' => 'አማርኛ (Amharic)'];
 function current_locale(): string
 {
     $user = current_user();
-    $locale = $user['locale'] ?? ($_SESSION['guest_locale'] ?? 'en');
+    // Precedence: explicit user preference -> guest choice (?lang=) ->
+    // site default_locale setting -> English. (Audit 2026-11-15: the
+    // setting was write-only; it is now the fallback for anyone without
+    // an explicit preference.)
+    $locale = $user['locale'] ?? ($_SESSION['guest_locale'] ?? site_setting('default_locale') ?? 'en');
     return array_key_exists($locale, SUPPORTED_LOCALES) ? $locale : 'en';
 }
 
@@ -2900,8 +2922,16 @@ function t(string $key, ?string $fallback = null): string
         $pathEn = __DIR__ . '/lang/en.php';
         $cache['en'] = file_exists($pathEn) ? require $pathEn : [];
     }
+    if (!isset($cache['am'])) {
+        $pathAm = __DIR__ . '/lang/am.php';
+        $cache['am'] = file_exists($pathAm) ? require $pathAm : [];
+    }
 
-    return $cache[$locale][$key] ?? $cache['en'][$key] ?? $fallback ?? $key;
+    // Fallback chain: active locale -> English -> Amharic -> explicit
+    // fallback -> raw key. 121 keys exist only in am.php, so a missing
+    // English translation now shows the Amharic string instead of the
+    // raw key (audit 2026-11-15).
+    return $cache[$locale][$key] ?? $cache['en'][$key] ?? $cache['am'][$key] ?? $fallback ?? $key;
 }
 
 function set_user_locale(int $userId, string $locale): void
@@ -2921,7 +2951,12 @@ function set_user_locale(int $userId, string $locale): void
 function current_theme(): string
 {
     $user = current_user();
-    $theme = $user['theme'] ?? ($_SESSION['guest_theme'] ?? 'light');
+    // Precedence: explicit user preference -> guest choice (?theme=) ->
+    // site default_theme setting -> light. (Audit 2026-11-15: the setting
+    // was write-only. Note: users.theme defaults to 'light' in the DB,
+    // so for logged-in users the setting only governs rows without an
+    // explicit theme; guests always follow it.)
+    $theme = $user['theme'] ?? ($_SESSION['guest_theme'] ?? site_setting('default_theme') ?? 'light');
     return $theme === 'dark' ? 'dark' : 'light';
 }
 
@@ -2936,30 +2971,60 @@ function set_user_theme(int $userId, string $theme): void
 
 /* ===================== DEMO DATA SEEDER (admin-only, idempotent) ===================== */
 
+function seed_demo_data(): array
+{
+    // The whole seed runs in ONE transaction: a failure anywhere rolls
+    // everything back instead of leaving a half-seeded database
+    // (audit 2026-11-15: the old seeder died at the poultry-flock INSERT
+    // and left 11 users + 5 cows + 10 sessions committed, nothing after).
+    $ownsTx = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $ownsTx = true;
+    }
+    try {
+        $log = seed_demo_data_run();
+        if ($ownsTx && db()->inTransaction()) {
+            db()->commit();
+        }
+    } catch (Throwable $e) {
+        if ($ownsTx && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+    return $log;
+}
+
 /**
- * Generates realistic sample data across every module so a new install
- * isn't an empty shell. Safe to run more than once — everything checks
- * for existing records first and skips what's already there, so re-running
- * just fills in whatever's still missing rather than creating duplicates.
+ * The actual demo seeding, called inside seed_demo_data()'s transaction.
+ * Safe to run more than once — everything checks for existing records
+ * first and skips what's already there, so re-running just fills in
+ * whatever's still missing rather than creating duplicates.
  *
  * Returns a log of what it did, so the admin page can show a summary.
  */
-function seed_demo_data(): array
+function seed_demo_data_run(): array
 {
     $log = [];
 
     // ---------- Demo user accounts, one per role ----------
+    // Department codes match the 9 departments (MGMT, DAIRY, POULTRY,
+    // FISH, FEED, VET, WH, FIN, HR). There is no separate distribution
+    // department: the distribution officer belongs to WH (Warehouse &
+    // Logistics). The old seeder assigned MGMT to six of these roles
+    // (audit 2026-11-15).
     $demoUsers = [
         ['manager@aleltufarm.com', 'Almaz Girma', 'general_manager', 'MGMT'],
         ['dairy@aleltufarm.com', 'Tesfaye Bekele', 'dairy_manager', 'DAIRY'],
-        ['poultry@aleltufarm.com', 'Hana Worku', 'poultry_manager', 'MGMT'],
-        ['fish@aleltufarm.com', 'Dawit Alemu', 'fish_manager', 'MGMT'],
-        ['feed@aleltufarm.com', 'Selamawit Tadesse', 'feed_production_manager', 'MGMT'],
-        ['vet@aleltufarm.com', 'Dr. Yonas Girma', 'veterinary_officer', 'MGMT'],
+        ['poultry@aleltufarm.com', 'Hana Worku', 'poultry_manager', 'POULTRY'],
+        ['fish@aleltufarm.com', 'Dawit Alemu', 'fish_manager', 'FISH'],
+        ['feed@aleltufarm.com', 'Selamawit Tadesse', 'feed_production_manager', 'FEED'],
+        ['vet@aleltufarm.com', 'Dr. Yonas Girma', 'veterinary_officer', 'VET'],
         ['warehouse@aleltufarm.com', 'Meron Assefa', 'warehouse_keeper', 'WH'],
         ['distribution@aleltufarm.com', 'Getachew Alemu', 'distribution_officer', 'WH'],
-        ['finance@aleltufarm.com', 'Rahel Tesfaye', 'finance_officer', 'MGMT'],
-        ['hr@aleltufarm.com', 'Bethlehem Kebede', 'hr_officer', 'MGMT'],
+        ['finance@aleltufarm.com', 'Rahel Tesfaye', 'finance_officer', 'FIN'],
+        ['hr@aleltufarm.com', 'Bethlehem Kebede', 'hr_officer', 'HR'],
         ['milker@aleltufarm.com', 'Abebe Chala', 'field_worker', 'DAIRY'],
     ];
     $demoPassword = password_hash('Demo@2026', PASSWORD_DEFAULT);
@@ -2973,7 +3038,9 @@ function seed_demo_data(): array
             ->execute([$name, $email, $demoPassword, $roleId, $deptId ?: null]);
         $created++;
     }
-    $log[] = "Users: created {$created} demo accounts (all use password: Demo@2026)";
+    // The demo password value is deliberately NOT printed here (it used to
+    // be). Ask the system administrator for it.
+    $log[] = "Users: created {$created} demo accounts (password: ask the system administrator)";
 
     // ---------- Dairy: cow groups + cows ----------
     $groupId = db()->query("SELECT id FROM dairy_cow_groups WHERE name = 'Milking Herd A'")->fetchColumn();
@@ -3027,7 +3094,9 @@ function seed_demo_data(): array
     }
     $flockId = db()->query("SELECT id FROM poultry_flocks WHERE poultry_house_id = {$houseId} AND status = 'active'")->fetchColumn();
     if (!$flockId) {
-        db()->prepare("INSERT INTO poultry_flocks (poultry_house_id, breed, stocking_date, initial_population, current_count, status) VALUES (?, 'Layer Hybrid', DATE_SUB(CURDATE(), INTERVAL 90 DAY), 1800, 'active')")
+        // 6 columns, 6 values: initial_population AND current_count both
+        // start at 1,800 (the old INSERT had 5 values and always fataled).
+        db()->prepare("INSERT INTO poultry_flocks (poultry_house_id, breed, stocking_date, initial_population, current_count, status) VALUES (?, 'Layer Hybrid', DATE_SUB(CURDATE(), INTERVAL 90 DAY), 1800, 1800, 'active')")
             ->execute([$houseId]);
         $flockId = db()->lastInsertId();
     }
@@ -3065,41 +3134,62 @@ function seed_demo_data(): array
     }
 
     // ---------- Warehouse: real stock so the dashboard/reports aren't empty ----------
-    $milkWh = db()->query("SELECT id FROM wh_warehouses WHERE name = 'Milk Cold Store'")->fetchColumn();
-    $milkItem = db()->query("SELECT id FROM wh_stock_items WHERE sku = 'MILK-RAW'")->fetchColumn();
-    $feedWh = db()->query("SELECT id FROM wh_warehouses WHERE name = 'Feed Store'")->fetchColumn();
-    $feedItem = db()->query("SELECT id FROM wh_stock_items WHERE sku = 'FEED-LAYER'")->fetchColumn();
+    // Lookups are tolerant: the live DB uses SKUs like FEED-LAYER-01 and
+    // an Amharic warehouse name, while a fresh install seeds FEED-LAYER /
+    // 'Feed Store'. Try the exact value first, then a prefix match, then
+    // any warehouse at all. If nothing matches, skip with a log line —
+    // never call stock_receive(0, 0, ...) (audit 2026-11-15).
+    $feedWh = db()->query("SELECT id FROM wh_warehouses WHERE name = 'Feed Store'")->fetchColumn()
+        ?: db()->query("SELECT id FROM wh_warehouses ORDER BY id LIMIT 1")->fetchColumn();
+    $feedItem = db()->query("SELECT id FROM wh_stock_items WHERE sku = 'FEED-LAYER'")->fetchColumn()
+        ?: db()->query("SELECT id FROM wh_stock_items WHERE sku LIKE 'FEED-LAYER%' ORDER BY id LIMIT 1")->fetchColumn();
 
-    $existingFeedStock = stock_current((int) $feedWh, (int) $feedItem);
-    if ($existingFeedStock < 100) {
-        stock_receive((int) $feedWh, (int) $feedItem, 500, 'purchase_order', null, 'externally_purchased');
-        $log[] = 'Warehouse: received 500kg Layer Mash into Feed Store';
-    }
-    // Deliberately set a minimum-stock rule the current level is BELOW, so the
-    // notification bell has something real to show right after seeding.
-    $ruleExists = db()->query("SELECT id FROM wh_minimum_stock_rules WHERE warehouse_id = {$feedWh} AND stock_item_id = {$feedItem}")->fetchColumn();
-    if (!$ruleExists) {
-        db()->prepare("INSERT INTO wh_minimum_stock_rules (warehouse_id, stock_item_id, minimum_threshold) VALUES (?, ?, 1000)")
-            ->execute([$feedWh, $feedItem]);
-        // Trigger the check now so the alert actually fires immediately, not on the next stock movement.
-        check_minimum_stock((int) $feedWh, (int) $feedItem);
-        $log[] = 'Warehouse: set a minimum-stock rule (1000kg) that current stock is below — triggered a real low-stock notification';
+    if ($feedWh && $feedItem) {
+        $existingFeedStock = stock_current((int) $feedWh, (int) $feedItem);
+        if ($existingFeedStock < 100) {
+            stock_receive((int) $feedWh, (int) $feedItem, 500, 'purchase_order', null, 'externally_purchased');
+            $log[] = 'Warehouse: received 500kg Layer Mash into Feed Store';
+        }
+        // Deliberately set a minimum-stock rule the current level is BELOW, so the
+        // notification bell has something real to show right after seeding.
+        $ruleExists = db()->query("SELECT id FROM wh_minimum_stock_rules WHERE warehouse_id = {$feedWh} AND stock_item_id = {$feedItem}")->fetchColumn();
+        if (!$ruleExists) {
+            db()->prepare("INSERT INTO wh_minimum_stock_rules (warehouse_id, stock_item_id, minimum_threshold) VALUES (?, ?, 1000)")
+                ->execute([$feedWh, $feedItem]);
+            // Trigger the check now so the alert actually fires immediately, not on the next stock movement.
+            check_minimum_stock((int) $feedWh, (int) $feedItem);
+            $log[] = 'Warehouse: set a minimum-stock rule (1000kg) that current stock is below — triggered a real low-stock notification';
+        }
+    } else {
+        $log[] = 'Warehouse: skipped stock seeding (no warehouse or FEED-LAYER item found)';
     }
 
-    // ---------- Employees (incl. a driver) ----------
-    $mgmtDept = db()->query("SELECT id FROM departments WHERE code = 'MGMT'")->fetchColumn();
+    // ---------- Employees (linked to their demo users) ----------
+    // The old seeder put every employee in MGMT with no user_id link,
+    // which is why self-service showed the wrong employee (audit
+    // 2026-11-15). Each seeded employee is now linked to its demo user
+    // by email, in the correct department, with a fixed starting salary
+    // (not a random one).
     $employeeSeed = [
-        ['EMP-101', 'Abebe Chala', 'Milker', false],
-        ['EMP-102', 'Getachew Alemu', 'Driver', true],
-        ['EMP-103', 'Meron Assefa', 'Warehouse Assistant', false],
+        // [number, name, title, dept_code, demo_user_email, is_driver, base_salary]
+        ['EMP-101', 'Abebe Chala', 'Milker', 'DAIRY', 'milker@aleltufarm.com', false, 6000],
+        ['EMP-102', 'Getachew Alemu', 'Driver', 'WH', 'distribution@aleltufarm.com', true, 5500],
+        ['EMP-103', 'Meron Assefa', 'Warehouse Assistant', 'WH', 'warehouse@aleltufarm.com', false, 5000],
     ];
     $empCreated = 0;
-    foreach ($employeeSeed as [$num, $name, $title, $isDriver]) {
-        $exists = db()->query("SELECT id FROM employees WHERE employee_number = " . db()->quote($num))->fetchColumn();
-        if (!$exists) {
-            db()->prepare("INSERT INTO employees (department_id, employee_number, full_name, job_title, base_salary, is_driver, status) VALUES (?, ?, ?, ?, ?, ?, 'active')")
-                ->execute([$mgmtDept, $num, $name, $title, mt_rand(4500, 7000), $isDriver ? 1 : 0]);
+    foreach ($employeeSeed as [$num, $name, $title, $deptCode, $userEmail, $isDriver, $salary]) {
+        $deptId = db()->query("SELECT id FROM departments WHERE code = " . db()->quote($deptCode))->fetchColumn();
+        $userId = db()->query("SELECT id FROM users WHERE email = " . db()->quote($userEmail))->fetchColumn();
+        $existing = db()->query("SELECT id, user_id FROM employees WHERE employee_number = " . db()->quote($num))->fetch();
+        if (!$existing) {
+            db()->prepare("INSERT INTO employees (user_id, department_id, employee_number, full_name, job_title, base_salary, is_driver, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')")
+                ->execute([$userId ?: null, $deptId ?: null, $num, $name, $title, $salary, $isDriver ? 1 : 0]);
             $empCreated++;
+        } elseif (empty($existing['user_id']) && $userId) {
+            // Repair rows planted by the old seeder without a link.
+            db()->prepare("UPDATE employees SET user_id = ?, department_id = ? WHERE id = ?")
+                ->execute([$userId, $deptId ?: null, $existing['id']]);
+            $log[] = "Employees: linked {$num} to its demo user";
         }
     }
     $log[] = "Employees: {$empCreated} employees registered (including 1 driver for Distribution)";
@@ -3111,30 +3201,12 @@ function seed_demo_data(): array
         $log[] = 'Distribution: 1 vehicle registered';
     }
 
-    // ---------- Finance: opening cash flow entries + a sample expense ----------
-    $txExists = (int) db()->query("SELECT COUNT(*) FROM fin_transactions")->fetchColumn();
-    if ($txExists === 0) {
-        for ($i = 5; $i >= 0; $i--) {
-            $date = date('Y-m-01', strtotime("-{$i} months"));
-            db()->prepare("INSERT INTO fin_transactions (direction, amount, unit_tag, category, transaction_date, description, recorded_by) VALUES ('inflow', ?, 'general_overhead', 'sale_settlement', ?, 'Monthly POS settlement', 1)")
-                ->execute([mt_rand(40000, 70000), $date]);
-            db()->prepare("INSERT INTO fin_transactions (direction, amount, unit_tag, category, transaction_date, description, recorded_by) VALUES ('outflow', ?, 'general_overhead', 'expense', ?, 'Monthly operating costs', 1)")
-                ->execute([mt_rand(15000, 30000), $date]);
-        }
-        $log[] = 'Finance: 6 months of sample cash flow entries created (for the Reports chart)';
-    }
-    $expenseExists = (int) db()->query("SELECT COUNT(*) FROM fin_expenses")->fetchColumn();
-    if ($expenseExists === 0) {
-        $sampleExpenses = [
-            ['dairy', 'Veterinary supplies', 3200], ['warehouse', 'Fuel', 1800],
-            ['general_overhead', 'Repairs', 950], ['poultry', 'Feed additives', 2100],
-        ];
-        foreach ($sampleExpenses as [$unit, $category, $amount]) {
-            db()->prepare("INSERT INTO fin_expenses (unit_tag, category, amount, expense_date, requested_by, status) VALUES (?, ?, ?, CURDATE(), 1, 'approved')")
-                ->execute([$unit, $category, $amount]);
-        }
-        $log[] = 'Finance: 4 sample approved expenses created (for the Reports chart)';
-    }
+    // ---------- Finance: deliberately NOT seeded ----------
+    // The old seeder invented 6 months of random cash-flow entries and
+    // 4 pre-approved sample expenses. Demo data must not invent finance
+    // numbers (audit 2026-11-15): a finance ledger must only ever hold
+    // real transactions, so this section creates nothing.
+    $log[] = 'Finance: no sample ledger entries created (demo data must not invent finance numbers)';
 
     return $log;
 }
@@ -4136,13 +4208,77 @@ function require_permission(string $module, string $actionCode): void
     }
 }
 
+/* ===================== LOGIN LOCKOUT ===================== */
+// Brute-force protection (audit 2026-11-15, Batch 2): 5 failed password
+// attempts lock an account for 15 minutes, on the web login AND the API
+// login. Columns live in users (migration 014 + schema.sql):
+// failed_login_attempts, locked_until.
+
+function login_is_locked(array $user): bool
+{
+    $lockedUntil = $user['locked_until'] ?? null;
+    if (empty($lockedUntil)) return false;
+    if (strtotime((string)$lockedUntil) > time()) return true;
+    // Lock expired: clear it so the next attempt starts fresh.
+    login_reset_failed_attempts((int)$user['id']);
+    return false;
+}
+
+function login_record_failed_attempt(int $userId): void
+{
+    try {
+        db()->prepare("UPDATE users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = ?")->execute([$userId]);
+        $attempts = (int)db()->query("SELECT failed_login_attempts FROM users WHERE id = " . $userId)->fetchColumn();
+        if ($attempts >= 5) {
+            db()->prepare("UPDATE users SET failed_login_attempts = 0, locked_until = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?")->execute([$userId]);
+        }
+    } catch (Throwable) {
+        // Never block a login over lockout bookkeeping failing.
+    }
+}
+
+function login_reset_failed_attempts(int $userId): void
+{
+    try {
+        db()->prepare("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?")->execute([$userId]);
+    } catch (Throwable) {
+    }
+}
+
 /* ===================== API HELPERS ===================== */
+
+/**
+ * CORS for the API (audit 2026-11-15, Batch 2): the API used to answer
+ * Access-Control-Allow-Origin: * on every response. It now echoes the
+ * request Origin ONLY when it is listed in the `api_allowed_origins`
+ * setting (comma-separated origins). Default (empty setting): same-origin
+ * only — no ACAO header is sent, so browsers block cross-origin calls.
+ * Safe for every caller that exists today: the web UI uses same-origin
+ * session auth, the only documented future client is a native Flutter
+ * app (CORS does not apply to native apps), and no in-repo code calls
+ * the API cross-origin. A future Flutter-web deployment must add its
+ * origin to the setting.
+ */
+function api_cors_headers(): void
+{
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    if ($origin === '') return;
+    try {
+        $allowed = array_filter(array_map('trim', explode(',', (string)(setting_get('api_allowed_origins') ?? ''))));
+    } catch (Throwable) {
+        $allowed = [];
+    }
+    if (in_array($origin, $allowed, true)) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Vary: Origin');
+    }
+}
 
 function api_json(mixed $data, int $status = 200): never
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
-    header('Access-Control-Allow-Origin: *');
+    api_cors_headers();
     header('Access-Control-Allow-Headers: Authorization, Content-Type');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
@@ -4166,10 +4302,18 @@ function api_require_auth(): array
         return $user;
     }
     $token = $m[1];
-    $stmt = db()->prepare("SELECT u.*, r.name AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE u.api_token = ? AND u.is_active = 1");
+    $stmt = db()->prepare("SELECT u.*, r.name AS role, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.api_token = ? AND u.is_active = 1 AND (u.api_token_expires_at IS NULL OR u.api_token_expires_at > NOW())");
     $stmt->execute([$token]);
     $user = $stmt->fetch();
     if (!$user) api_error('Invalid or expired token', 401);
+    // Make Bearer callers visible to has_permission(), which reads the
+    // session user: store a sanitised copy of the token user in the
+    // session (same fields attempt_login() stores). The token itself,
+    // the password hash and the 2FA secret never enter the session.
+    require_once __DIR__ . '/auth.php';
+    if (session_status() === PHP_SESSION_NONE) session_start();
+    unset($user['password'], $user['api_token'], $user['api_token_expires_at'], $user['two_factor_secret']);
+    $_SESSION['user'] = $user;
     return $user;
 }
 
@@ -4203,7 +4347,7 @@ function notify_role(string $roleSlug, string $title, string $message, string $u
  * Table: audit_log (id, user_id, module, action, record_table, record_id, details, ip_address, created_at)
  * If the table doesn't exist yet, silently skips — never crashes the caller.
  */
-function log_activity(string $module, string $action, string $tableName, int $recordId = 0, string $details = ''): void
+function log_activity(string $module, string $action, string $tableName, int $recordId = 0, string $details = '', ?int $actorId = null): void
 {
     try {
         // Login stores the user in the 'user' session key (see
@@ -4211,8 +4355,9 @@ function log_activity(string $module, string $action, string $tableName, int $re
         // never set, so every audit row used to insert user_id=0, violate
         // the users FK and be silently swallowed by the catch below — the
         // Audit Log was always empty.
+        // $actorId lets API callers (no session user) record who acted.
         $cu = (function_exists('current_user') ? current_user() : null);
-        $userId = (int)($cu['id'] ?? 0);
+        $userId = $actorId ?? (int)($cu['id'] ?? 0);
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'cli';
         $stmt = db()->prepare(
             "INSERT INTO audit_log (user_id, module, action, record_table, record_id, details, ip_address, created_at)
